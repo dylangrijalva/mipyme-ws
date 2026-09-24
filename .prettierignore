@@ -1,0 +1,33 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+build
+out
+coverage
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+
+# Lock files (optional)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Generated files
+*.min.js
+*.bundle.js
+
+# Framework / tooling
+.next
+.nuxt
+.svelte-kit
+.vercel
+
+# Misc
+.DS_Store

@@ -1,0 +1,3462 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Facilito API",
+    "version": "1.0.0",
+    "description": "The Facilito API lets you manage your business catalog, customers, staff, locations, inventory, and sales. It is organized around REST, accepts JSON request bodies, and returns JSON responses with standard HTTP methods and status codes.\n\nSend a bearer access token in the Authorization header with each request. Your authenticated account identifies the merchant whose data you can access and the permissions available to you."
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "AccountType": {
+        "description": "The role of an account within Facilito. Identifies a merchant owner, a staff member, or an internal account.",
+        "examples": ["staff"],
+        "type": "string",
+        "enum": ["owner", "staff", "internal"]
+      },
+      "BusinessError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "A stable code that identifies the failure. Use this value for programmatic error handling.",
+            "examples": ["stock_insufficient"],
+            "type": "string",
+            "enum": [
+              "internal_server_error",
+              "rate_limit_exceeded",
+              "validation_error",
+              "conflict_error",
+              "resource_not_found",
+              "invalid_oauth_token",
+              "sync_token_invalid",
+              "concurrent_update_conflict",
+              "collection_name_already_exists",
+              "sku_already_exists",
+              "barcode_already_exists",
+              "price_below_unit_cost",
+              "payment_insufficient",
+              "stock_insufficient",
+              "location_limit_exceeded"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "A human-readable explanation of the failure. Use `code`, rather than the message wording, to identify the error.",
+            "examples": ["Not enough stock for East Blue Tangerines at Water 7."]
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "The code that identifies this individual issue.",
+                  "examples": ["stock_insufficient"]
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable explanation of this individual issue.",
+                  "examples": ["Requested 20 units; 18 are available."]
+                },
+                "field": {
+                  "type": "string",
+                  "description": "The field associated with the issue, expressed as a dot-separated path that can include array indices. Omitted when the issue is not associated with a field.",
+                  "examples": ["lineItems.0.quantity"]
+                }
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false,
+              "examples": [
+                {
+                  "code": "stock_insufficient",
+                  "message": "Requested 20 units; 18 are available.",
+                  "field": "lineItems.0.quantity"
+                }
+              ]
+            },
+            "description": "The individual validation or business-rule issues associated with the failure. An empty array indicates that no further details are available.",
+            "examples": [
+              [
+                {
+                  "code": "stock_insufficient",
+                  "message": "Requested 20 units; 18 are available.",
+                  "field": "lineItems.0.quantity"
+                }
+              ]
+            ]
+          }
+        },
+        "required": ["code", "message", "details"],
+        "additionalProperties": false,
+        "description": "A failure caused by a business rule or an unsuccessful operation. Use `code` to identify the failure and `details` to inspect individual issues. The `FacilitoError` contract adds request and HTTP status information.",
+        "examples": [
+          {
+            "code": "stock_insufficient",
+            "message": "Not enough stock for East Blue Tangerines at Water 7.",
+            "details": [
+              {
+                "code": "stock_insufficient",
+                "message": "Requested 20 units; 18 are available.",
+                "field": "lineItems.0.quantity"
+              }
+            ]
+          }
+        ]
+      },
+      "BusinessType": {
+        "description": "The kind of business operated at a location, such as a restaurant, grocery store, or pharmacy.",
+        "examples": ["grocery_store"],
+        "type": "string",
+        "enum": [
+          "convenience_store",
+          "restaurant",
+          "coffee_shop",
+          "clothing_store",
+          "electronics_store",
+          "grocery_store",
+          "pharmacy",
+          "hardware_store",
+          "beauty_salon",
+          "bar",
+          "autoparts_store",
+          "sports_store",
+          "bookstore",
+          "jewelry_store",
+          "shoe_store",
+          "stationery_store",
+          "bakery",
+          "other"
+        ]
+      },
+      "ClerkAccount": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The account identifier assigned by the identity provider.",
+            "examples": ["user_nami_example"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The display name of the identity-provider account.",
+            "examples": ["Nami"]
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The email address of the identity-provider account. Returns `null` if none is recorded.",
+            "examples": ["nami@strawhatpirates.example.com"]
+          },
+          "pictureUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "The URL of the account profile image.",
+            "examples": ["https://strawhatpirates.example.com/avatars/nami.jpg"]
+          },
+          "publicMetadata": {
+            "type": "object",
+            "properties": {
+              "merchantId": {
+                "type": "string",
+                "description": "Merchant identifier.",
+                "examples": ["merch_000000000000000001"]
+              },
+              "employeeId": {
+                "type": "string",
+                "description": "Employee profile identifier.",
+                "examples": ["empl_0000000000000000001"]
+              },
+              "type": {
+                "$ref": "#/components/schemas/AccountType",
+                "description": "Category of this record.",
+                "examples": ["staff"]
+              }
+            },
+            "additionalProperties": false,
+            "description": "The merchant, employee, and account-role information attached to the identity-provider account. Each metadata field is optional.",
+            "examples": [
+              {
+                "merchantId": "merch_000000000000000001",
+                "employeeId": "empl_0000000000000000001",
+                "type": "staff"
+              }
+            ]
+          }
+        },
+        "required": ["id", "name", "email", "pictureUrl", "publicMetadata"],
+        "additionalProperties": false,
+        "description": "An account managed by the identity provider. Contains the account profile and public metadata that links the account to a Facilito merchant and employee.",
+        "examples": [
+          {
+            "id": "user_nami_example",
+            "name": "Nami",
+            "email": "nami@strawhatpirates.example.com",
+            "pictureUrl": "https://strawhatpirates.example.com/avatars/nami.jpg",
+            "publicMetadata": {
+              "merchantId": "merch_000000000000000001",
+              "employeeId": "empl_0000000000000000001",
+              "type": "staff"
+            }
+          }
+        ]
+      },
+      "Collection": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the collection.",
+            "examples": ["coll_0000000000000000001"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The display name of the collection.",
+            "examples": ["East Blue Provisions"]
+          },
+          "slug": {
+            "type": "string",
+            "description": "The URL-friendly name of the collection.",
+            "examples": ["east-blue-provisions"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the collection was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the collection was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": ["id", "name", "slug", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "description": "A group of related products in a merchant catalog. Use collections to organize products into categories, such as provisions or clothing. A product includes the identifier and name of its associated collection.",
+        "examples": [
+          {
+            "id": "coll_0000000000000000001",
+            "name": "East Blue Provisions",
+            "slug": "east-blue-provisions",
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "CountryIsoCode": {
+        "description": "A supported country code in lowercase ISO 3166-1 alpha-2 format. The value `zz` represents an unspecified country.",
+        "examples": ["ni"],
+        "type": "string",
+        "enum": [
+          "zz",
+          "ar",
+          "bo",
+          "br",
+          "bz",
+          "cl",
+          "co",
+          "cr",
+          "cu",
+          "do",
+          "ec",
+          "gt",
+          "hn",
+          "ht",
+          "mx",
+          "ni",
+          "pa",
+          "pe",
+          "pr",
+          "py",
+          "sv",
+          "uy",
+          "ve"
+        ]
+      },
+      "CurrencyCode": {
+        "description": "A supported currency code in lowercase ISO 4217 format. The value `xxx` represents an unspecified currency.",
+        "examples": ["nio"],
+        "type": "string",
+        "enum": [
+          "xxx",
+          "ars",
+          "bob",
+          "brl",
+          "bzd",
+          "clp",
+          "cop",
+          "crc",
+          "cup",
+          "dop",
+          "usd",
+          "gtq",
+          "hnl",
+          "htg",
+          "mxn",
+          "nio",
+          "pab",
+          "pen",
+          "pyg",
+          "uyu",
+          "ves"
+        ]
+      },
+      "CurrentUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the authenticated account.",
+            "examples": ["account_0000000000000001"]
+          },
+          "email": {
+            "type": "string",
+            "description": "The email address of the authenticated account.",
+            "examples": ["nami@strawhatpirates.example.com"]
+          },
+          "merchantId": {
+            "type": "string",
+            "description": "The identifier of the merchant associated with the authenticated account.",
+            "examples": ["merch_000000000000000001"]
+          },
+          "employeeId": {
+            "type": "string",
+            "description": "The identifier of the employee profile associated with the authenticated account.",
+            "examples": ["empl_0000000000000000001"]
+          },
+          "accountType": {
+            "$ref": "#/components/schemas/AccountType",
+            "description": "The role of the authenticated account within Facilito.",
+            "examples": ["staff"]
+          }
+        },
+        "required": ["id", "email", "merchantId", "employeeId", "accountType"],
+        "additionalProperties": false,
+        "description": "The authenticated account and its business context. Links the account to a merchant and an employee profile, and identifies its account role.",
+        "examples": [
+          {
+            "id": "account_0000000000000001",
+            "email": "nami@strawhatpirates.example.com",
+            "merchantId": "merch_000000000000000001",
+            "employeeId": "empl_0000000000000000001",
+            "accountType": "staff"
+          }
+        ]
+      },
+      "Customer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the customer.",
+            "examples": ["cust_0000000000000000001"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The display name of the customer.",
+            "examples": ["Trafalgar Law"]
+          },
+          "email": {
+            "type": ["string", "null"],
+            "description": "The email address of the customer. Returns `null` if none is recorded.",
+            "examples": ["law@heartpirates.example.com"]
+          },
+          "phone": {
+            "type": ["string", "null"],
+            "description": "The contact phone number of the customer. Returns `null` if none is recorded.",
+            "examples": [null]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the customer was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the customer was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": ["id", "name", "email", "phone", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "description": "A person or business that purchases from a merchant. Stores the customer name and contact details. Sales can reference the customer to identify who made a purchase.",
+        "examples": [
+          {
+            "id": "cust_0000000000000000001",
+            "name": "Trafalgar Law",
+            "email": "law@heartpirates.example.com",
+            "phone": null,
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "Decimal": {
+        "type": "string",
+        "pattern": "^\\d+(\\.\\d{1,2})?$",
+        "description": "A non-negative decimal value represented as a string, with up to two fractional digits. Used for amounts and rates without relying on binary floating-point representation. Zero is allowed.",
+        "examples": ["125.50"]
+      },
+      "PositiveDecimal": {
+        "$ref": "#/components/schemas/Decimal",
+        "allOf": [
+          {
+            "not": {
+              "pattern": "^0+(\\.0{1,2})?$"
+            }
+          }
+        ],
+        "description": "A decimal value greater than zero, represented as a string with up to two fractional digits. Uses the same format as `Decimal`, but excludes zero.",
+        "examples": ["8.00"]
+      },
+      "Employee": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the employee.",
+            "examples": ["empl_0000000000000000001"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The display name of the employee.",
+            "examples": ["Nami"]
+          },
+          "isOwner": {
+            "type": "boolean",
+            "description": "Whether the employee is the owner of the merchant.",
+            "examples": [false]
+          },
+          "posAccessStatus": {
+            "type": "string",
+            "enum": ["invited", "enabled", "disabled"],
+            "description": "The access state of the employee at the point of sale: invited, enabled, or disabled.",
+            "examples": ["enabled"]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "examples": ["checkout"]
+            },
+            "uniqueItems": true,
+            "description": "The distinct point-of-sale capabilities assigned to the employee.",
+            "examples": [["checkout", "manage_inventory"]]
+          },
+          "account": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the linked account.",
+                    "examples": ["account_0000000000000001"]
+                  },
+                  "email": {
+                    "type": "string",
+                    "description": "The email address of the linked account.",
+                    "examples": ["nami@strawhatpirates.example.com"]
+                  }
+                },
+                "required": ["id", "email"],
+                "additionalProperties": false,
+                "examples": [
+                  {
+                    "id": "account_0000000000000001",
+                    "email": "nami@strawhatpirates.example.com"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The sign-in account linked to the employee. Returns `null` if no account is linked.",
+            "examples": [
+              {
+                "id": "account_0000000000000001",
+                "email": "nami@strawhatpirates.example.com"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the employee was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the employee was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": ["id", "name", "isOwner", "posAccessStatus", "permissions", "account", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "description": "A staff member associated with a merchant. Describes their ownership status, point-of-sale access, permissions, and linked sign-in account. Sales, purchase orders, and stock records reference employees to identify who recorded an operation.",
+        "examples": [
+          {
+            "id": "empl_0000000000000000001",
+            "name": "Nami",
+            "isOwner": false,
+            "posAccessStatus": "enabled",
+            "permissions": ["checkout", "manage_inventory"],
+            "account": {
+              "id": "account_0000000000000001",
+              "email": "nami@strawhatpirates.example.com"
+            },
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "FacilitoError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "A stable code that identifies the failure. Use this value for programmatic error handling.",
+            "examples": ["stock_insufficient"],
+            "type": "string",
+            "enum": [
+              "internal_server_error",
+              "rate_limit_exceeded",
+              "validation_error",
+              "conflict_error",
+              "resource_not_found",
+              "invalid_oauth_token",
+              "sync_token_invalid",
+              "concurrent_update_conflict",
+              "collection_name_already_exists",
+              "sku_already_exists",
+              "barcode_already_exists",
+              "price_below_unit_cost",
+              "payment_insufficient",
+              "stock_insufficient",
+              "location_limit_exceeded"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "A human-readable explanation of the failure. Use `code`, rather than the message wording, to identify the error.",
+            "examples": ["Not enough stock for East Blue Tangerines at Water 7."]
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "The code that identifies this individual issue.",
+                  "examples": ["stock_insufficient"]
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable explanation of this individual issue.",
+                  "examples": ["Requested 20 units; 18 are available."]
+                },
+                "field": {
+                  "type": "string",
+                  "description": "The field associated with the issue, expressed as a dot-separated path that can include array indices. Omitted when the issue is not associated with a field.",
+                  "examples": ["lineItems.0.quantity"]
+                }
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false,
+              "examples": [
+                {
+                  "code": "stock_insufficient",
+                  "message": "Requested 20 units; 18 are available.",
+                  "field": "lineItems.0.quantity"
+                }
+              ]
+            },
+            "description": "The individual validation or business-rule issues associated with the failure. An empty array indicates that no further details are available.",
+            "examples": [
+              [
+                {
+                  "code": "stock_insufficient",
+                  "message": "Requested 20 units; 18 are available.",
+                  "field": "lineItems.0.quantity"
+                }
+              ]
+            ]
+          },
+          "requestId": {
+            "type": "string",
+            "description": "The identifier of the request associated with the error. Use this value when investigating a failed request.",
+            "examples": ["req_00000000000000000001"]
+          },
+          "status": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "The HTTP status code associated with the error.",
+            "examples": [400]
+          }
+        },
+        "required": ["code", "message", "details", "requestId", "status"],
+        "additionalProperties": false,
+        "description": "An error associated with an API request. Contains the HTTP status, request identifier, and business error details. Use `code` to handle the failure in your application and `requestId` to identify the request when investigating it.",
+        "examples": [
+          {
+            "code": "stock_insufficient",
+            "message": "Not enough stock for East Blue Tangerines at Water 7.",
+            "details": [
+              {
+                "code": "stock_insufficient",
+                "message": "Requested 20 units; 18 are available.",
+                "field": "lineItems.0.quantity"
+              }
+            ],
+            "requestId": "req_00000000000000000001",
+            "status": 400
+          }
+        ]
+      },
+      "InventoryChangeType": {
+        "description": "The kind of entry in stock history. A `movement` records a relative quantity change; a `physical_count` records an observed absolute quantity.",
+        "examples": ["movement"],
+        "type": "string",
+        "enum": ["movement", "physical_count"]
+      },
+      "InventoryChange": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "The identifier of the inventory movement.",
+                "examples": ["invm_0000000000000000001"]
+              },
+              "variantId": {
+                "type": "string",
+                "description": "The identifier of the product variant associated with the stock entry.",
+                "examples": ["var_00000000000000000001"]
+              },
+              "locationId": {
+                "type": "string",
+                "description": "The identifier of the location associated with the stock entry.",
+                "examples": ["loc_00000000000000000001"]
+              },
+              "referenceId": {
+                "type": ["string", "null"],
+                "description": "The identifier of the related business record, such as a sale or purchase order. Returns `null` when no related record is associated.",
+                "examples": ["sale_0000000000000000001"]
+              },
+              "reason": {
+                "$ref": "#/components/schemas/InventoryMovementReason",
+                "description": "The business reason for the inventory movement.",
+                "examples": ["sale"]
+              },
+              "fromState": {
+                "$ref": "#/components/schemas/InventoryState",
+                "description": "The inventory state from which the stock moved.",
+                "examples": ["in_stock"]
+              },
+              "toState": {
+                "$ref": "#/components/schemas/InventoryState",
+                "description": "The inventory state to which the stock moved.",
+                "examples": ["sold"]
+              },
+              "quantityDelta": {
+                "type": "number",
+                "description": "The signed change in stock quantity. Positive values add stock; negative values remove stock.",
+                "examples": [-2]
+              },
+              "unitCost": {
+                "$ref": "#/components/schemas/Decimal",
+                "description": "The cost per unit captured for the movement, expressed as a decimal string.",
+                "examples": ["80.00"]
+              },
+              "createdBy": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the employee.",
+                    "examples": ["empl_0000000000000000001"]
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The display name of the employee.",
+                    "examples": ["Nami"]
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false,
+                "description": "The employee who recorded the stock entry.",
+                "examples": [
+                  {
+                    "id": "empl_0000000000000000001",
+                    "name": "Nami"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The date and time assigned to the stock event, in RFC 3339 format.",
+                "examples": ["2026-09-23T09:00:00.000Z"]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The date and time when the inventory movement was created, in RFC 3339 format.",
+                "examples": ["2026-09-23T09:00:00.000Z"]
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The date and time when the inventory movement was last updated, in RFC 3339 format.",
+                "examples": ["2026-09-23T09:00:00.000Z"]
+              },
+              "type": {
+                "type": "string",
+                "const": "movement",
+                "description": "Identifies this stock-history entry as `movement`.",
+                "examples": ["movement"]
+              }
+            },
+            "required": [
+              "id",
+              "variantId",
+              "locationId",
+              "referenceId",
+              "reason",
+              "fromState",
+              "toState",
+              "quantityDelta",
+              "unitCost",
+              "createdBy",
+              "occurredAt",
+              "createdAt",
+              "updatedAt",
+              "type"
+            ],
+            "additionalProperties": false,
+            "examples": [
+              {
+                "id": "invm_0000000000000000001",
+                "variantId": "var_00000000000000000001",
+                "locationId": "loc_00000000000000000001",
+                "referenceId": "sale_0000000000000000001",
+                "reason": "sale",
+                "fromState": "in_stock",
+                "toState": "sold",
+                "quantityDelta": -2,
+                "unitCost": "80.00",
+                "createdBy": {
+                  "id": "empl_0000000000000000001",
+                  "name": "Nami"
+                },
+                "occurredAt": "2026-09-23T09:00:00.000Z",
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z",
+                "type": "movement"
+              }
+            ],
+            "description": "A change to the stock of a product variant at a location. Records the quantity delta, inventory states, unit cost, and employee responsible for the entry. A reference identifier can link the movement to a related sale or purchase order."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "The identifier of the physical count.",
+                "examples": ["inv_pct_0000000000000001"]
+              },
+              "variantId": {
+                "type": "string",
+                "description": "The identifier of the product variant associated with the stock entry.",
+                "examples": ["var_00000000000000000001"]
+              },
+              "locationId": {
+                "type": "string",
+                "description": "The identifier of the location associated with the stock entry.",
+                "examples": ["loc_00000000000000000001"]
+              },
+              "quantity": {
+                "type": "number",
+                "description": "The absolute number of units observed during the physical count.",
+                "examples": [18]
+              },
+              "createdBy": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the employee.",
+                    "examples": ["empl_0000000000000000001"]
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The display name of the employee.",
+                    "examples": ["Nami"]
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false,
+                "description": "The employee who recorded the stock entry.",
+                "examples": [
+                  {
+                    "id": "empl_0000000000000000001",
+                    "name": "Nami"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The date and time of the physical count, in RFC 3339 format.",
+                "examples": ["2026-09-23T09:00:00.000Z"]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The date and time when the physical count was created, in RFC 3339 format.",
+                "examples": ["2026-09-23T09:00:00.000Z"]
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The date and time when the physical count was last updated, in RFC 3339 format.",
+                "examples": ["2026-09-23T09:00:00.000Z"]
+              },
+              "type": {
+                "type": "string",
+                "const": "physical_count",
+                "description": "Identifies this stock-history entry as `physical_count`.",
+                "examples": ["physical_count"]
+              }
+            },
+            "required": [
+              "id",
+              "variantId",
+              "locationId",
+              "quantity",
+              "createdBy",
+              "occurredAt",
+              "createdAt",
+              "updatedAt",
+              "type"
+            ],
+            "additionalProperties": false,
+            "examples": [
+              {
+                "id": "inv_pct_0000000000000001",
+                "variantId": "var_00000000000000000001",
+                "locationId": "loc_00000000000000000001",
+                "quantity": 18,
+                "createdBy": {
+                  "id": "empl_0000000000000000001",
+                  "name": "Nami"
+                },
+                "occurredAt": "2026-09-23T09:00:00.000Z",
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z",
+                "type": "physical_count"
+              }
+            ],
+            "description": "The quantity of a product variant observed during a stock count at a location. Records an absolute quantity together with the employee and time of the count."
+          }
+        ],
+        "description": "An entry in the stock history of a product variant at a location. Read `type` to determine whether the entry contains an inventory movement or a physical count. Movements describe quantity changes; physical counts describe observed quantities.",
+        "examples": [
+          {
+            "id": "invm_0000000000000000001",
+            "variantId": "var_00000000000000000001",
+            "locationId": "loc_00000000000000000001",
+            "referenceId": "sale_0000000000000000001",
+            "reason": "sale",
+            "fromState": "in_stock",
+            "toState": "sold",
+            "quantityDelta": -2,
+            "unitCost": "80.00",
+            "createdBy": {
+              "id": "empl_0000000000000000001",
+              "name": "Nami"
+            },
+            "occurredAt": "2026-09-23T09:00:00.000Z",
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z",
+            "type": "movement"
+          },
+          {
+            "id": "inv_pct_0000000000000001",
+            "variantId": "var_00000000000000000001",
+            "locationId": "loc_00000000000000000001",
+            "quantity": 18,
+            "createdBy": {
+              "id": "empl_0000000000000000001",
+              "name": "Nami"
+            },
+            "occurredAt": "2026-09-23T09:00:00.000Z",
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z",
+            "type": "physical_count"
+          }
+        ]
+      },
+      "InventoryLevel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the inventory level.",
+            "examples": ["inv_00000000000000000001"]
+          },
+          "variantId": {
+            "type": "string",
+            "description": "The identifier of the product variant whose stock is tracked.",
+            "examples": ["var_00000000000000000001"]
+          },
+          "locationId": {
+            "type": "string",
+            "description": "The identifier of the location where the stock is held.",
+            "examples": ["loc_00000000000000000001"]
+          },
+          "onHand": {
+            "type": "number",
+            "description": "The current quantity of the variant at the location.",
+            "examples": [18]
+          },
+          "lowStockThreshold": {
+            "type": "number",
+            "description": "The quantity used as the threshold for identifying low stock at the location.",
+            "examples": [5]
+          },
+          "optimalStockLevel": {
+            "type": "number",
+            "description": "The target stock quantity used when planning replenishment at the location.",
+            "examples": [24]
+          }
+        },
+        "required": ["id", "variantId", "locationId", "onHand", "lowStockThreshold", "optimalStockLevel"],
+        "additionalProperties": false,
+        "description": "The stock held for one product variant at one location. Connects the variant to the location and includes its current quantity, low-stock threshold, and replenishment target.",
+        "examples": [
+          {
+            "id": "inv_00000000000000000001",
+            "variantId": "var_00000000000000000001",
+            "locationId": "loc_00000000000000000001",
+            "onHand": 18,
+            "lowStockThreshold": 5,
+            "optimalStockLevel": 24
+          }
+        ]
+      },
+      "InventoryMovementReason": {
+        "description": "The reason for a stock movement. Identifies a sale, purchase, reversal, loss, damage, theft, or correction.",
+        "examples": ["sale"],
+        "type": "string",
+        "enum": ["sale", "sale_void", "purchase", "purchase_void", "lost", "damaged", "theft", "correction"]
+      },
+      "InventoryMovement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the inventory movement.",
+            "examples": ["invm_0000000000000000001"]
+          },
+          "variantId": {
+            "type": "string",
+            "description": "The identifier of the product variant associated with the stock entry.",
+            "examples": ["var_00000000000000000001"]
+          },
+          "locationId": {
+            "type": "string",
+            "description": "The identifier of the location associated with the stock entry.",
+            "examples": ["loc_00000000000000000001"]
+          },
+          "referenceId": {
+            "type": ["string", "null"],
+            "description": "The identifier of the related business record, such as a sale or purchase order. Returns `null` when no related record is associated.",
+            "examples": ["sale_0000000000000000001"]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/InventoryMovementReason",
+            "description": "The business reason for the inventory movement.",
+            "examples": ["sale"]
+          },
+          "fromState": {
+            "$ref": "#/components/schemas/InventoryState",
+            "description": "The inventory state from which the stock moved.",
+            "examples": ["in_stock"]
+          },
+          "toState": {
+            "$ref": "#/components/schemas/InventoryState",
+            "description": "The inventory state to which the stock moved.",
+            "examples": ["sold"]
+          },
+          "quantityDelta": {
+            "type": "number",
+            "description": "The signed change in stock quantity. Positive values add stock; negative values remove stock.",
+            "examples": [-2]
+          },
+          "unitCost": {
+            "$ref": "#/components/schemas/Decimal",
+            "description": "The cost per unit captured for the movement, expressed as a decimal string.",
+            "examples": ["80.00"]
+          },
+          "createdBy": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "The identifier of the employee.",
+                "examples": ["empl_0000000000000000001"]
+              },
+              "name": {
+                "type": "string",
+                "description": "The display name of the employee.",
+                "examples": ["Nami"]
+              }
+            },
+            "required": ["id", "name"],
+            "additionalProperties": false,
+            "description": "The employee who recorded the stock entry.",
+            "examples": [
+              {
+                "id": "empl_0000000000000000001",
+                "name": "Nami"
+              }
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time assigned to the stock event, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the inventory movement was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the inventory movement was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": [
+          "id",
+          "variantId",
+          "locationId",
+          "referenceId",
+          "reason",
+          "fromState",
+          "toState",
+          "quantityDelta",
+          "unitCost",
+          "createdBy",
+          "occurredAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "description": "A change to the stock of a product variant at a location. Records the quantity delta, inventory states, unit cost, and employee responsible for the entry. A reference identifier can link the movement to a related sale or purchase order.",
+        "examples": [
+          {
+            "id": "invm_0000000000000000001",
+            "variantId": "var_00000000000000000001",
+            "locationId": "loc_00000000000000000001",
+            "referenceId": "sale_0000000000000000001",
+            "reason": "sale",
+            "fromState": "in_stock",
+            "toState": "sold",
+            "quantityDelta": -2,
+            "unitCost": "80.00",
+            "createdBy": {
+              "id": "empl_0000000000000000001",
+              "name": "Nami"
+            },
+            "occurredAt": "2026-09-23T09:00:00.000Z",
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "InventoryPhysicalCount": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the physical count.",
+            "examples": ["inv_pct_0000000000000001"]
+          },
+          "variantId": {
+            "type": "string",
+            "description": "The identifier of the product variant associated with the stock entry.",
+            "examples": ["var_00000000000000000001"]
+          },
+          "locationId": {
+            "type": "string",
+            "description": "The identifier of the location associated with the stock entry.",
+            "examples": ["loc_00000000000000000001"]
+          },
+          "quantity": {
+            "type": "number",
+            "description": "The absolute number of units observed during the physical count.",
+            "examples": [18]
+          },
+          "createdBy": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "The identifier of the employee.",
+                "examples": ["empl_0000000000000000001"]
+              },
+              "name": {
+                "type": "string",
+                "description": "The display name of the employee.",
+                "examples": ["Nami"]
+              }
+            },
+            "required": ["id", "name"],
+            "additionalProperties": false,
+            "description": "The employee who recorded the stock entry.",
+            "examples": [
+              {
+                "id": "empl_0000000000000000001",
+                "name": "Nami"
+              }
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time of the physical count, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the physical count was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the physical count was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": ["id", "variantId", "locationId", "quantity", "createdBy", "occurredAt", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "description": "The quantity of a product variant observed during a stock count at a location. Records an absolute quantity together with the employee and time of the count.",
+        "examples": [
+          {
+            "id": "inv_pct_0000000000000001",
+            "variantId": "var_00000000000000000001",
+            "locationId": "loc_00000000000000000001",
+            "quantity": 18,
+            "createdBy": {
+              "id": "empl_0000000000000000001",
+              "name": "Nami"
+            },
+            "occurredAt": "2026-09-23T09:00:00.000Z",
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "InventoryState": {
+        "description": "The classification of stock before or after a movement. Stock can be outside inventory, in stock, sold, or recorded as waste.",
+        "examples": ["in_stock"],
+        "type": "string",
+        "enum": ["none", "in_stock", "sold", "waste"]
+      },
+      "JsonWebTokenPayload": {
+        "type": "object",
+        "properties": {
+          "sub": {
+            "type": "string",
+            "description": "The subject identifier assigned by the identity provider.",
+            "examples": ["user_nami_example"]
+          },
+          "email": {
+            "type": "string",
+            "description": "The email address included in the token claims.",
+            "examples": ["nami@strawhatpirates.example.com"]
+          }
+        },
+        "required": ["sub", "email"],
+        "additionalProperties": {},
+        "description": "Identity claims carried by a JSON Web Token. Includes the subject identifier and email address, and allows additional claims.",
+        "examples": [
+          {
+            "sub": "user_nami_example",
+            "email": "nami@strawhatpirates.example.com"
+          }
+        ]
+      },
+      "Location": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the location.",
+            "examples": ["loc_00000000000000000001"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The display name of the location.",
+            "examples": ["Water 7"]
+          },
+          "businessType": {
+            "$ref": "#/components/schemas/BusinessType",
+            "description": "The kind of business operated at the location.",
+            "examples": ["grocery_store"]
+          },
+          "address": {
+            "type": ["string", "null"],
+            "description": "The address of the location. Returns `null` if no address is recorded.",
+            "examples": ["Water 7"]
+          },
+          "phone": {
+            "type": ["string", "null"],
+            "description": "The contact phone number for the location. Returns `null` if none is recorded.",
+            "examples": [null]
+          },
+          "taxId": {
+            "type": ["string", "null"],
+            "description": "The tax registration identifier associated with the location. Returns `null` if none is recorded.",
+            "examples": [null]
+          },
+          "taxRate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Decimal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The tax rate configured for the location, expressed as a decimal string. Returns `null` if no rate is configured.",
+            "examples": [null]
+          },
+          "nextSaleNumber": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "The transaction number to assign to the next sale at the location.",
+            "examples": [2]
+          },
+          "nextPurchaseOrderNumber": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "The transaction number to assign to the next purchase order at the location.",
+            "examples": [2]
+          },
+          "allowBackorders": {
+            "default": false,
+            "type": "boolean",
+            "description": "Whether the location allows sales with quantities that exceed available stock.",
+            "examples": [false]
+          },
+          "receiptHeaderText": {
+            "type": ["string", "null"],
+            "description": "The text configured for the receipt header. Returns `null` if no header text is configured.",
+            "examples": ["Straw Hat Pirates"]
+          },
+          "receiptFooterText": {
+            "type": ["string", "null"],
+            "description": "The text configured for the receipt footer. Returns `null` if no footer text is configured.",
+            "examples": ["Thank you for shopping with us."]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the location was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the location was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "businessType",
+          "address",
+          "phone",
+          "taxId",
+          "taxRate",
+          "nextSaleNumber",
+          "nextPurchaseOrderNumber",
+          "allowBackorders",
+          "receiptHeaderText",
+          "receiptFooterText",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "description": "A place where a merchant sells products and holds stock. Each location has its own inventory levels, sale and purchase-order counters, tax settings, backorder policy, and receipt text.",
+        "examples": [
+          {
+            "id": "loc_00000000000000000001",
+            "name": "Water 7",
+            "businessType": "grocery_store",
+            "address": "Water 7",
+            "phone": null,
+            "taxId": null,
+            "taxRate": null,
+            "nextSaleNumber": 2,
+            "nextPurchaseOrderNumber": 2,
+            "allowBackorders": false,
+            "receiptHeaderText": "Straw Hat Pirates",
+            "receiptFooterText": "Thank you for shopping with us.",
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "Merchant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the merchant.",
+            "examples": ["merch_000000000000000001"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the business.",
+            "examples": ["Straw Hat Pirates"]
+          },
+          "country": {
+            "$ref": "#/components/schemas/CountryIsoCode",
+            "description": "The country associated with the merchant, expressed as a supported lowercase country code.",
+            "examples": ["ni"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the merchant was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the merchant was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": ["id", "name", "country", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "description": "The business that uses Facilito. Products, customers, employees, locations, suppliers, and transactions belong to a merchant. This object contains the business name and country.",
+        "examples": [
+          {
+            "id": "merch_000000000000000001",
+            "name": "Straw Hat Pirates",
+            "country": "ni",
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "ObjectId": {
+        "type": "string",
+        "pattern": "^(?=.{24}$)(?:(?:merch|account|req|empl|loc|coll|prod|img|var|optgr|opt|prod_opt|var_opt|inv|invm|inv_pct|cust|sale|sal_ite|sal_pay|supp|purc|purc_ite|supp_prod|evt)_)?[0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ]+$",
+        "description": "An opaque resource identifier that is exactly 24 characters long, including any prefix and underscore. Use the complete value when storing or referencing a resource.",
+        "examples": ["merch_000000000000000001"]
+      },
+      "OptionGroup": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the option group.",
+            "examples": ["optgr_000000000000000001"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the attribute that distinguishes variants, such as pack size.",
+            "examples": ["Pack size"]
+          },
+          "slug": {
+            "type": "string",
+            "description": "The URL-friendly name of the option group.",
+            "examples": ["pack-size"]
+          },
+          "options": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Option",
+              "examples": [
+                {
+                  "id": "opt_00000000000000000001",
+                  "name": "1 kg",
+                  "slug": "1-kg",
+                  "position": 0,
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            },
+            "description": "The available values for the option group.",
+            "examples": [
+              [
+                {
+                  "id": "opt_00000000000000000001",
+                  "name": "1 kg",
+                  "slug": "1-kg",
+                  "position": 0,
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the option group was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the option group was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": ["id", "name", "slug", "options", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "description": "A product attribute whose values distinguish variants, such as pack size or color. Contains the available options and a slug for the group.",
+        "examples": [
+          {
+            "id": "optgr_000000000000000001",
+            "name": "Pack size",
+            "slug": "pack-size",
+            "options": [
+              {
+                "id": "opt_00000000000000000001",
+                "name": "1 kg",
+                "slug": "1-kg",
+                "position": 0,
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ],
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "Option": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the option.",
+            "examples": ["opt_00000000000000000001"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the option value, such as a pack size.",
+            "examples": ["1 kg"]
+          },
+          "slug": {
+            "type": "string",
+            "description": "The URL-friendly name of the option.",
+            "examples": ["1-kg"]
+          },
+          "position": {
+            "type": "number",
+            "description": "The display position of the option within its group.",
+            "examples": [0]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the option was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the option was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": ["id", "name", "slug", "position", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "description": "An available value within an option group, such as a pack size. Includes its display name, slug, and position within the group.",
+        "examples": [
+          {
+            "id": "opt_00000000000000000001",
+            "name": "1 kg",
+            "slug": "1-kg",
+            "position": 0,
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "PaginationRequest": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 50,
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "The maximum number of records requested per page. Accepts values from 1 to 100 and defaults to 50.",
+            "examples": [50]
+          },
+          "cursor": {
+            "type": "string",
+            "description": "The opaque cursor returned by the previous page. Omit this field to request the first page."
+          }
+        },
+        "required": ["limit"],
+        "additionalProperties": false,
+        "description": "The parsed parameters for retrieving a page of records. Omit `cursor` for the first page, then use the previous response cursor to continue. The page limit defaults to 50 and accepts values from 1 to 100.",
+        "examples": [
+          {
+            "limit": 50
+          },
+          {
+            "limit": 50,
+            "cursor": "example-opaque-page-cursor"
+          }
+        ]
+      },
+      "ScopedPaginationRequest": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 50,
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "The maximum number of records requested per page. Accepts values from 1 to 100 and defaults to 50.",
+            "examples": [50]
+          },
+          "cursor": {
+            "type": "string",
+            "description": "The opaque cursor returned by the previous page. Omit this field to request the first page."
+          },
+          "merchantId": {
+            "type": "string",
+            "description": "The identifier of the merchant whose records are requested.",
+            "examples": ["merch_000000000000000001"]
+          }
+        },
+        "required": ["limit", "merchantId"],
+        "additionalProperties": false,
+        "description": "The parsed parameters for retrieving a page of records belonging to a merchant. Combines the merchant identifier with a page limit and an optional cursor.",
+        "examples": [
+          {
+            "limit": 50,
+            "merchantId": "merch_000000000000000001"
+          },
+          {
+            "limit": 50,
+            "cursor": "example-opaque-page-cursor",
+            "merchantId": "merch_000000000000000001"
+          }
+        ]
+      },
+      "PaymentMethod": {
+        "description": "The method used to collect a sale payment. Supports cash, US-dollar cash, card payments processed outside Facilito, and wire transfers.",
+        "examples": ["cash"],
+        "type": "string",
+        "enum": ["cash", "cash_dollar", "non_integrated_card", "wire_transfer"]
+      },
+      "PosPermission": {
+        "description": "An individual point-of-sale capability assigned to an employee, such as checkout, catalog management, or access to sales reports.",
+        "examples": ["checkout"],
+        "type": "string",
+        "enum": [
+          "checkout",
+          "view_sales_reports",
+          "view_inventory_reports",
+          "view_transactions",
+          "manage_catalog",
+          "manage_inventory",
+          "manage_suppliers",
+          "apply_discounts",
+          "refund"
+        ]
+      },
+      "ProductImageSource": {
+        "description": "The origin of a product image. A `managed` image uses managed storage; a `remote` image uses an external source.",
+        "examples": ["remote"],
+        "type": "string",
+        "enum": ["managed", "remote"]
+      },
+      "ProductImageStatus": {
+        "description": "The availability of a product image. Indicates whether the image is still pending or available for use.",
+        "examples": ["available"],
+        "type": "string",
+        "enum": ["pending", "available"]
+      },
+      "ProductImage": {
+        "type": "string",
+        "format": "uri",
+        "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://",
+        "description": "An HTTP or HTTPS URL that identifies a product image.",
+        "examples": ["https://strawhatpirates.example.com/images/tangerines.jpg"]
+      },
+      "ProductStatus": {
+        "description": "The catalog state of a product. Indicates whether the product is active, a draft, or archived.",
+        "examples": ["active"],
+        "type": "string",
+        "enum": ["active", "draft", "archived"]
+      },
+      "ProductType": {
+        "description": "The kind of product offered by the merchant. Distinguishes a physical item from a service.",
+        "examples": ["item"],
+        "type": "string",
+        "enum": ["item", "service"]
+      },
+      "ProductVariant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the product variant.",
+            "examples": ["var_00000000000000000001"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the product variation, such as its selected pack size or color.",
+            "examples": ["1 kg"]
+          },
+          "sku": {
+            "type": ["string", "null"],
+            "description": "The stock keeping unit assigned to the variant by the merchant. Returns `null` if no SKU is assigned.",
+            "examples": ["EASTBLUE-TANGERINE-1KG"]
+          },
+          "barcode": {
+            "type": ["string", "null"],
+            "description": "The barcode assigned to the variant. Returns `null` if no barcode is assigned.",
+            "examples": [null]
+          },
+          "price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Decimal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The selling price per unit for the variant, expressed as a decimal string. Returns `null` when the product price applies.",
+            "examples": ["125.50"]
+          },
+          "options": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The identifier of the option.",
+                  "examples": ["opt_00000000000000000001"]
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The display name of the option.",
+                  "examples": ["1 kg"]
+                },
+                "position": {
+                  "type": "number",
+                  "description": "The display position of the option within its group.",
+                  "examples": [0]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "The date and time when the option was created, in RFC 3339 format.",
+                  "examples": ["2026-09-23T09:00:00.000Z"]
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "The date and time when the option was last updated, in RFC 3339 format.",
+                  "examples": ["2026-09-23T09:00:00.000Z"]
+                }
+              },
+              "required": ["id", "name", "position", "createdAt", "updatedAt"],
+              "additionalProperties": false,
+              "examples": [
+                {
+                  "id": "opt_00000000000000000001",
+                  "name": "1 kg",
+                  "position": 0,
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            },
+            "description": "The option values selected for this variant.",
+            "examples": [
+              [
+                {
+                  "id": "opt_00000000000000000001",
+                  "name": "1 kg",
+                  "position": 0,
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            ]
+          },
+          "inventoryLevels": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryLevel",
+              "examples": [
+                {
+                  "id": "inv_00000000000000000001",
+                  "variantId": "var_00000000000000000001",
+                  "locationId": "loc_00000000000000000001",
+                  "onHand": 18,
+                  "lowStockThreshold": 5,
+                  "optimalStockLevel": 24
+                }
+              ]
+            },
+            "description": "The stock quantity and replenishment settings for the variant at each associated location.",
+            "examples": [
+              [
+                {
+                  "id": "inv_00000000000000000001",
+                  "variantId": "var_00000000000000000001",
+                  "locationId": "loc_00000000000000000001",
+                  "onHand": 18,
+                  "lowStockThreshold": 5,
+                  "optimalStockLevel": 24
+                }
+              ]
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the product variant was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the product variant was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": ["id", "name", "sku", "barcode", "price", "options", "inventoryLevels", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "description": "A version of a product distinguished by its selected options, such as pack size or color. Each variant has its own identifier, optional SKU and barcode, and stock levels by location. A variant can specify a selling price or use the product price.",
+        "examples": [
+          {
+            "id": "var_00000000000000000001",
+            "name": "1 kg",
+            "sku": "EASTBLUE-TANGERINE-1KG",
+            "barcode": null,
+            "price": "125.50",
+            "options": [
+              {
+                "id": "opt_00000000000000000001",
+                "name": "1 kg",
+                "position": 0,
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ],
+            "inventoryLevels": [
+              {
+                "id": "inv_00000000000000000001",
+                "variantId": "var_00000000000000000001",
+                "locationId": "loc_00000000000000000001",
+                "onHand": 18,
+                "lowStockThreshold": 5,
+                "optimalStockLevel": 24
+              }
+            ],
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the product.",
+            "examples": ["prod_0000000000000000001"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The display name of the product.",
+            "examples": ["East Blue Tangerines"]
+          },
+          "slug": {
+            "type": "string",
+            "description": "The URL-friendly name of the product.",
+            "examples": ["east-blue-tangerines"]
+          },
+          "unitCost": {
+            "$ref": "#/components/schemas/Decimal",
+            "description": "The cost per unit of the product, expressed as a decimal string.",
+            "examples": ["80.00"]
+          },
+          "price": {
+            "$ref": "#/components/schemas/Decimal",
+            "description": "The base selling price per unit, expressed as a decimal string. A variant can specify its own price.",
+            "examples": ["125.50"]
+          },
+          "productType": {
+            "$ref": "#/components/schemas/ProductType",
+            "description": "Whether the product is a physical item or a service.",
+            "examples": ["item"]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProductStatus",
+            "description": "The catalog state of the product: active, draft, or archived.",
+            "examples": ["active"]
+          },
+          "imageUrl": {
+            "default": null,
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductImage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The HTTP or HTTPS URL of the product image. Returns `null` if no image is associated.",
+            "examples": ["https://strawhatpirates.example.com/images/tangerines.jpg"]
+          },
+          "collection": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the collection.",
+                    "examples": ["coll_0000000000000000001"]
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The display name of the collection.",
+                    "examples": ["East Blue Provisions"]
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false,
+                "examples": [
+                  {
+                    "id": "coll_0000000000000000001",
+                    "name": "East Blue Provisions"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The collection associated with the product. Returns `null` if the product has no collection.",
+            "examples": [
+              {
+                "id": "coll_0000000000000000001",
+                "name": "East Blue Provisions"
+              }
+            ]
+          },
+          "optionGroups": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The identifier of the option group.",
+                  "examples": ["optgr_000000000000000001"]
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The display name of the option group.",
+                  "examples": ["Pack size"]
+                },
+                "options": {
+                  "default": [],
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "The identifier of the option.",
+                        "examples": ["opt_00000000000000000001"]
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "The display name of the option.",
+                        "examples": ["1 kg"]
+                      },
+                      "position": {
+                        "type": "number",
+                        "description": "The display position of the option within its group.",
+                        "examples": [0]
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "The date and time when the option was created, in RFC 3339 format.",
+                        "examples": ["2026-09-23T09:00:00.000Z"]
+                      },
+                      "updatedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "The date and time when the option was last updated, in RFC 3339 format.",
+                        "examples": ["2026-09-23T09:00:00.000Z"]
+                      }
+                    },
+                    "required": ["id", "name", "position", "createdAt", "updatedAt"],
+                    "additionalProperties": false,
+                    "examples": [
+                      {
+                        "id": "opt_00000000000000000001",
+                        "name": "1 kg",
+                        "position": 0,
+                        "createdAt": "2026-09-23T09:00:00.000Z",
+                        "updatedAt": "2026-09-23T09:00:00.000Z"
+                      }
+                    ]
+                  },
+                  "description": "The available option values within this product option group.",
+                  "examples": [
+                    [
+                      {
+                        "id": "opt_00000000000000000001",
+                        "name": "1 kg",
+                        "position": 0,
+                        "createdAt": "2026-09-23T09:00:00.000Z",
+                        "updatedAt": "2026-09-23T09:00:00.000Z"
+                      }
+                    ]
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "The date and time when the option group was created, in RFC 3339 format.",
+                  "examples": ["2026-09-23T09:00:00.000Z"]
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "The date and time when the option group was last updated, in RFC 3339 format.",
+                  "examples": ["2026-09-23T09:00:00.000Z"]
+                }
+              },
+              "required": ["id", "name", "options", "createdAt", "updatedAt"],
+              "additionalProperties": false,
+              "examples": [
+                {
+                  "id": "optgr_000000000000000001",
+                  "name": "Pack size",
+                  "options": [
+                    {
+                      "id": "opt_00000000000000000001",
+                      "name": "1 kg",
+                      "position": 0,
+                      "createdAt": "2026-09-23T09:00:00.000Z",
+                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                    }
+                  ],
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            },
+            "description": "The attributes and available values used to distinguish product variants.",
+            "examples": [
+              [
+                {
+                  "id": "optgr_000000000000000001",
+                  "name": "Pack size",
+                  "options": [
+                    {
+                      "id": "opt_00000000000000000001",
+                      "name": "1 kg",
+                      "position": 0,
+                      "createdAt": "2026-09-23T09:00:00.000Z",
+                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                    }
+                  ],
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            ]
+          },
+          "variants": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductVariant",
+              "examples": [
+                {
+                  "id": "var_00000000000000000001",
+                  "name": "1 kg",
+                  "sku": "EASTBLUE-TANGERINE-1KG",
+                  "barcode": null,
+                  "price": "125.50",
+                  "options": [
+                    {
+                      "id": "opt_00000000000000000001",
+                      "name": "1 kg",
+                      "position": 0,
+                      "createdAt": "2026-09-23T09:00:00.000Z",
+                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                    }
+                  ],
+                  "inventoryLevels": [
+                    {
+                      "id": "inv_00000000000000000001",
+                      "variantId": "var_00000000000000000001",
+                      "locationId": "loc_00000000000000000001",
+                      "onHand": 18,
+                      "lowStockThreshold": 5,
+                      "optimalStockLevel": 24
+                    }
+                  ],
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            },
+            "description": "The versions of the product that can be sold, including their selected options and stock levels.",
+            "examples": [
+              [
+                {
+                  "id": "var_00000000000000000001",
+                  "name": "1 kg",
+                  "sku": "EASTBLUE-TANGERINE-1KG",
+                  "barcode": null,
+                  "price": "125.50",
+                  "options": [
+                    {
+                      "id": "opt_00000000000000000001",
+                      "name": "1 kg",
+                      "position": 0,
+                      "createdAt": "2026-09-23T09:00:00.000Z",
+                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                    }
+                  ],
+                  "inventoryLevels": [
+                    {
+                      "id": "inv_00000000000000000001",
+                      "variantId": "var_00000000000000000001",
+                      "locationId": "loc_00000000000000000001",
+                      "onHand": 18,
+                      "lowStockThreshold": 5,
+                      "optimalStockLevel": 24
+                    }
+                  ],
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the product was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the product was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The date and time when the product was archived, in RFC 3339 format. Returns `null` if no archive time is recorded.",
+            "examples": [null]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "unitCost",
+          "price",
+          "productType",
+          "status",
+          "imageUrl",
+          "collection",
+          "optionGroups",
+          "variants",
+          "createdAt",
+          "updatedAt",
+          "archivedAt"
+        ],
+        "additionalProperties": false,
+        "description": "A good or service offered by a merchant. Contains its name, pricing, catalog status, image, and collection. Option groups describe the available choices, and variants represent the combinations that can be sold.",
+        "examples": [
+          {
+            "id": "prod_0000000000000000001",
+            "name": "East Blue Tangerines",
+            "slug": "east-blue-tangerines",
+            "unitCost": "80.00",
+            "price": "125.50",
+            "productType": "item",
+            "status": "active",
+            "imageUrl": "https://strawhatpirates.example.com/images/tangerines.jpg",
+            "collection": {
+              "id": "coll_0000000000000000001",
+              "name": "East Blue Provisions"
+            },
+            "optionGroups": [
+              {
+                "id": "optgr_000000000000000001",
+                "name": "Pack size",
+                "options": [
+                  {
+                    "id": "opt_00000000000000000001",
+                    "name": "1 kg",
+                    "position": 0,
+                    "createdAt": "2026-09-23T09:00:00.000Z",
+                    "updatedAt": "2026-09-23T09:00:00.000Z"
+                  }
+                ],
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ],
+            "variants": [
+              {
+                "id": "var_00000000000000000001",
+                "name": "1 kg",
+                "sku": "EASTBLUE-TANGERINE-1KG",
+                "barcode": null,
+                "price": "125.50",
+                "options": [
+                  {
+                    "id": "opt_00000000000000000001",
+                    "name": "1 kg",
+                    "position": 0,
+                    "createdAt": "2026-09-23T09:00:00.000Z",
+                    "updatedAt": "2026-09-23T09:00:00.000Z"
+                  }
+                ],
+                "inventoryLevels": [
+                  {
+                    "id": "inv_00000000000000000001",
+                    "variantId": "var_00000000000000000001",
+                    "locationId": "loc_00000000000000000001",
+                    "onHand": 18,
+                    "lowStockThreshold": 5,
+                    "optimalStockLevel": 24
+                  }
+                ],
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ],
+            "archivedAt": null,
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "PurchaseOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the purchase order.",
+            "examples": ["purc_0000000000000000001"]
+          },
+          "transactionNumber": {
+            "type": "number",
+            "description": "The purchase-order number assigned within the receiving location.",
+            "examples": [1]
+          },
+          "status": {
+            "type": "string",
+            "description": "The status recorded for the purchase order.",
+            "examples": ["received"]
+          },
+          "locationId": {
+            "type": "string",
+            "description": "The identifier of the location that received the products.",
+            "examples": ["loc_00000000000000000001"]
+          },
+          "supplier": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "The identifier of the supplier.",
+                "examples": ["supp_0000000000000000001"]
+              },
+              "name": {
+                "type": "string",
+                "description": "The display name of the supplier.",
+                "examples": ["Red Hair Pirates"]
+              }
+            },
+            "required": ["id", "name"],
+            "additionalProperties": false,
+            "description": "The identifier and name of the supplier associated with the delivery.",
+            "examples": [
+              {
+                "id": "supp_0000000000000000001",
+                "name": "Red Hair Pirates"
+              }
+            ]
+          },
+          "lineItems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "type": "string",
+                  "description": "The identifier of the product received.",
+                  "examples": ["prod_0000000000000000001"]
+                },
+                "productName": {
+                  "type": "string",
+                  "description": "The product name recorded on the purchase-order line.",
+                  "examples": ["East Blue Tangerines"]
+                },
+                "unitCost": {
+                  "$ref": "#/components/schemas/Decimal",
+                  "description": "The acquisition cost per unit recorded on the line, expressed as a decimal string.",
+                  "examples": ["80.00"]
+                },
+                "price": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Decimal"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The selling price recorded on the line, expressed as a decimal string. Returns `null` if no price is recorded.",
+                  "examples": ["125.50"]
+                },
+                "variants": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "The identifier of the product variant.",
+                        "examples": ["var_00000000000000000001"]
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "The display name of the product variant.",
+                        "examples": ["1 kg"]
+                      },
+                      "quantity": {
+                        "type": "number",
+                        "description": "The number of units of the variant received in the delivery.",
+                        "examples": [20]
+                      }
+                    },
+                    "required": ["id", "name", "quantity"],
+                    "additionalProperties": false,
+                    "examples": [
+                      {
+                        "id": "var_00000000000000000001",
+                        "name": "1 kg",
+                        "quantity": 20
+                      }
+                    ]
+                  },
+                  "description": "The received variants and the quantity of each variant.",
+                  "examples": [
+                    [
+                      {
+                        "id": "var_00000000000000000001",
+                        "name": "1 kg",
+                        "quantity": 20
+                      }
+                    ]
+                  ]
+                }
+              },
+              "required": ["productId", "productName", "unitCost", "price", "variants"],
+              "additionalProperties": false,
+              "examples": [
+                {
+                  "productId": "prod_0000000000000000001",
+                  "productName": "East Blue Tangerines",
+                  "unitCost": "80.00",
+                  "price": "125.50",
+                  "variants": [
+                    {
+                      "id": "var_00000000000000000001",
+                      "name": "1 kg",
+                      "quantity": 20
+                    }
+                  ]
+                }
+              ]
+            },
+            "description": "The products received in the delivery, with costs, prices, and quantities grouped by variant.",
+            "examples": [
+              [
+                {
+                  "productId": "prod_0000000000000000001",
+                  "productName": "East Blue Tangerines",
+                  "unitCost": "80.00",
+                  "price": "125.50",
+                  "variants": [
+                    {
+                      "id": "var_00000000000000000001",
+                      "name": "1 kg",
+                      "quantity": 20
+                    }
+                  ]
+                }
+              ]
+            ]
+          },
+          "notes": {
+            "type": ["string", "null"],
+            "description": "The staff notes associated with the delivery. Returns `null` if no notes are recorded.",
+            "examples": ["Provisions for the Water 7 shop."]
+          },
+          "createdBy": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the employee.",
+                    "examples": ["empl_0000000000000000001"]
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The display name of the employee.",
+                    "examples": ["Nami"]
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false,
+                "examples": [
+                  {
+                    "id": "empl_0000000000000000001",
+                    "name": "Nami"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee who recorded the delivery. Returns `null` if no employee is associated.",
+            "examples": [
+              {
+                "id": "empl_0000000000000000001",
+                "name": "Nami"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the purchase order was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the purchase order was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": [
+          "id",
+          "transactionNumber",
+          "status",
+          "locationId",
+          "supplier",
+          "lineItems",
+          "notes",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "description": "A record of products received from a supplier at a location. Groups received variants by product and records quantities, unit costs, and selling prices. Includes the supplier and the employee who recorded the delivery.",
+        "examples": [
+          {
+            "id": "purc_0000000000000000001",
+            "transactionNumber": 1,
+            "status": "received",
+            "locationId": "loc_00000000000000000001",
+            "supplier": {
+              "id": "supp_0000000000000000001",
+              "name": "Red Hair Pirates"
+            },
+            "lineItems": [
+              {
+                "productId": "prod_0000000000000000001",
+                "productName": "East Blue Tangerines",
+                "unitCost": "80.00",
+                "price": "125.50",
+                "variants": [
+                  {
+                    "id": "var_00000000000000000001",
+                    "name": "1 kg",
+                    "quantity": 20
+                  }
+                ]
+              }
+            ],
+            "notes": "Provisions for the Water 7 shop.",
+            "createdBy": {
+              "id": "empl_0000000000000000001",
+              "name": "Nami"
+            },
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "ReadResourcesResponse": {
+        "type": "object",
+        "properties": {
+          "syncToken": {
+            "type": "string",
+            "description": "The opaque token to use for the next synchronization request.",
+            "examples": ["example-opaque-sync-token"]
+          },
+          "fullSync": {
+            "type": "boolean",
+            "description": "Whether the response contains a full snapshot rather than incremental changes.",
+            "examples": [true]
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Merchant"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The merchant data included in the synchronization result. Can be `null` when no merchant update is included.",
+            "examples": [
+              {
+                "id": "merch_000000000000000001",
+                "name": "Straw Hat Pirates",
+                "country": "ni",
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ]
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product",
+              "examples": [
+                {
+                  "id": "prod_0000000000000000001",
+                  "name": "East Blue Tangerines",
+                  "slug": "east-blue-tangerines",
+                  "unitCost": "80.00",
+                  "price": "125.50",
+                  "productType": "item",
+                  "status": "active",
+                  "imageUrl": "https://strawhatpirates.example.com/images/tangerines.jpg",
+                  "collection": {
+                    "id": "coll_0000000000000000001",
+                    "name": "East Blue Provisions"
+                  },
+                  "optionGroups": [
+                    {
+                      "id": "optgr_000000000000000001",
+                      "name": "Pack size",
+                      "options": [
+                        {
+                          "id": "opt_00000000000000000001",
+                          "name": "1 kg",
+                          "position": 0,
+                          "createdAt": "2026-09-23T09:00:00.000Z",
+                          "updatedAt": "2026-09-23T09:00:00.000Z"
+                        }
+                      ],
+                      "createdAt": "2026-09-23T09:00:00.000Z",
+                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                    }
+                  ],
+                  "variants": [
+                    {
+                      "id": "var_00000000000000000001",
+                      "name": "1 kg",
+                      "sku": "EASTBLUE-TANGERINE-1KG",
+                      "barcode": null,
+                      "price": "125.50",
+                      "options": [
+                        {
+                          "id": "opt_00000000000000000001",
+                          "name": "1 kg",
+                          "position": 0,
+                          "createdAt": "2026-09-23T09:00:00.000Z",
+                          "updatedAt": "2026-09-23T09:00:00.000Z"
+                        }
+                      ],
+                      "inventoryLevels": [
+                        {
+                          "id": "inv_00000000000000000001",
+                          "variantId": "var_00000000000000000001",
+                          "locationId": "loc_00000000000000000001",
+                          "onHand": 18,
+                          "lowStockThreshold": 5,
+                          "optimalStockLevel": 24
+                        }
+                      ],
+                      "createdAt": "2026-09-23T09:00:00.000Z",
+                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                    }
+                  ],
+                  "archivedAt": null,
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            },
+            "description": "All products in a full sync, or changed products in an incremental sync.",
+            "examples": [
+              [
+                {
+                  "id": "prod_0000000000000000001",
+                  "name": "East Blue Tangerines",
+                  "slug": "east-blue-tangerines",
+                  "unitCost": "80.00",
+                  "price": "125.50",
+                  "productType": "item",
+                  "status": "active",
+                  "imageUrl": "https://strawhatpirates.example.com/images/tangerines.jpg",
+                  "collection": {
+                    "id": "coll_0000000000000000001",
+                    "name": "East Blue Provisions"
+                  },
+                  "optionGroups": [
+                    {
+                      "id": "optgr_000000000000000001",
+                      "name": "Pack size",
+                      "options": [
+                        {
+                          "id": "opt_00000000000000000001",
+                          "name": "1 kg",
+                          "position": 0,
+                          "createdAt": "2026-09-23T09:00:00.000Z",
+                          "updatedAt": "2026-09-23T09:00:00.000Z"
+                        }
+                      ],
+                      "createdAt": "2026-09-23T09:00:00.000Z",
+                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                    }
+                  ],
+                  "variants": [
+                    {
+                      "id": "var_00000000000000000001",
+                      "name": "1 kg",
+                      "sku": "EASTBLUE-TANGERINE-1KG",
+                      "barcode": null,
+                      "price": "125.50",
+                      "options": [
+                        {
+                          "id": "opt_00000000000000000001",
+                          "name": "1 kg",
+                          "position": 0,
+                          "createdAt": "2026-09-23T09:00:00.000Z",
+                          "updatedAt": "2026-09-23T09:00:00.000Z"
+                        }
+                      ],
+                      "inventoryLevels": [
+                        {
+                          "id": "inv_00000000000000000001",
+                          "variantId": "var_00000000000000000001",
+                          "locationId": "loc_00000000000000000001",
+                          "onHand": 18,
+                          "lowStockThreshold": 5,
+                          "optimalStockLevel": 24
+                        }
+                      ],
+                      "createdAt": "2026-09-23T09:00:00.000Z",
+                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                    }
+                  ],
+                  "archivedAt": null,
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            ]
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Collection",
+              "examples": [
+                {
+                  "id": "coll_0000000000000000001",
+                  "name": "East Blue Provisions",
+                  "slug": "east-blue-provisions",
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            },
+            "description": "All collections in a full sync, or changed collections in an incremental sync.",
+            "examples": [
+              [
+                {
+                  "id": "coll_0000000000000000001",
+                  "name": "East Blue Provisions",
+                  "slug": "east-blue-provisions",
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            ]
+          },
+          "customers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Customer",
+              "examples": [
+                {
+                  "id": "cust_0000000000000000001",
+                  "name": "Trafalgar Law",
+                  "email": "law@heartpirates.example.com",
+                  "phone": null,
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            },
+            "description": "All customers in a full sync, or changed customers in an incremental sync.",
+            "examples": [
+              [
+                {
+                  "id": "cust_0000000000000000001",
+                  "name": "Trafalgar Law",
+                  "email": "law@heartpirates.example.com",
+                  "phone": null,
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            ]
+          },
+          "employees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Employee",
+              "examples": [
+                {
+                  "id": "empl_0000000000000000001",
+                  "name": "Nami",
+                  "isOwner": false,
+                  "posAccessStatus": "enabled",
+                  "permissions": ["checkout", "manage_inventory"],
+                  "account": {
+                    "id": "account_0000000000000001",
+                    "email": "nami@strawhatpirates.example.com"
+                  },
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            },
+            "description": "All employees in a full sync, or changed employees in an incremental sync.",
+            "examples": [
+              [
+                {
+                  "id": "empl_0000000000000000001",
+                  "name": "Nami",
+                  "isOwner": false,
+                  "posAccessStatus": "enabled",
+                  "permissions": ["checkout", "manage_inventory"],
+                  "account": {
+                    "id": "account_0000000000000001",
+                    "email": "nami@strawhatpirates.example.com"
+                  },
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            ]
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Location",
+              "examples": [
+                {
+                  "id": "loc_00000000000000000001",
+                  "name": "Water 7",
+                  "businessType": "grocery_store",
+                  "address": "Water 7",
+                  "phone": null,
+                  "taxId": null,
+                  "taxRate": null,
+                  "nextSaleNumber": 2,
+                  "nextPurchaseOrderNumber": 2,
+                  "allowBackorders": false,
+                  "receiptHeaderText": "Straw Hat Pirates",
+                  "receiptFooterText": "Thank you for shopping with us.",
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            },
+            "description": "All locations in a full sync, or changed locations in an incremental sync.",
+            "examples": [
+              [
+                {
+                  "id": "loc_00000000000000000001",
+                  "name": "Water 7",
+                  "businessType": "grocery_store",
+                  "address": "Water 7",
+                  "phone": null,
+                  "taxId": null,
+                  "taxRate": null,
+                  "nextSaleNumber": 2,
+                  "nextPurchaseOrderNumber": 2,
+                  "allowBackorders": false,
+                  "receiptHeaderText": "Straw Hat Pirates",
+                  "receiptFooterText": "Thank you for shopping with us.",
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            ]
+          },
+          "suppliers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Supplier",
+              "examples": [
+                {
+                  "id": "supp_0000000000000000001",
+                  "name": "Red Hair Pirates",
+                  "email": "shanks@redhairpirates.example.com",
+                  "phone": null,
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            },
+            "description": "All suppliers in a full sync, or changed suppliers in an incremental sync.",
+            "examples": [
+              [
+                {
+                  "id": "supp_0000000000000000001",
+                  "name": "Red Hair Pirates",
+                  "email": "shanks@redhairpirates.example.com",
+                  "phone": null,
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            ]
+          }
+        },
+        "required": [
+          "syncToken",
+          "fullSync",
+          "merchant",
+          "products",
+          "collections",
+          "customers",
+          "employees",
+          "locations",
+          "suppliers"
+        ],
+        "additionalProperties": false,
+        "description": "Merchant data returned by a synchronization request. A full sync contains the supported resource collections; an incremental sync contains changes since the previous token. Retain `syncToken` to continue synchronizing from this response.",
+        "examples": [
+          {
+            "syncToken": "example-opaque-sync-token",
+            "fullSync": true,
+            "merchant": {
+              "id": "merch_000000000000000001",
+              "name": "Straw Hat Pirates",
+              "country": "ni",
+              "createdAt": "2026-09-23T09:00:00.000Z",
+              "updatedAt": "2026-09-23T09:00:00.000Z"
+            },
+            "products": [
+              {
+                "id": "prod_0000000000000000001",
+                "name": "East Blue Tangerines",
+                "slug": "east-blue-tangerines",
+                "unitCost": "80.00",
+                "price": "125.50",
+                "productType": "item",
+                "status": "active",
+                "imageUrl": "https://strawhatpirates.example.com/images/tangerines.jpg",
+                "collection": {
+                  "id": "coll_0000000000000000001",
+                  "name": "East Blue Provisions"
+                },
+                "optionGroups": [
+                  {
+                    "id": "optgr_000000000000000001",
+                    "name": "Pack size",
+                    "options": [
+                      {
+                        "id": "opt_00000000000000000001",
+                        "name": "1 kg",
+                        "position": 0,
+                        "createdAt": "2026-09-23T09:00:00.000Z",
+                        "updatedAt": "2026-09-23T09:00:00.000Z"
+                      }
+                    ],
+                    "createdAt": "2026-09-23T09:00:00.000Z",
+                    "updatedAt": "2026-09-23T09:00:00.000Z"
+                  }
+                ],
+                "variants": [
+                  {
+                    "id": "var_00000000000000000001",
+                    "name": "1 kg",
+                    "sku": "EASTBLUE-TANGERINE-1KG",
+                    "barcode": null,
+                    "price": "125.50",
+                    "options": [
+                      {
+                        "id": "opt_00000000000000000001",
+                        "name": "1 kg",
+                        "position": 0,
+                        "createdAt": "2026-09-23T09:00:00.000Z",
+                        "updatedAt": "2026-09-23T09:00:00.000Z"
+                      }
+                    ],
+                    "inventoryLevels": [
+                      {
+                        "id": "inv_00000000000000000001",
+                        "variantId": "var_00000000000000000001",
+                        "locationId": "loc_00000000000000000001",
+                        "onHand": 18,
+                        "lowStockThreshold": 5,
+                        "optimalStockLevel": 24
+                      }
+                    ],
+                    "createdAt": "2026-09-23T09:00:00.000Z",
+                    "updatedAt": "2026-09-23T09:00:00.000Z"
+                  }
+                ],
+                "archivedAt": null,
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ],
+            "collections": [
+              {
+                "id": "coll_0000000000000000001",
+                "name": "East Blue Provisions",
+                "slug": "east-blue-provisions",
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ],
+            "customers": [
+              {
+                "id": "cust_0000000000000000001",
+                "name": "Trafalgar Law",
+                "email": "law@heartpirates.example.com",
+                "phone": null,
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ],
+            "employees": [
+              {
+                "id": "empl_0000000000000000001",
+                "name": "Nami",
+                "isOwner": false,
+                "posAccessStatus": "enabled",
+                "permissions": ["checkout", "manage_inventory"],
+                "account": {
+                  "id": "account_0000000000000001",
+                  "email": "nami@strawhatpirates.example.com"
+                },
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ],
+            "locations": [
+              {
+                "id": "loc_00000000000000000001",
+                "name": "Water 7",
+                "businessType": "grocery_store",
+                "address": "Water 7",
+                "phone": null,
+                "taxId": null,
+                "taxRate": null,
+                "nextSaleNumber": 2,
+                "nextPurchaseOrderNumber": 2,
+                "allowBackorders": false,
+                "receiptHeaderText": "Straw Hat Pirates",
+                "receiptFooterText": "Thank you for shopping with us.",
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ],
+            "suppliers": [
+              {
+                "id": "supp_0000000000000000001",
+                "name": "Red Hair Pirates",
+                "email": "shanks@redhairpirates.example.com",
+                "phone": null,
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ]
+          },
+          {
+            "syncToken": "example-next-sync-token",
+            "fullSync": false,
+            "merchant": null,
+            "products": [],
+            "collections": [],
+            "customers": [],
+            "employees": [],
+            "locations": [],
+            "suppliers": []
+          }
+        ]
+      },
+      "SaleStatus": {
+        "description": "The fulfillment state of a sale. Indicates whether it is fulfilled, pending, or voided.",
+        "examples": ["fulfilled"],
+        "type": "string",
+        "enum": ["fulfilled", "pending", "voided"]
+      },
+      "Sale": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the sale.",
+            "examples": ["sale_0000000000000000001"]
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source",
+            "description": "The point-of-sale client that submitted the checkout.",
+            "examples": ["pos.web"]
+          },
+          "status": {
+            "$ref": "#/components/schemas/SaleStatus",
+            "description": "The fulfillment state of the sale: fulfilled, pending, or voided.",
+            "examples": ["fulfilled"]
+          },
+          "transactionNumber": {
+            "type": "number",
+            "description": "The sale number assigned within the location.",
+            "examples": [1]
+          },
+          "discountRate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Decimal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The discount rate recorded for the sale, expressed as a decimal string. Returns `null` if no rate is recorded.",
+            "examples": [null]
+          },
+          "locationId": {
+            "type": "string",
+            "description": "The identifier of the location where the sale was recorded.",
+            "examples": ["loc_00000000000000000001"]
+          },
+          "notes": {
+            "type": ["string", "null"],
+            "description": "The staff notes associated with the sale. Returns `null` if no notes are recorded.",
+            "examples": [null]
+          },
+          "customer": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the customer.",
+                    "examples": ["cust_0000000000000000001"]
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The display name of the customer.",
+                    "examples": ["Trafalgar Law"]
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false,
+                "examples": [
+                  {
+                    "id": "cust_0000000000000000001",
+                    "name": "Trafalgar Law"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The identifier and name of the customer associated with the sale. Returns `null` if no customer is associated.",
+            "examples": [
+              {
+                "id": "cust_0000000000000000001",
+                "name": "Trafalgar Law"
+              }
+            ]
+          },
+          "lineItems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The identifier of the line item.",
+                  "examples": ["sal_ite_0000000000000001"]
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The item name recorded on the sale line.",
+                  "examples": ["East Blue Tangerines / 1 kg"]
+                },
+                "variantId": {
+                  "type": "string",
+                  "description": "The identifier of the product variant sold.",
+                  "examples": ["var_00000000000000000001"]
+                },
+                "shortageQuantity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "The number of units on the line that could not be fulfilled from available stock.",
+                  "examples": [0]
+                },
+                "price": {
+                  "$ref": "#/components/schemas/Decimal",
+                  "description": "The selling price per unit captured for the sale line, expressed as a decimal string.",
+                  "examples": ["125.50"]
+                },
+                "unitCost": {
+                  "$ref": "#/components/schemas/Decimal",
+                  "description": "The cost per unit captured for the sale line, expressed as a decimal string.",
+                  "examples": ["80.00"]
+                },
+                "quantity": {
+                  "type": "number",
+                  "description": "The number of units of the variant included in the sale.",
+                  "examples": [2]
+                }
+              },
+              "required": ["id", "name", "variantId", "shortageQuantity", "price", "unitCost", "quantity"],
+              "additionalProperties": false,
+              "examples": [
+                {
+                  "id": "sal_ite_0000000000000001",
+                  "name": "East Blue Tangerines / 1 kg",
+                  "variantId": "var_00000000000000000001",
+                  "shortageQuantity": 0,
+                  "price": "125.50",
+                  "unitCost": "80.00",
+                  "quantity": 2
+                }
+              ]
+            },
+            "description": "The variants included in the sale, with their quantities and captured selling prices and unit costs.",
+            "examples": [
+              [
+                {
+                  "id": "sal_ite_0000000000000001",
+                  "name": "East Blue Tangerines / 1 kg",
+                  "variantId": "var_00000000000000000001",
+                  "shortageQuantity": 0,
+                  "price": "125.50",
+                  "unitCost": "80.00",
+                  "quantity": 2
+                }
+              ]
+            ]
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The identifier of the payment.",
+                  "examples": ["sal_pay_0000000000000001"]
+                },
+                "method": {
+                  "$ref": "#/components/schemas/PaymentMethod",
+                  "description": "The method used to collect the payment.",
+                  "examples": ["cash"]
+                },
+                "amount": {
+                  "$ref": "#/components/schemas/Decimal",
+                  "description": "The amount recorded for the payment, expressed as a decimal string.",
+                  "examples": ["251.00"]
+                },
+                "exchangeRate": {
+                  "default": null,
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Decimal"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The exchange rate recorded for the payment, expressed as a decimal string. Returns `null` if no exchange rate is recorded.",
+                  "examples": [null]
+                }
+              },
+              "required": ["id", "method", "amount", "exchangeRate"],
+              "additionalProperties": false,
+              "examples": [
+                {
+                  "id": "sal_pay_0000000000000001",
+                  "method": "cash",
+                  "amount": "251.00",
+                  "exchangeRate": null
+                }
+              ]
+            },
+            "description": "The payments recorded for the sale, including their methods, amounts, and exchange rates.",
+            "examples": [
+              [
+                {
+                  "id": "sal_pay_0000000000000001",
+                  "method": "cash",
+                  "amount": "251.00",
+                  "exchangeRate": null
+                }
+              ]
+            ]
+          },
+          "createdBy": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the employee.",
+                    "examples": ["empl_0000000000000000001"]
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The display name of the employee.",
+                    "examples": ["Nami"]
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false,
+                "examples": [
+                  {
+                    "id": "empl_0000000000000000001",
+                    "name": "Nami"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee who recorded the checkout. Returns `null` if no employee is associated.",
+            "examples": [
+              {
+                "id": "empl_0000000000000000001",
+                "name": "Nami"
+              }
+            ]
+          },
+          "voidedBy": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the employee."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The display name of the employee."
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee associated with voiding the sale. Returns `null` if no voiding employee is recorded.",
+            "examples": [null]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the sale was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the sale was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "status",
+          "transactionNumber",
+          "discountRate",
+          "locationId",
+          "notes",
+          "customer",
+          "lineItems",
+          "payments",
+          "createdBy",
+          "voidedBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "description": "A record of a checkout at a location. Contains the purchased variants, quantities, captured prices and costs, discount rate, and payments. It also identifies the customer and the employees who recorded or voided the sale when those details are available.",
+        "examples": [
+          {
+            "id": "sale_0000000000000000001",
+            "source": "pos.web",
+            "status": "fulfilled",
+            "transactionNumber": 1,
+            "discountRate": null,
+            "locationId": "loc_00000000000000000001",
+            "notes": null,
+            "customer": {
+              "id": "cust_0000000000000000001",
+              "name": "Trafalgar Law"
+            },
+            "lineItems": [
+              {
+                "id": "sal_ite_0000000000000001",
+                "name": "East Blue Tangerines / 1 kg",
+                "variantId": "var_00000000000000000001",
+                "shortageQuantity": 0,
+                "price": "125.50",
+                "unitCost": "80.00",
+                "quantity": 2
+              }
+            ],
+            "payments": [
+              {
+                "id": "sal_pay_0000000000000001",
+                "method": "cash",
+                "amount": "251.00",
+                "exchangeRate": null
+              }
+            ],
+            "createdBy": {
+              "id": "empl_0000000000000000001",
+              "name": "Nami"
+            },
+            "voidedBy": null,
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "Source": {
+        "description": "The point-of-sale application that submitted a sale. Identifies the web, Android, or iOS client.",
+        "examples": ["pos.web"],
+        "type": "string",
+        "enum": ["pos.web", "pos.android", "pos.ios"]
+      },
+      "Supplier": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the supplier.",
+            "examples": ["supp_0000000000000000001"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The display name of the supplier.",
+            "examples": ["Red Hair Pirates"]
+          },
+          "email": {
+            "type": ["string", "null"],
+            "description": "The email address of the supplier. Returns `null` if none is recorded.",
+            "examples": ["shanks@redhairpirates.example.com"]
+          },
+          "phone": {
+            "type": ["string", "null"],
+            "description": "The contact phone number of the supplier. Returns `null` if none is recorded.",
+            "examples": [null]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the supplier was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the supplier was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": ["id", "name", "email", "phone", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "description": "A person or organization that provides products to a merchant. Stores the supplier name and contact details. Purchase orders reference the supplier to identify the source of a delivery.",
+        "examples": [
+          {
+            "id": "supp_0000000000000000001",
+            "name": "Red Hair Pirates",
+            "email": "shanks@redhairpirates.example.com",
+            "phone": null,
+            "createdAt": "2026-09-23T09:00:00.000Z",
+            "updatedAt": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "WeightUnit": {
+        "description": "The unit used to express an item quantity or weight. Supports individual items, grams, kilograms, ounces, and pounds.",
+        "examples": ["kg"],
+        "type": "string",
+        "enum": ["each", "g", "kg", "oz", "lb"]
+      },
+      "PaginationResponse": {
+        "type": "object",
+        "description": "A page of records and the information needed to request the next page. The operation determines the shape of each result. Continue with `nextCursor` while `hasMore` is true.",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "examples": [
+                {
+                  "id": "coll_0000000000000000001",
+                  "name": "East Blue Provisions",
+                  "slug": "east-blue-provisions",
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            },
+            "description": "The records returned in this page. The operation defines the schema of each record.",
+            "examples": [
+              [
+                {
+                  "id": "coll_0000000000000000001",
+                  "name": "East Blue Provisions",
+                  "slug": "east-blue-provisions",
+                  "createdAt": "2026-09-23T09:00:00.000Z",
+                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                }
+              ]
+            ]
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "description": "The opaque cursor to pass when requesting the next page. Returns `null` on the final page.",
+            "examples": [null]
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "Whether more records are available after this page.",
+            "examples": [false]
+          }
+        },
+        "required": ["results", "nextCursor", "hasMore"],
+        "examples": [
+          {
+            "results": [
+              {
+                "id": "coll_0000000000000000001",
+                "name": "East Blue Provisions",
+                "slug": "east-blue-provisions",
+                "createdAt": "2026-09-23T09:00:00.000Z",
+                "updatedAt": "2026-09-23T09:00:00.000Z"
+              }
+            ],
+            "nextCursor": null,
+            "hasMore": false
+          }
+        ]
+      }
+    }
+  }
+}
