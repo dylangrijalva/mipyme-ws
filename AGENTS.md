@@ -138,25 +138,30 @@ Do not consider the change complete until `openapi.json` is updated.
 
 For fixed sets of string values, use `type: "string"` with an `enum` array instead of `anyOf` or `oneOf` branches containing string `const` values. This lets API documentation viewers display the allowed values instead of repeated `const` labels. Preserve the allowed values, descriptions, and examples when converting existing schemas. Keep `const` for individual discriminator fields and retain unions that describe different object shapes.
 
-# Testing
+## Testing
 
-## Writing tests
+### General rules
 
-Use Arrange, Act, Assert as the default structure for tests. Keep the phases visibly separate when doing so, and add phase comments only when they improve clarity.
+- Use Arrange, Act, Assert with visibly separate phases. Add phase comments only when they improve clarity.
+- Test observable behavior and meaningful regressions. Name each test by its scenario and expected outcome, and keep it focused on one behavior with as many assertions as needed to prove it.
+- Avoid assertions that merely verify mock setup, mirror implementation logic, or duplicate coverage without adding confidence.
+- Build minimal, realistic test data from existing project contracts, models, schemas, or types. Inspect the codebase first; use isolated synthetic objects when existing models would introduce unrelated coupling.
+- Cover normal, alternative, failure, boundary, and edge cases according to regression risk. Consider invalid or missing inputs, duplicate operations, and dependency failures where applicable.
+- Keep tests deterministic and independent. Control time, randomness, and external dependencies as needed.
+- Run relevant tests after changes. Report significant untested scenarios and explain why they remain untested.
 
-Test observable behavior and meaningful regressions. Use descriptive test names that identify the scenario and expected outcome. Avoid tests that merely verify mock setup, duplicate implementation logic, or increase coverage without validating behavior.
+### Integration testing
 
-Keep each test focused on one behavior; use multiple assertions when they are necessary to verify that behavior.
+Apply the general rules above, plus these requirements:
 
-When tests require objects, fixtures, or representative data, prefer realistic examples derived from the project's existing contracts, domain models, schemas, or types rather than inventing arbitrary objects. Inspect the codebase for suitable domain objects and use their shape and terminology to construct test cases.
+- Exercise the service’s public interface or API endpoint. Keep the application components whose interaction is being tested real; stub external systems at their boundaries when needed.
+- Assert contractually relevant results, status codes, and errors alongside actual effects. A success response alone does not prove that the intended operation occurred.
+- For persistence tests, use an isolated test database with the production database engine. Query or reload records to verify saved values and relationships, and isolate test data between tests.
+- Verify that unrelated records and fields remain unchanged when an operation could affect them.
+- For failures, verify the resulting state, including rollback or absence of unintended changes where required by the contract.
+- When delegation is part of the contract, verify queued jobs or outgoing requests and their relevant payloads. These assertions prove delegation, not downstream completion.
 
-Do not introduce unnecessary coupling to unrelated domain behavior solely to make test data realistic. Use minimal synthetic objects when no suitable project model exists or when a deliberately isolated shape makes the behavior under test clearer.
-
-Cover relevant normal, alternative, failure, boundary, and edge cases based on the behavior being changed and its regression risk. Consider invalid or missing inputs, duplicate operations, and dependency failures when applicable.
-
-Keep tests deterministic and independent. Control time, randomness, and external dependencies where necessary. Run the relevant tests after making changes, and report any significant scenarios left untested and why.
-
-## Independent test review
+### Independent test review
 
 Whenever you create or materially modify tests, request an independent
 review from a separate subagent before declaring the task complete.
