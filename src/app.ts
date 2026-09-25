@@ -5,8 +5,10 @@ import { secureHeaders } from "hono/secure-headers";
 import { Redis } from "ioredis";
 import type { Logger } from "pino";
 import type { Database } from "./db/index.ts";
+import type { MerchantFinder } from "./finders/merchant-repository.ts";
 import { devGuard } from "./guards/dev-guard.ts";
 import type { EnvVars } from "./infra/config.env.ts";
+import type { IdentityProvider } from "./integrations/identity-provider.ts";
 import { camelCase } from "./middlewares/camel-case.ts";
 import { errorHandler } from "./middlewares/error-handler.ts";
 import { inject } from "./middlewares/inject.ts";
@@ -15,6 +17,7 @@ import { notFoundHandler } from "./middlewares/not-found-handler.ts";
 import { requestId } from "./middlewares/request-id.ts";
 import { snakeCase } from "./middlewares/snake-case.ts";
 import OpenAPIDocument from "./openapi.json" with { type: "json" };
+import { onboardingRouter } from "./routes/onboarding.router.ts";
 import { FacilitoHono } from "./types.ts";
 
 type InjectedDependencies = {
@@ -22,6 +25,8 @@ type InjectedDependencies = {
   env: EnvVars;
   db: Database;
   cache: Redis;
+  identity: IdentityProvider;
+  merchantFinder: MerchantFinder;
 };
 
 function createApp(dependencies: InjectedDependencies): FacilitoHono {
@@ -38,6 +43,8 @@ function createApp(dependencies: InjectedDependencies): FacilitoHono {
 
   app.notFound(notFoundHandler());
   app.onError(errorHandler());
+
+  app.route("/v1/onboarding", onboardingRouter());
 
   app.get("/_health", devGuard(), async (ctx) => {
     const { db, cache } = ctx.var;

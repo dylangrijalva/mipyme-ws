@@ -3,8 +3,10 @@ import chalk from "chalk";
 import { Redis } from "ioredis";
 import { createApp } from "./app.ts";
 import { createDrizzle } from "./db/index.ts";
+import { MerchantFinder } from "./finders/merchant-repository.ts";
 import { Environment, loadEnvironmentVariables } from "./infra/config.env.ts";
 import { createLogger } from "./infra/config.logger.ts";
+import { IdentityProvider } from "./integrations/identity-provider.ts";
 
 async function run() {
   console.clear();
@@ -22,7 +24,11 @@ async function run() {
   await cache.ping();
   logger.debug(chalk.blue("✔ Redis connection established successfully"));
 
-  const app = createApp({ logger, env, db, cache });
+  const identity = new IdentityProvider(logger, env);
+
+  const merchantFinder = new MerchantFinder();
+
+  const app = createApp({ logger, env, db, cache, identity, merchantFinder });
 
   serve({ fetch: app.fetch, port: env.PORT }, ({ address, port }) => {
     const host = env.NODE_ENV === "development" ? "localhost" : address;

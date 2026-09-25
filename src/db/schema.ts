@@ -11,6 +11,7 @@ import {
   varchar,
 } from "drizzle-orm/mysql-core";
 import type { BusinessType } from "../contracts/business-type.ts";
+import type { Employee } from "../contracts/employee.ts";
 import type { InventoryMovementReason } from "../contracts/inventory-movement-reason.ts";
 import type { InventoryState } from "../contracts/inventory-state.ts";
 import { ID_LENGTH } from "../contracts/object-id.ts";
@@ -73,7 +74,7 @@ export const employee = mysqlTable(
       .notNull()
       .references(() => merchant.id),
     isOwner: boolean().notNull().default(false),
-    posAccessStatus: varchar({ length: 24 }).notNull().default("invited"),
+    status: varchar({ length: 24 }).notNull().default("invited").$type<Employee["status"]>(),
     permissions: varchar({ length: 256 }),
     accountId: char({ length: ID_LENGTH }).references(() => account.id),
     createdAt: datetime({ mode: "date", fsp: 6 })

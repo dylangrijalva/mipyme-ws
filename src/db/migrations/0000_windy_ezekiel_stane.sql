@@ -40,7 +40,7 @@ CREATE TABLE `employees` (
 	`name` varchar(128) NOT NULL,
 	`merchantId` char(24) NOT NULL,
 	`isOwner` boolean NOT NULL DEFAULT false,
-	`posAccessStatus` varchar(24) NOT NULL DEFAULT 'invited',
+	`status` varchar(24) NOT NULL DEFAULT 'invited',
 	`permissions` varchar(256),
 	`accountId` char(24),
 	`createdAt` datetime(6) NOT NULL,

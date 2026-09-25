@@ -1,10 +1,10 @@
 import z from "zod";
 import { AccountType } from "./account-type.ts";
 
-const ClerkAccount = z.object({
+const IdentityAccount = z.object({
   id: z.string(),
   name: z.string(),
-  email: z.email().nullable(),
+  email: z.string().nullable(),
   pictureUrl: z.url(),
   publicMetadata: z.object({
     merchantId: z.string().optional(),
@@ -13,6 +13,6 @@ const ClerkAccount = z.object({
   }),
 });
 
-type ClerkAccount = z.infer<typeof ClerkAccount>;
+type IdentityAccount = z.infer<typeof IdentityAccount>;
 
-export { ClerkAccount };
+export { IdentityAccount };

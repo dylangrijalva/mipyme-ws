@@ -5,7 +5,94 @@
     "version": "1.0.0",
     "description": "The Facilito API lets you manage your business catalog, customers, staff, locations, inventory, and sales. It is organized around REST, accepts JSON request bodies, and returns JSON responses with standard HTTP methods and status codes.\n\nSend a bearer access token in the Authorization header with each request. Your authenticated account identifies the merchant whose data you can access and the permissions available to you."
   },
-  "paths": {},
+  "tags": [
+    {
+      "name": "Onboarding",
+      "description": "Set up a business in Facilito. Create a merchant and its first location, and assign the current account as the business owner."
+    }
+  ],
+  "paths": {
+    "/v1/onboarding": {
+      "post": {
+        "tags": ["Onboarding"],
+        "operationId": "onboardAccount",
+        "summary": "Create a business",
+        "description": "Creates a merchant and its first location, and makes the current account the business owner. If the account already owns a business, returns the existing merchant without changing its details. An account that belongs to a staff member cannot create a business.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardAccountRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns the merchant object for the new or existing business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Merchant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or one or more invalid values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account could not be found. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The account belongs to a staff member, or a conflicting change prevents the account from being updated. Returns `conflict_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many account requests. Wait before trying again. Returns `rate_limit_exceeded`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the request from completing. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "components": {
     "schemas": {
       "AccountType": {
@@ -18,7 +105,7 @@
         "type": "object",
         "properties": {
           "code": {
-            "description": "A stable code that identifies the failure. Use this value for programmatic error handling.",
+            "description": "A stable code that identifies the failure. Use this value for programmatic error handling. Account lookup and updates report resource_not_found for missing accounts, validation_error for invalid account update payloads, rate_limit_exceeded for identity provider throttling, and conflict_error for conflicting account updates. Identity provider authentication and service failures report internal_server_error.",
             "examples": ["stock_insufficient"],
             "type": "string",
             "enum": [
@@ -597,7 +684,7 @@
               ]
             ]
           },
-          "requestId": {
+          "request_id": {
             "type": "string",
             "description": "The identifier of the request associated with the error. Use this value when investigating a failed request.",
             "examples": ["req_00000000000000000001"]
@@ -610,9 +697,9 @@
             "examples": [400]
           }
         },
-        "required": ["code", "message", "details", "requestId", "status"],
+        "required": ["code", "message", "details", "request_id", "status"],
         "additionalProperties": false,
-        "description": "An error associated with an API request. Contains the HTTP status, request identifier, and business error details. Use `code` to handle the failure in your application and `requestId` to identify the request when investigating it.",
+        "description": "An error associated with an API request. Contains the HTTP status, request identifier, and business error details. Use `code` to handle the failure in your application and `request_id` to identify the request when investigating it.",
         "examples": [
           {
             "code": "stock_insufficient",
@@ -624,7 +711,7 @@
                 "field": "lineItems.0.quantity"
               }
             ],
-            "requestId": "req_00000000000000000001",
+            "request_id": "req_00000000000000000001",
             "status": 400
           }
         ]
@@ -1355,20 +1442,20 @@
             "description": "The country associated with the merchant, expressed as a supported lowercase country code.",
             "examples": ["ni"]
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the merchant was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the merchant was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           }
         },
-        "required": ["id", "name", "country", "createdAt", "updatedAt"],
+        "required": ["id", "name", "country", "created_at", "updated_at"],
         "additionalProperties": false,
         "description": "The business that uses Facilito. Products, customers, employees, locations, suppliers, and transactions belong to a merchant. This object contains the business name and country.",
         "examples": [
@@ -1376,8 +1463,8 @@
             "id": "merch_000000000000000001",
             "name": "Straw Hat Pirates",
             "country": "ni",
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z"
           }
         ]
       },
@@ -3454,6 +3541,51 @@
             ],
             "nextCursor": null,
             "hasMore": false
+          }
+        ]
+      },
+      "OnboardAccountRequest": {
+        "type": "object",
+        "description": "The owner and business details used to create a merchant and its first location.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The name of the business owner."
+          },
+          "country": {
+            "$ref": "#/components/schemas/CountryIsoCode",
+            "description": "The country where the business operates, expressed as a supported lowercase country code."
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "The name of the location. Also used as the business name."
+              },
+              "business_type": {
+                "$ref": "#/components/schemas/BusinessType",
+                "default": "other",
+                "description": "The kind of business operated at the location. Defaults to `other`."
+              }
+            },
+            "required": ["name"],
+            "description": "Details of the first location to create for the business."
+          }
+        },
+        "required": ["name", "country", "location"],
+        "examples": [
+          {
+            "name": "Monkey D. Luffy",
+            "country": "ni",
+            "location": {
+              "name": "Straw Hat Pirates",
+              "business_type": "grocery_store"
+            }
           }
         ]
       }

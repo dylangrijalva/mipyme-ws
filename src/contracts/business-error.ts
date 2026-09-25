@@ -3,6 +3,7 @@ import z from "zod";
 const codes = {
   internalServerError: "internal_server_error",
   rateLimitExceeded: "rate_limit_exceeded",
+  forbiddenError: "forbidden_error",
   validationError: "validation_error",
   conflictError: "conflict_error",
   resourceNotFound: "resource_not_found",

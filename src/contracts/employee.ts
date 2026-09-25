@@ -7,7 +7,7 @@ const Employee = z.object({
   id: z.string(),
   name: z.string(),
   isOwner: z.boolean(),
-  posAccessStatus: z.enum(["invited", "enabled", "disabled"]),
+  status: z.union([z.literal("invited"), z.literal("enabled"), z.literal("disabled")]),
   permissions: z
     .string()
     .nullish()

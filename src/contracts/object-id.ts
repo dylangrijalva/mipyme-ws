@@ -10,6 +10,7 @@ const ID_PREFIXES = {
   request: "req",
   employee: "empl",
   location: "loc",
+  locationAccess: "loca",
   collection: "coll",
   product: "prod",
   img: "img",
