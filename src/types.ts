@@ -8,6 +8,7 @@ import type { CollectionFinder } from "./finders/collection-finder.ts";
 import type { MerchantFinder } from "./finders/merchant-finder.ts";
 import type { PurchaseFinder } from "./finders/purchase-finder.ts";
 import type { ProductFinder } from "./finders/product-finder.ts";
+import type { SupplierFinder } from "./finders/supplier-finder.ts";
 import type { EnvVars } from "./infra/config.env.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
 
@@ -21,6 +22,7 @@ type FacilitoEnv = {
     identity: IdentityProvider;
     merchantFinder: MerchantFinder;
     collectionFinder: CollectionFinder;
+    supplierFinder: SupplierFinder;
     productFinder: ProductFinder;
     purchaseFinder: PurchaseFinder;
     claims: JsonWebTokenPayload;

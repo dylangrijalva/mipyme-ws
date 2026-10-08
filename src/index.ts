@@ -7,6 +7,7 @@ import { CollectionFinder } from "./finders/collection-finder.ts";
 import { MerchantFinder } from "./finders/merchant-finder.ts";
 import { PurchaseFinder } from "./finders/purchase-finder.ts";
 import { ProductFinder } from "./finders/product-finder.ts";
+import { SupplierFinder } from "./finders/supplier-finder.ts";
 import { Environment, loadEnvironmentVariables } from "./infra/config.env.ts";
 import { createLogger } from "./infra/config.logger.ts";
 import { IdentityProvider } from "./integrations/identity-provider.ts";
@@ -31,6 +32,7 @@ async function run() {
 
   const merchantFinder = new MerchantFinder();
   const collectionFinder = new CollectionFinder();
+  const supplierFinder = new SupplierFinder();
   const productFinder = new ProductFinder();
   const purchaseFinder = new PurchaseFinder();
 
@@ -42,6 +44,7 @@ async function run() {
     identity,
     merchantFinder,
     collectionFinder,
+    supplierFinder,
     productFinder,
     purchaseFinder,
   });

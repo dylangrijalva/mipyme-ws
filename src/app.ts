@@ -9,6 +9,7 @@ import type { CollectionFinder } from "./finders/collection-finder.ts";
 import type { MerchantFinder } from "./finders/merchant-finder.ts";
 import type { PurchaseFinder } from "./finders/purchase-finder.ts";
 import type { ProductFinder } from "./finders/product-finder.ts";
+import type { SupplierFinder } from "./finders/supplier-finder.ts";
 import { devGuard } from "./guards/dev-guard.ts";
 import type { EnvVars } from "./infra/config.env.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
@@ -24,6 +25,7 @@ import { collectionsRouter } from "./routes/collections.router.ts";
 import { onboardingRouter } from "./routes/onboarding.router.ts";
 import { productsRouter } from "./routes/products.router.ts";
 import { salesRouter } from "./routes/sales.router.ts";
+import { suppliersRouter } from "./routes/suppliers.router.ts";
 import { FacilitoHono } from "./types.ts";
 
 type InjectedDependencies = {
@@ -34,6 +36,7 @@ type InjectedDependencies = {
   identity: IdentityProvider;
   merchantFinder: MerchantFinder;
   collectionFinder: CollectionFinder;
+  supplierFinder: SupplierFinder;
   productFinder: ProductFinder;
   purchaseFinder: PurchaseFinder;
 };
@@ -56,6 +59,7 @@ function createApp(dependencies: InjectedDependencies): FacilitoHono {
   app.route("/v1/onboarding", onboardingRouter());
   app.route("/v1/products", productsRouter());
   app.route("/v1/collections", collectionsRouter());
+  app.route("/v1/suppliers", suppliersRouter());
   app.route("/v1/sales", salesRouter());
 
   app.get("/_health", devGuard(), async (ctx) => {
