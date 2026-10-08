@@ -75,6 +75,7 @@ For `production`, migrations must be applied manually from the generated SQL fil
 - Use early returns and guard clauses; do not use `else-if`.
 - Don't throw exception unless it's exceptionally required. Prefer returning errors as values for 99% of the cases.
 - In classes, private methods must be declared after the public API methods have been declared.
+- Never use `try-catch`.
 
 ### Naming Conventions
 
