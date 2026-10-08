@@ -119,7 +119,7 @@
             "required": false,
             "description": "The maximum number of products to return. Defaults to 50.",
             "schema": {
-              "type": "number",
+              "type": "integer",
               "minimum": 1,
               "maximum": 100,
               "default": 50
@@ -417,6 +417,367 @@
           }
         }
       }
+    },
+    "/v1/collections": {
+      "get": {
+        "tags": ["Catalog"],
+        "operationId": "listCollections",
+        "summary": "List collections",
+        "description": "Returns one page of collections belonging to the authenticated merchant. Use `next_cursor` to retrieve the next page.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "The maximum number of collections to return. Defaults to 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The `next_cursor` value returned by the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns a page of collections and pagination information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionPaginationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the collections from being listed. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Catalog"],
+        "operationId": "createCollection",
+        "summary": "Create a collection",
+        "description": "Creates a collection for the authenticated merchant. The slug is generated from the name. Names that produce the same slug are not allowed within a merchant.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCollectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Returns the created collection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is invited or disabled (forbidden_error).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented creation. Returns `internal_server_error`. Database errors, including concurrent uniqueness violations, return this response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another collection in this merchant has a name that produces the same slug. Returns `collection_name_already_exists`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/collections/{id}": {
+      "get": {
+        "tags": ["Catalog"],
+        "operationId": "getCollection",
+        "summary": "Get a collection",
+        "description": "Returns a collection belonging to the authenticated merchant.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The collection identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the collection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The collection does not exist or does not belong to the current merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the collection from being retrieved. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Catalog"],
+        "operationId": "updateCollection",
+        "summary": "Update a collection",
+        "description": "Updates the supplied fields for a collection belonging to the authenticated merchant. Omitted fields remain unchanged; an empty request leaves the record unchanged. The slug is generated from the name. Names that produce the same slug are not allowed within a merchant.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The collection identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCollectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns the updated collection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The collection does not exist or does not belong to the current merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the collection from being updated. Returns `internal_server_error`. Database errors, including concurrent uniqueness violations, return this response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another collection in this merchant has a name that produces the same slug. Returns `collection_name_already_exists`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -635,27 +996,29 @@
           "name": {
             "type": "string",
             "description": "The display name of the collection.",
-            "examples": ["East Blue Provisions"]
+            "examples": ["East Blue Provisions"],
+            "maxLength": 128
           },
           "slug": {
             "type": "string",
             "description": "The URL-friendly name of the collection.",
-            "examples": ["east-blue-provisions"]
+            "examples": ["east-blue-provisions"],
+            "maxLength": 128
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the collection was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the collection was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           }
         },
-        "required": ["id", "name", "slug", "createdAt", "updatedAt"],
+        "required": ["id", "name", "slug", "created_at", "updated_at"],
         "additionalProperties": false,
         "description": "A group of related products in a merchant catalog. Use collections to organize products into categories, such as provisions or clothing. A product includes the identifier and name of its associated collection.",
         "examples": [
@@ -663,8 +1026,8 @@
             "id": "coll_0000000000000000001",
             "name": "East Blue Provisions",
             "slug": "east-blue-provisions",
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z"
           }
         ]
       },
@@ -4102,6 +4465,52 @@
           { "name": "Updated product name", "price": "135.00" },
           { "collection_id": null, "image_url": null }
         ]
+      },
+      "CollectionPaginationResponse": {
+        "type": "object",
+        "description": "A page of collections and the information needed to request the next page. Continue with `next_cursor` while `has_more` is true.",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Collection"
+            },
+            "description": "The collections returned in this page."
+          },
+          "next_cursor": {
+            "type": ["string", "null"],
+            "description": "The opaque cursor to pass when requesting the next page. Returns `null` on the final page."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether more collections are available after this page."
+          }
+        },
+        "required": ["results", "next_cursor", "has_more"],
+        "additionalProperties": false
+      },
+      "CreateCollectionRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Collection name, trimmed before validation. Must produce a nonempty slug of at most 128 characters with the existing slugify rules; the slug must be unique within the merchant."
+          }
+        },
+        "required": ["name"]
+      },
+      "UpdateCollectionRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Collection name, trimmed before validation. Must produce a nonempty slug of at most 128 characters with the existing slugify rules; the slug must be unique within the merchant."
+          }
+        }
       }
     },
     "securitySchemes": {

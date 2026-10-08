@@ -20,6 +20,7 @@ import { notFoundHandler } from "./middlewares/not-found-handler.ts";
 import { requestId } from "./middlewares/request-id.ts";
 import { snakeCase } from "./middlewares/snake-case.ts";
 import OpenAPIDocument from "./openapi.json" with { type: "json" };
+import { collectionsRouter } from "./routes/collections.router.ts";
 import { onboardingRouter } from "./routes/onboarding.router.ts";
 import { productsRouter } from "./routes/products.router.ts";
 import { salesRouter } from "./routes/sales.router.ts";
@@ -54,6 +55,7 @@ function createApp(dependencies: InjectedDependencies): FacilitoHono {
 
   app.route("/v1/onboarding", onboardingRouter());
   app.route("/v1/products", productsRouter());
+  app.route("/v1/collections", collectionsRouter());
   app.route("/v1/sales", salesRouter());
 
   app.get("/_health", devGuard(), async (ctx) => {
