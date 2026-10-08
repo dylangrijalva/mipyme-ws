@@ -17,6 +17,10 @@
     {
       "name": "Suppliers",
       "description": "Create and manage merchant suppliers."
+    },
+    {
+      "name": "Customers",
+      "description": "Create and manage merchant customers."
     }
   ],
   "paths": {
@@ -1123,6 +1127,347 @@
           }
         }
       }
+    },
+    "/v1/customers": {
+      "get": {
+        "tags": ["Customers"],
+        "operationId": "listCustomers",
+        "summary": "List customers",
+        "description": "Returns one page of customers belonging to the authenticated merchant. Use `next_cursor` to retrieve the next page.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "The maximum number of customers to return. Defaults to 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The `next_cursor` value returned by the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns a page of customers and pagination information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerPaginationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the customers from being listed. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Customers"],
+        "operationId": "createCustomer",
+        "summary": "Create a customer",
+        "description": "Creates a customer for the authenticated merchant. Email and phone are optional and default to null. Duplicate names are allowed.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Returns the created customer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is invited or disabled (forbidden_error).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented creation. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/customers/{id}": {
+      "get": {
+        "tags": ["Customers"],
+        "operationId": "getCustomer",
+        "summary": "Get a customer",
+        "description": "Returns a customer belonging to the authenticated merchant.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The customer identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the customer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The customer does not exist or does not belong to the current merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the customer from being retrieved. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Customers"],
+        "operationId": "updateCustomer",
+        "summary": "Update a customer",
+        "description": "Updates the supplied fields for a customer belonging to the authenticated merchant. Omitted fields remain unchanged; an empty request leaves the record unchanged. Set `email` or `phone` to null to clear it.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The customer identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns the updated customer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The customer does not exist or does not belong to the current merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the customer from being updated. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1487,32 +1832,35 @@
           "name": {
             "type": "string",
             "description": "The display name of the customer.",
-            "examples": ["Trafalgar Law"]
+            "examples": ["Trafalgar Law"],
+            "maxLength": 128
           },
           "email": {
             "type": ["string", "null"],
             "description": "The email address of the customer. Returns `null` if none is recorded.",
-            "examples": ["law@heartpirates.example.com"]
+            "examples": ["law@heartpirates.example.com"],
+            "maxLength": 320
           },
           "phone": {
             "type": ["string", "null"],
             "description": "The contact phone number of the customer. Returns `null` if none is recorded.",
-            "examples": [null]
+            "examples": [null],
+            "maxLength": 32
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the customer was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the customer was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           }
         },
-        "required": ["id", "name", "email", "phone", "createdAt", "updatedAt"],
+        "required": ["id", "name", "email", "phone", "created_at", "updated_at"],
         "additionalProperties": false,
         "description": "A person or business that purchases from a merchant. Stores the customer name and contact details. Sales can reference the customer to identify who made a purchase.",
         "examples": [
@@ -1521,8 +1869,8 @@
             "name": "Trafalgar Law",
             "email": "law@heartpirates.example.com",
             "phone": null,
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z"
           }
         ]
       },
@@ -4915,6 +5263,76 @@
             "minLength": 1,
             "maxLength": 128,
             "description": "Supplier name, trimmed before validation."
+          },
+          "email": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 320,
+            "description": "Trimmed contact email. Use null to clear it."
+          },
+          "phone": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Trimmed contact phone. Use null to clear it."
+          }
+        }
+      },
+      "CustomerPaginationResponse": {
+        "type": "object",
+        "description": "A page of customers and the information needed to request the next page. Continue with `next_cursor` while `has_more` is true.",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Customer"
+            },
+            "description": "The customers returned in this page."
+          },
+          "next_cursor": {
+            "type": ["string", "null"],
+            "description": "The opaque cursor to pass when requesting the next page. Returns `null` on the final page."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether more customers are available after this page."
+          }
+        },
+        "required": ["results", "next_cursor", "has_more"],
+        "additionalProperties": false
+      },
+      "CreateCustomerRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Customer name, trimmed before validation."
+          },
+          "email": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 320,
+            "description": "Trimmed contact email. Use null to clear it."
+          },
+          "phone": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Trimmed contact phone. Use null to clear it."
+          }
+        },
+        "required": ["name"]
+      },
+      "UpdateCustomerRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Customer name, trimmed before validation."
           },
           "email": {
             "type": ["string", "null"],

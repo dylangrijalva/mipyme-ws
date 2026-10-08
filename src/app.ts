@@ -6,6 +6,7 @@ import { Redis } from "ioredis";
 import type { Logger } from "pino";
 import type { Database } from "./db/index.ts";
 import type { CollectionFinder } from "./finders/collection-finder.ts";
+import type { CustomerFinder } from "./finders/customer-finder.ts";
 import type { MerchantFinder } from "./finders/merchant-finder.ts";
 import type { PurchaseFinder } from "./finders/purchase-finder.ts";
 import type { ProductFinder } from "./finders/product-finder.ts";
@@ -22,6 +23,7 @@ import { requestId } from "./middlewares/request-id.ts";
 import { snakeCase } from "./middlewares/snake-case.ts";
 import OpenAPIDocument from "./openapi.json" with { type: "json" };
 import { collectionsRouter } from "./routes/collections.router.ts";
+import { customersRouter } from "./routes/customers.router.ts";
 import { onboardingRouter } from "./routes/onboarding.router.ts";
 import { productsRouter } from "./routes/products.router.ts";
 import { salesRouter } from "./routes/sales.router.ts";
@@ -36,6 +38,7 @@ type InjectedDependencies = {
   identity: IdentityProvider;
   merchantFinder: MerchantFinder;
   collectionFinder: CollectionFinder;
+  customerFinder: CustomerFinder;
   supplierFinder: SupplierFinder;
   productFinder: ProductFinder;
   purchaseFinder: PurchaseFinder;
@@ -59,6 +62,7 @@ function createApp(dependencies: InjectedDependencies): FacilitoHono {
   app.route("/v1/onboarding", onboardingRouter());
   app.route("/v1/products", productsRouter());
   app.route("/v1/collections", collectionsRouter());
+  app.route("/v1/customers", customersRouter());
   app.route("/v1/suppliers", suppliersRouter());
   app.route("/v1/sales", salesRouter());
 
