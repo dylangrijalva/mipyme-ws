@@ -9,7 +9,7 @@ import type { JsonWebTokenPayload } from "../../contracts/json-web-token-payload
 import type { Merchant } from "../../contracts/merchant.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
-import type { MerchantFinder } from "../../finders/merchant-repository.ts";
+import type { MerchantFinder } from "../../finders/merchant-finder.ts";
 import type { IdentityProvider } from "../../integrations/identity-provider.ts";
 import { assertFound } from "../../utils/assert-found.ts";
 import { generateId } from "../../utils/generate-id.ts";

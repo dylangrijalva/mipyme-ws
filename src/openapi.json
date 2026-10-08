@@ -9,6 +9,10 @@
     {
       "name": "Onboarding",
       "description": "Set up a business in Facilito. Create a merchant and its first location, and assign the current account as the business owner."
+    },
+    {
+      "name": "Catalog",
+      "description": "Create and manage items and services in the merchant catalog."
     }
   ],
   "paths": {
@@ -17,7 +21,8 @@
         "tags": ["Onboarding"],
         "operationId": "onboardAccount",
         "summary": "Create a business",
-        "description": "Creates a merchant and its first location, and makes the current account the business owner. If the account already owns a business, returns the existing merchant without changing its details. An account that belongs to a staff member cannot create a business.",
+        "description": "Creates a merchant and its first location, and makes the current account the business owner. If the account already owns a business, returns the existing merchant without changing its details. An account that belongs to a staff member cannot create a business. Requires a valid bearer token; existing merchant membership is not required.",
+        "security": [{ "bearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -46,6 +51,14 @@
                 "schema": {
                   "$ref": "#/components/schemas/FacilitoError"
                 }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
               }
             }
           },
@@ -91,6 +104,319 @@
           }
         }
       }
+    },
+    "/v1/products": {
+      "get": {
+        "tags": ["Catalog"],
+        "operationId": "listProducts",
+        "summary": "List products",
+        "description": "Returns one page of products in the authenticated merchant's catalog. Use `next_cursor` to retrieve the next page.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "The maximum number of products to return. Defaults to 50.",
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The `next_cursor` value returned by the previous page.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns a page of products and pagination information.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProductPaginationResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "The limit query parameter is invalid. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the products from being listed. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Catalog"],
+        "operationId": "createProduct",
+        "summary": "Create a product",
+        "description": "Creates a draft item or an active service with one default variant, included in the response. Items require unit_cost greater than zero, and item price must be equal to or greater than unit_cost. Items start with zero stock at every merchant location. Services have no inventory records and store unit_cost as \"0.00\" and SKU and barcode as null, ignoring supplied values after request validation. Optional images are stored as external HTTP or HTTPS URLs. Names may repeat; slugs are unique within the merchant. SKU and barcode values remain reserved by archived products. All records are saved in one transaction. Requires an enabled owner or staff membership, resolved from the database using the authenticated account. Token membership metadata does not determine access.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Returns the created product and its default variant. Items start as draft; services start as active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or invalid field values, an item is missing unit_cost or has zero unit_cost, or an item's price is below its unit_cost. Returns validation_error or price_below_unit_cost, respectively.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is invited or disabled (forbidden_error).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "404": {
+            "description": "The collection does not exist or does not belong to the current merchant. Returns resource_not_found with message `Collection {collectionId} has not been found.`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The SKU or barcode is already used within this merchant, including by archived products. Returns sku_already_exists or barcode_already_exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented creation. All product records are rolled back. Returns internal_server_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/products/{id}": {
+      "get": {
+        "tags": ["Catalog"],
+        "operationId": "getProduct",
+        "summary": "Get a product",
+        "description": "Returns a product belonging to the authenticated merchant.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The product identifier.",
+            "schema": { "$ref": "#/components/schemas/ObjectId" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the product.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Product" }
+              }
+            }
+          },
+          "400": {
+            "description": "The product identifier is invalid. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "404": {
+            "description": "The product does not exist or does not belong to the current merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the product from being retrieved. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Catalog"],
+        "operationId": "updateProduct",
+        "summary": "Update a product",
+        "description": "Updates the supplied fields for a product belonging to the authenticated merchant. Omitted fields remain unchanged. Set `collection_id` or `image_url` to null to clear it. For items, `unit_cost` must be greater than zero and can only change while the product is a draft; `price` must be equal to or greater than `unit_cost`.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The product identifier.",
+            "schema": { "$ref": "#/components/schemas/ObjectId" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateProductRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns the updated product.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Product" }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or field values, an item has an invalid unit cost, or its price is below its unit cost. Returns `validation_error` or `price_below_unit_cost`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "404": {
+            "description": "The product or collection does not exist or does not belong to the current merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "409": {
+            "description": "The SKU or barcode is already used within this merchant. Returns `sku_already_exists` or `barcode_already_exists`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the product from being updated. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -111,6 +437,8 @@
             "enum": [
               "internal_server_error",
               "rate_limit_exceeded",
+              "forbidden_error",
+              "account_not_provisioned",
               "validation_error",
               "conflict_error",
               "resource_not_found",
@@ -622,6 +950,8 @@
             "enum": [
               "internal_server_error",
               "rate_limit_exceeded",
+              "forbidden_error",
+              "account_not_provisioned",
               "validation_error",
               "conflict_error",
               "resource_not_found",
@@ -1009,43 +1339,43 @@
             "description": "The identifier of the inventory level.",
             "examples": ["inv_00000000000000000001"]
           },
-          "variantId": {
+          "variant_id": {
             "type": "string",
             "description": "The identifier of the product variant whose stock is tracked.",
             "examples": ["var_00000000000000000001"]
           },
-          "locationId": {
+          "location_id": {
             "type": "string",
             "description": "The identifier of the location where the stock is held.",
             "examples": ["loc_00000000000000000001"]
           },
-          "onHand": {
+          "on_hand": {
             "type": "number",
             "description": "The current quantity of the variant at the location.",
             "examples": [18]
           },
-          "lowStockThreshold": {
+          "low_stock_threshold": {
             "type": "number",
             "description": "The quantity used as the threshold for identifying low stock at the location.",
             "examples": [5]
           },
-          "optimalStockLevel": {
+          "optimal_stock_level": {
             "type": "number",
             "description": "The target stock quantity used when planning replenishment at the location.",
             "examples": [24]
           }
         },
-        "required": ["id", "variantId", "locationId", "onHand", "lowStockThreshold", "optimalStockLevel"],
+        "required": ["id", "variant_id", "location_id", "on_hand", "low_stock_threshold", "optimal_stock_level"],
         "additionalProperties": false,
         "description": "The stock held for one product variant at one location. Connects the variant to the location and includes its current quantity, low-stock threshold, and replenishment target.",
         "examples": [
           {
             "id": "inv_00000000000000000001",
-            "variantId": "var_00000000000000000001",
-            "locationId": "loc_00000000000000000001",
-            "onHand": 18,
-            "lowStockThreshold": 5,
-            "optimalStockLevel": 24
+            "variant_id": "var_00000000000000000001",
+            "location_id": "loc_00000000000000000001",
+            "on_hand": 18,
+            "low_stock_threshold": 5,
+            "optimal_stock_level": 24
           }
         ]
       },
@@ -1782,28 +2112,28 @@
                   "description": "The display position of the option within its group.",
                   "examples": [0]
                 },
-                "createdAt": {
+                "created_at": {
                   "type": "string",
                   "format": "date-time",
                   "description": "The date and time when the option was created, in RFC 3339 format.",
                   "examples": ["2026-09-23T09:00:00.000Z"]
                 },
-                "updatedAt": {
+                "updated_at": {
                   "type": "string",
                   "format": "date-time",
                   "description": "The date and time when the option was last updated, in RFC 3339 format.",
                   "examples": ["2026-09-23T09:00:00.000Z"]
                 }
               },
-              "required": ["id", "name", "position", "createdAt", "updatedAt"],
+              "required": ["id", "name", "position", "created_at", "updated_at"],
               "additionalProperties": false,
               "examples": [
                 {
                   "id": "opt_00000000000000000001",
                   "name": "1 kg",
                   "position": 0,
-                  "createdAt": "2026-09-23T09:00:00.000Z",
-                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                  "created_at": "2026-09-23T09:00:00.000Z",
+                  "updated_at": "2026-09-23T09:00:00.000Z"
                 }
               ]
             },
@@ -1814,13 +2144,13 @@
                   "id": "opt_00000000000000000001",
                   "name": "1 kg",
                   "position": 0,
-                  "createdAt": "2026-09-23T09:00:00.000Z",
-                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                  "created_at": "2026-09-23T09:00:00.000Z",
+                  "updated_at": "2026-09-23T09:00:00.000Z"
                 }
               ]
             ]
           },
-          "inventoryLevels": {
+          "inventory_levels": {
             "default": [],
             "type": "array",
             "items": {
@@ -1828,11 +2158,11 @@
               "examples": [
                 {
                   "id": "inv_00000000000000000001",
-                  "variantId": "var_00000000000000000001",
-                  "locationId": "loc_00000000000000000001",
-                  "onHand": 18,
-                  "lowStockThreshold": 5,
-                  "optimalStockLevel": 24
+                  "variant_id": "var_00000000000000000001",
+                  "location_id": "loc_00000000000000000001",
+                  "on_hand": 18,
+                  "low_stock_threshold": 5,
+                  "optimal_stock_level": 24
                 }
               ]
             },
@@ -1841,29 +2171,39 @@
               [
                 {
                   "id": "inv_00000000000000000001",
-                  "variantId": "var_00000000000000000001",
-                  "locationId": "loc_00000000000000000001",
-                  "onHand": 18,
-                  "lowStockThreshold": 5,
-                  "optimalStockLevel": 24
+                  "variant_id": "var_00000000000000000001",
+                  "location_id": "loc_00000000000000000001",
+                  "on_hand": 18,
+                  "low_stock_threshold": 5,
+                  "optimal_stock_level": 24
                 }
               ]
             ]
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the product variant was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the product variant was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           }
         },
-        "required": ["id", "name", "sku", "barcode", "price", "options", "inventoryLevels", "createdAt", "updatedAt"],
+        "required": [
+          "id",
+          "name",
+          "sku",
+          "barcode",
+          "price",
+          "options",
+          "inventory_levels",
+          "created_at",
+          "updated_at"
+        ],
         "additionalProperties": false,
         "description": "A version of a product distinguished by its selected options, such as pack size or color. Each variant has its own identifier, optional SKU and barcode, and stock levels by location. A variant can specify a selling price or use the product price.",
         "examples": [
@@ -1878,22 +2218,22 @@
                 "id": "opt_00000000000000000001",
                 "name": "1 kg",
                 "position": 0,
-                "createdAt": "2026-09-23T09:00:00.000Z",
-                "updatedAt": "2026-09-23T09:00:00.000Z"
+                "created_at": "2026-09-23T09:00:00.000Z",
+                "updated_at": "2026-09-23T09:00:00.000Z"
               }
             ],
-            "inventoryLevels": [
+            "inventory_levels": [
               {
                 "id": "inv_00000000000000000001",
-                "variantId": "var_00000000000000000001",
-                "locationId": "loc_00000000000000000001",
-                "onHand": 18,
-                "lowStockThreshold": 5,
-                "optimalStockLevel": 24
+                "variant_id": "var_00000000000000000001",
+                "location_id": "loc_00000000000000000001",
+                "on_hand": 18,
+                "low_stock_threshold": 5,
+                "optimal_stock_level": 24
               }
             ],
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z"
           }
         ]
       },
@@ -1915,9 +2255,9 @@
             "description": "The URL-friendly name of the product.",
             "examples": ["east-blue-tangerines"]
           },
-          "unitCost": {
+          "unit_cost": {
             "$ref": "#/components/schemas/Decimal",
-            "description": "The cost per unit of the product, expressed as a decimal string.",
+            "description": "The cost per unit, expressed as a decimal string. Always \"0.00\" for services.",
             "examples": ["80.00"]
           },
           "price": {
@@ -1925,7 +2265,7 @@
             "description": "The base selling price per unit, expressed as a decimal string. A variant can specify its own price.",
             "examples": ["125.50"]
           },
-          "productType": {
+          "product_type": {
             "$ref": "#/components/schemas/ProductType",
             "description": "Whether the product is a physical item or a service.",
             "examples": ["item"]
@@ -1935,7 +2275,7 @@
             "description": "The catalog state of the product: active, draft, or archived.",
             "examples": ["active"]
           },
-          "imageUrl": {
+          "image_url": {
             "default": null,
             "anyOf": [
               {
@@ -1986,7 +2326,7 @@
               }
             ]
           },
-          "optionGroups": {
+          "option_groups": {
             "default": [],
             "type": "array",
             "items": {
@@ -2023,28 +2363,28 @@
                         "description": "The display position of the option within its group.",
                         "examples": [0]
                       },
-                      "createdAt": {
+                      "created_at": {
                         "type": "string",
                         "format": "date-time",
                         "description": "The date and time when the option was created, in RFC 3339 format.",
                         "examples": ["2026-09-23T09:00:00.000Z"]
                       },
-                      "updatedAt": {
+                      "updated_at": {
                         "type": "string",
                         "format": "date-time",
                         "description": "The date and time when the option was last updated, in RFC 3339 format.",
                         "examples": ["2026-09-23T09:00:00.000Z"]
                       }
                     },
-                    "required": ["id", "name", "position", "createdAt", "updatedAt"],
+                    "required": ["id", "name", "position", "created_at", "updated_at"],
                     "additionalProperties": false,
                     "examples": [
                       {
                         "id": "opt_00000000000000000001",
                         "name": "1 kg",
                         "position": 0,
-                        "createdAt": "2026-09-23T09:00:00.000Z",
-                        "updatedAt": "2026-09-23T09:00:00.000Z"
+                        "created_at": "2026-09-23T09:00:00.000Z",
+                        "updated_at": "2026-09-23T09:00:00.000Z"
                       }
                     ]
                   },
@@ -2055,26 +2395,26 @@
                         "id": "opt_00000000000000000001",
                         "name": "1 kg",
                         "position": 0,
-                        "createdAt": "2026-09-23T09:00:00.000Z",
-                        "updatedAt": "2026-09-23T09:00:00.000Z"
+                        "created_at": "2026-09-23T09:00:00.000Z",
+                        "updated_at": "2026-09-23T09:00:00.000Z"
                       }
                     ]
                   ]
                 },
-                "createdAt": {
+                "created_at": {
                   "type": "string",
                   "format": "date-time",
                   "description": "The date and time when the option group was created, in RFC 3339 format.",
                   "examples": ["2026-09-23T09:00:00.000Z"]
                 },
-                "updatedAt": {
+                "updated_at": {
                   "type": "string",
                   "format": "date-time",
                   "description": "The date and time when the option group was last updated, in RFC 3339 format.",
                   "examples": ["2026-09-23T09:00:00.000Z"]
                 }
               },
-              "required": ["id", "name", "options", "createdAt", "updatedAt"],
+              "required": ["id", "name", "options", "created_at", "updated_at"],
               "additionalProperties": false,
               "examples": [
                 {
@@ -2085,12 +2425,12 @@
                       "id": "opt_00000000000000000001",
                       "name": "1 kg",
                       "position": 0,
-                      "createdAt": "2026-09-23T09:00:00.000Z",
-                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                      "created_at": "2026-09-23T09:00:00.000Z",
+                      "updated_at": "2026-09-23T09:00:00.000Z"
                     }
                   ],
-                  "createdAt": "2026-09-23T09:00:00.000Z",
-                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                  "created_at": "2026-09-23T09:00:00.000Z",
+                  "updated_at": "2026-09-23T09:00:00.000Z"
                 }
               ]
             },
@@ -2105,12 +2445,12 @@
                       "id": "opt_00000000000000000001",
                       "name": "1 kg",
                       "position": 0,
-                      "createdAt": "2026-09-23T09:00:00.000Z",
-                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                      "created_at": "2026-09-23T09:00:00.000Z",
+                      "updated_at": "2026-09-23T09:00:00.000Z"
                     }
                   ],
-                  "createdAt": "2026-09-23T09:00:00.000Z",
-                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                  "created_at": "2026-09-23T09:00:00.000Z",
+                  "updated_at": "2026-09-23T09:00:00.000Z"
                 }
               ]
             ]
@@ -2132,26 +2472,26 @@
                       "id": "opt_00000000000000000001",
                       "name": "1 kg",
                       "position": 0,
-                      "createdAt": "2026-09-23T09:00:00.000Z",
-                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                      "created_at": "2026-09-23T09:00:00.000Z",
+                      "updated_at": "2026-09-23T09:00:00.000Z"
                     }
                   ],
-                  "inventoryLevels": [
+                  "inventory_levels": [
                     {
                       "id": "inv_00000000000000000001",
-                      "variantId": "var_00000000000000000001",
-                      "locationId": "loc_00000000000000000001",
-                      "onHand": 18,
-                      "lowStockThreshold": 5,
-                      "optimalStockLevel": 24
+                      "variant_id": "var_00000000000000000001",
+                      "location_id": "loc_00000000000000000001",
+                      "on_hand": 18,
+                      "low_stock_threshold": 5,
+                      "optimal_stock_level": 24
                     }
                   ],
-                  "createdAt": "2026-09-23T09:00:00.000Z",
-                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                  "created_at": "2026-09-23T09:00:00.000Z",
+                  "updated_at": "2026-09-23T09:00:00.000Z"
                 }
               ]
             },
-            "description": "The versions of the product that can be sold, including their selected options and stock levels.",
+            "description": "The sellable variants. Creation currently returns exactly one default variant with the product name and price.",
             "examples": [
               [
                 {
@@ -2165,39 +2505,39 @@
                       "id": "opt_00000000000000000001",
                       "name": "1 kg",
                       "position": 0,
-                      "createdAt": "2026-09-23T09:00:00.000Z",
-                      "updatedAt": "2026-09-23T09:00:00.000Z"
+                      "created_at": "2026-09-23T09:00:00.000Z",
+                      "updated_at": "2026-09-23T09:00:00.000Z"
                     }
                   ],
-                  "inventoryLevels": [
+                  "inventory_levels": [
                     {
                       "id": "inv_00000000000000000001",
-                      "variantId": "var_00000000000000000001",
-                      "locationId": "loc_00000000000000000001",
-                      "onHand": 18,
-                      "lowStockThreshold": 5,
-                      "optimalStockLevel": 24
+                      "variant_id": "var_00000000000000000001",
+                      "location_id": "loc_00000000000000000001",
+                      "on_hand": 18,
+                      "low_stock_threshold": 5,
+                      "optimal_stock_level": 24
                     }
                   ],
-                  "createdAt": "2026-09-23T09:00:00.000Z",
-                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                  "created_at": "2026-09-23T09:00:00.000Z",
+                  "updated_at": "2026-09-23T09:00:00.000Z"
                 }
               ]
             ]
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the product was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the product was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "archivedAt": {
+          "archived_at": {
             "anyOf": [
               {
                 "type": "string",
@@ -2215,17 +2555,17 @@
           "id",
           "name",
           "slug",
-          "unitCost",
+          "unit_cost",
           "price",
-          "productType",
+          "product_type",
           "status",
-          "imageUrl",
+          "image_url",
           "collection",
-          "optionGroups",
+          "option_groups",
           "variants",
-          "createdAt",
-          "updatedAt",
-          "archivedAt"
+          "created_at",
+          "updated_at",
+          "archived_at"
         ],
         "additionalProperties": false,
         "description": "A good or service offered by a merchant. Contains its name, pricing, catalog status, image, and collection. Option groups describe the available choices, and variants represent the combinations that can be sold.",
@@ -2234,16 +2574,16 @@
             "id": "prod_0000000000000000001",
             "name": "East Blue Tangerines",
             "slug": "east-blue-tangerines",
-            "unitCost": "80.00",
+            "unit_cost": "80.00",
             "price": "125.50",
-            "productType": "item",
+            "product_type": "item",
             "status": "active",
-            "imageUrl": "https://strawhatpirates.example.com/images/tangerines.jpg",
+            "image_url": "https://strawhatpirates.example.com/images/tangerines.jpg",
             "collection": {
               "id": "coll_0000000000000000001",
               "name": "East Blue Provisions"
             },
-            "optionGroups": [
+            "option_groups": [
               {
                 "id": "optgr_000000000000000001",
                 "name": "Pack size",
@@ -2252,12 +2592,12 @@
                     "id": "opt_00000000000000000001",
                     "name": "1 kg",
                     "position": 0,
-                    "createdAt": "2026-09-23T09:00:00.000Z",
-                    "updatedAt": "2026-09-23T09:00:00.000Z"
+                    "created_at": "2026-09-23T09:00:00.000Z",
+                    "updated_at": "2026-09-23T09:00:00.000Z"
                   }
                 ],
-                "createdAt": "2026-09-23T09:00:00.000Z",
-                "updatedAt": "2026-09-23T09:00:00.000Z"
+                "created_at": "2026-09-23T09:00:00.000Z",
+                "updated_at": "2026-09-23T09:00:00.000Z"
               }
             ],
             "variants": [
@@ -2272,27 +2612,27 @@
                     "id": "opt_00000000000000000001",
                     "name": "1 kg",
                     "position": 0,
-                    "createdAt": "2026-09-23T09:00:00.000Z",
-                    "updatedAt": "2026-09-23T09:00:00.000Z"
+                    "created_at": "2026-09-23T09:00:00.000Z",
+                    "updated_at": "2026-09-23T09:00:00.000Z"
                   }
                 ],
-                "inventoryLevels": [
+                "inventory_levels": [
                   {
                     "id": "inv_00000000000000000001",
-                    "variantId": "var_00000000000000000001",
-                    "locationId": "loc_00000000000000000001",
-                    "onHand": 18,
-                    "lowStockThreshold": 5,
-                    "optimalStockLevel": 24
+                    "variant_id": "var_00000000000000000001",
+                    "location_id": "loc_00000000000000000001",
+                    "on_hand": 18,
+                    "low_stock_threshold": 5,
+                    "optimal_stock_level": 24
                   }
                 ],
-                "createdAt": "2026-09-23T09:00:00.000Z",
-                "updatedAt": "2026-09-23T09:00:00.000Z"
+                "created_at": "2026-09-23T09:00:00.000Z",
+                "updated_at": "2026-09-23T09:00:00.000Z"
               }
             ],
-            "archivedAt": null,
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "archived_at": null,
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z"
           }
         ]
       },
@@ -3544,6 +3884,27 @@
           }
         ]
       },
+      "ProductPaginationResponse": {
+        "type": "object",
+        "description": "A page of products and the information needed to request the next page. Continue with `next_cursor` while `has_more` is true.",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Product" },
+            "description": "The products returned in this page."
+          },
+          "next_cursor": {
+            "type": ["string", "null"],
+            "description": "The opaque cursor to pass when requesting the next page. Returns `null` on the final page."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether more products are available after this page."
+          }
+        },
+        "required": ["results", "next_cursor", "has_more"],
+        "additionalProperties": false
+      },
       "OnboardAccountRequest": {
         "type": "object",
         "description": "The owner and business details used to create a merchant and its first location.",
@@ -3588,6 +3949,166 @@
             }
           }
         ]
+      },
+      "CreateProductRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Product name, trimmed before validation. Duplicate names are allowed."
+          },
+          "barcode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional barcode, trimmed before validation. Unique within the merchant for items, including archived products. Stored as null for services."
+          },
+          "sku": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional SKU, trimmed before validation. Unique within the merchant for items, including archived products. Stored as null for services."
+          },
+          "price": {
+            "$ref": "#/components/schemas/PositiveDecimal",
+            "description": "Selling price greater than zero, also used by the default variant. For items, must be equal to or greater than unit_cost."
+          },
+          "unit_cost": {
+            "$ref": "#/components/schemas/Decimal",
+            "description": "Item cost per unit. Required and greater than zero for items, including when product_type is omitted. Optional for services, which accept zero. Services always store \"0.00\", regardless of the supplied valid value."
+          },
+          "collection_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional collection belonging to the current merchant."
+          },
+          "product_type": {
+            "type": "string",
+            "enum": ["item", "service"],
+            "default": "item",
+            "description": "Items track inventory; services do not."
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https?://",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional external image URL, trimmed before validation. Must use HTTP or HTTPS. No image is downloaded."
+          }
+        },
+        "required": ["name", "price"],
+        "allOf": [
+          {
+            "if": {
+              "properties": { "product_type": { "const": "service" } },
+              "required": ["product_type"]
+            },
+            "else": {
+              "required": ["unit_cost"],
+              "properties": {
+                "unit_cost": { "$ref": "#/components/schemas/PositiveDecimal" }
+              }
+            }
+          }
+        ],
+        "examples": [
+          {
+            "name": "Sanji's provisions",
+            "price": "25.50",
+            "unit_cost": "10.00",
+            "product_type": "item",
+            "sku": "SUNNY-01"
+          },
+          {
+            "name": "Chopper's consultation",
+            "price": "50.00",
+            "product_type": "service"
+          }
+        ]
+      },
+      "UpdateProductRequest": {
+        "type": "object",
+        "description": "Fields to update on an existing product. Omit a field to leave it unchanged. Set `collection_id` or `image_url` to `null` to clear it. For item products, set `sku` or `barcode` to `null` to clear that value.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Product name, trimmed before validation."
+          },
+          "barcode": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 128 }, { "type": "null" }],
+            "description": "Optional barcode for items. Must be unique within the merchant, including across archived products."
+          },
+          "sku": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 128 }, { "type": "null" }],
+            "description": "Optional SKU for items. Must be unique within the merchant, including across archived products."
+          },
+          "price": {
+            "$ref": "#/components/schemas/PositiveDecimal",
+            "description": "Selling price greater than zero. For items, it must be equal to or greater than unit_cost."
+          },
+          "unit_cost": {
+            "$ref": "#/components/schemas/Decimal",
+            "description": "Item cost per unit. For items, it must be greater than zero and can only change before an inventory movement."
+          },
+          "collection_id": {
+            "anyOf": [{ "$ref": "#/components/schemas/ObjectId" }, { "type": "null" }],
+            "description": "Optional collection belonging to the current merchant. Set to null to remove the collection."
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https?://",
+                "maxLength": 2048
+              },
+              { "type": "null" }
+            ],
+            "description": "Optional external image URL. Must use HTTP or HTTPS. Set to null to remove the image."
+          }
+        },
+        "examples": [
+          { "name": "Updated product name", "price": "135.00" },
+          { "collection_id": null, "image_url": null }
+        ]
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   }

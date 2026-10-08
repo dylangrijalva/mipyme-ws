@@ -1,10 +1,13 @@
 import { validator } from "hono/validator";
+import { authorize } from "../middlewares/authorize.ts";
 import { OnboardAccountRequest, ProvisionAccountService } from "../services/onboarding/provision-account-service.ts";
 import { FacilitoHono } from "../types.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
 function onboardingRouter(): FacilitoHono {
   const router = new FacilitoHono();
+
+  router.use(authorize());
 
   router.post(
     "/",

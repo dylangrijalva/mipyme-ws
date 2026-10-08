@@ -3,7 +3,10 @@ import chalk from "chalk";
 import { Redis } from "ioredis";
 import { createApp } from "./app.ts";
 import { createDrizzle } from "./db/index.ts";
-import { MerchantFinder } from "./finders/merchant-repository.ts";
+import { CollectionFinder } from "./finders/collection-finder.ts";
+import { MerchantFinder } from "./finders/merchant-finder.ts";
+import { PurchaseFinder } from "./finders/purchase-finder.ts";
+import { ProductFinder } from "./finders/product-finder.ts";
 import { Environment, loadEnvironmentVariables } from "./infra/config.env.ts";
 import { createLogger } from "./infra/config.logger.ts";
 import { IdentityProvider } from "./integrations/identity-provider.ts";
@@ -27,8 +30,21 @@ async function run() {
   const identity = new IdentityProvider(logger, env);
 
   const merchantFinder = new MerchantFinder();
+  const collectionFinder = new CollectionFinder();
+  const productFinder = new ProductFinder();
+  const purchaseFinder = new PurchaseFinder();
 
-  const app = createApp({ logger, env, db, cache, identity, merchantFinder });
+  const app = createApp({
+    logger,
+    env,
+    db,
+    cache,
+    identity,
+    merchantFinder,
+    collectionFinder,
+    productFinder,
+    purchaseFinder,
+  });
 
   serve({ fetch: app.fetch, port: env.PORT }, ({ address, port }) => {
     const host = env.NODE_ENV === "development" ? "localhost" : address;

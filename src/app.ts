@@ -5,7 +5,10 @@ import { secureHeaders } from "hono/secure-headers";
 import { Redis } from "ioredis";
 import type { Logger } from "pino";
 import type { Database } from "./db/index.ts";
-import type { MerchantFinder } from "./finders/merchant-repository.ts";
+import type { CollectionFinder } from "./finders/collection-finder.ts";
+import type { MerchantFinder } from "./finders/merchant-finder.ts";
+import type { PurchaseFinder } from "./finders/purchase-finder.ts";
+import type { ProductFinder } from "./finders/product-finder.ts";
 import { devGuard } from "./guards/dev-guard.ts";
 import type { EnvVars } from "./infra/config.env.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
@@ -18,6 +21,8 @@ import { requestId } from "./middlewares/request-id.ts";
 import { snakeCase } from "./middlewares/snake-case.ts";
 import OpenAPIDocument from "./openapi.json" with { type: "json" };
 import { onboardingRouter } from "./routes/onboarding.router.ts";
+import { productsRouter } from "./routes/products.router.ts";
+import { salesRouter } from "./routes/sales.router.ts";
 import { FacilitoHono } from "./types.ts";
 
 type InjectedDependencies = {
@@ -27,6 +32,9 @@ type InjectedDependencies = {
   cache: Redis;
   identity: IdentityProvider;
   merchantFinder: MerchantFinder;
+  collectionFinder: CollectionFinder;
+  productFinder: ProductFinder;
+  purchaseFinder: PurchaseFinder;
 };
 
 function createApp(dependencies: InjectedDependencies): FacilitoHono {
@@ -45,6 +53,8 @@ function createApp(dependencies: InjectedDependencies): FacilitoHono {
   app.onError(errorHandler());
 
   app.route("/v1/onboarding", onboardingRouter());
+  app.route("/v1/products", productsRouter());
+  app.route("/v1/sales", salesRouter());
 
   app.get("/_health", devGuard(), async (ctx) => {
     const { db, cache } = ctx.var;

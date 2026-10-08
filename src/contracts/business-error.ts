@@ -4,6 +4,7 @@ const codes = {
   internalServerError: "internal_server_error",
   rateLimitExceeded: "rate_limit_exceeded",
   forbiddenError: "forbidden_error",
+  accountNotProvisioned: "account_not_provisioned",
   validationError: "validation_error",
   conflictError: "conflict_error",
   resourceNotFound: "resource_not_found",

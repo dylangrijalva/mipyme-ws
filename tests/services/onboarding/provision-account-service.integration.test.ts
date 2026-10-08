@@ -5,7 +5,7 @@ import { codes, type BusinessError } from "../../../src/contracts/business-error
 import type { IdentityAccount } from "../../../src/contracts/identity-account.ts";
 import type { Database } from "../../../src/db/index.ts";
 import { tables } from "../../../src/db/schema.ts";
-import { MerchantFinder } from "../../../src/finders/merchant-repository.ts";
+import { MerchantFinder } from "../../../src/finders/merchant-finder.ts";
 import type { IdentityProvider } from "../../../src/integrations/identity-provider.ts";
 import {
   ProvisionAccountService,

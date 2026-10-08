@@ -1,10 +1,11 @@
 import z from "zod";
 import { Decimal } from "./decimal.ts";
+import { PurchaseStatus } from "./purchase-status.ts";
 
-const PurchaseOrder = z.object({
+const Purchase = z.object({
   id: z.string(),
   transactionNumber: z.number(),
-  status: z.string(),
+  status: PurchaseStatus,
   locationId: z.string(),
   supplier: z.object({
     id: z.string(),
@@ -12,8 +13,7 @@ const PurchaseOrder = z.object({
   }),
   lineItems: z.array(
     z.object({
-      productId: z.string(),
-      productName: z.string(),
+      id: z.string(),
       unitCost: Decimal,
       price: Decimal.nullable(),
       variants: z.array(
@@ -37,6 +37,6 @@ const PurchaseOrder = z.object({
   updatedAt: z.date(),
 });
 
-type PurchaseOrder = z.infer<typeof PurchaseOrder>;
+type Purchase = z.infer<typeof Purchase>;
 
-export { PurchaseOrder };
+export { Purchase };

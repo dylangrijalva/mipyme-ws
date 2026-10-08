@@ -6,6 +6,7 @@ const ERROR_STATUS_CODES: Record<ErrorCode, number> = Object.freeze({
   [codes.rateLimitExceeded]: 429,
   [codes.validationError]: 400,
   [codes.forbiddenError]: 403,
+  [codes.accountNotProvisioned]: 403,
   [codes.invalidOAuthToken]: 401,
   [codes.syncTokenInvalid]: 400,
   [codes.conflictError]: 409,

@@ -1,0 +1,1 @@
+ALTER TABLE `products` ADD `inventoryVersion` int unsigned DEFAULT 0 NOT NULL;

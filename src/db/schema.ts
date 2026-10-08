@@ -16,6 +16,7 @@ import type { InventoryMovementReason } from "../contracts/inventory-movement-re
 import type { InventoryState } from "../contracts/inventory-state.ts";
 import { ID_LENGTH } from "../contracts/object-id.ts";
 import type { PaymentMethod } from "../contracts/payment-method.ts";
+import type { PurchaseStatus } from "../contracts/purchase-status.ts";
 import type { ProductImageSource } from "../contracts/product-image-source.ts";
 import type { ProductImageStatus } from "../contracts/product-image-status.ts";
 import { PRODUCT_IMAGE_URL_MAX_LENGTH } from "../contracts/product-image.ts";
@@ -194,6 +195,7 @@ export const product = mysqlTable(
     slug: varchar({ length: 128 }).notNull(),
     price: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }).notNull(),
     unitCost: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }).notNull(),
+    inventoryVersion: int({ unsigned: true }).notNull().default(0),
     status: varchar({ length: 24 }).$type<ProductStatus>().notNull().default("draft"),
     type: varchar({ length: 24 }).$type<ProductType>().notNull().default("item"),
     createdAt: datetime({ mode: "date", fsp: 6 })
@@ -734,7 +736,7 @@ export const purchaseOrder = mysqlTable(
   "purchase_orders",
   {
     id: char({ length: ID_LENGTH }).primaryKey(),
-    status: varchar({ length: 24 }).notNull(),
+    status: varchar({ length: 24 }).$type<PurchaseStatus>().notNull(),
     transactionNumber: int({ unsigned: true }).notNull(),
     notes: varchar({ length: 256 }),
     createdAt: datetime({ mode: "date", fsp: 6 })
