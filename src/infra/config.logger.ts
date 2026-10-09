@@ -22,7 +22,9 @@ const FIELDS_TO_REDACT = buildRedactionPrefixes(MAX_REDACTION_DEPTH).flatMap((pr
   REDACTED_FIELDS.map((field) => `${prefix}.${field}`),
 );
 
-type Config = { mode: "json" | "pretty" };
+type Config = {
+  mode: "json" | "pretty";
+};
 
 function createLogger(config: Config): Logger {
   const baseConfig = {
@@ -66,4 +68,8 @@ function createLogger(config: Config): Logger {
   return logger;
 }
 
-export { createLogger };
+function noopLogger(): Logger {
+  return pino({ enabled: false });
+}
+
+export { createLogger, noopLogger };

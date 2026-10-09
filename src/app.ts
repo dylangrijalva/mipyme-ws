@@ -8,8 +8,8 @@ import type { Database } from "./db/index.ts";
 import type { CollectionFinder } from "./finders/collection-finder.ts";
 import type { CustomerFinder } from "./finders/customer-finder.ts";
 import type { MerchantFinder } from "./finders/merchant-finder.ts";
-import type { PurchaseFinder } from "./finders/purchase-finder.ts";
 import type { ProductFinder } from "./finders/product-finder.ts";
+import type { PurchaseFinder } from "./finders/purchase-finder.ts";
 import type { SupplierFinder } from "./finders/supplier-finder.ts";
 import { devGuard } from "./guards/dev-guard.ts";
 import type { EnvVars } from "./infra/config.env.ts";
@@ -66,12 +66,10 @@ function createApp(dependencies: InjectedDependencies): FacilitoHono {
   app.route("/v1/suppliers", suppliersRouter());
   app.route("/v1/sales", salesRouter());
 
-  app.get("/_health", devGuard(), async (ctx) => {
+  app.get("/_health", async (ctx) => {
     const { db, cache } = ctx.var;
-
     await db.execute("SELECT 1;");
     await cache.ping();
-
     return ctx.body(null, 204);
   });
 

@@ -6,11 +6,11 @@ import { createDrizzle } from "./db/index.ts";
 import { CollectionFinder } from "./finders/collection-finder.ts";
 import { CustomerFinder } from "./finders/customer-finder.ts";
 import { MerchantFinder } from "./finders/merchant-finder.ts";
-import { PurchaseFinder } from "./finders/purchase-finder.ts";
 import { ProductFinder } from "./finders/product-finder.ts";
+import { PurchaseFinder } from "./finders/purchase-finder.ts";
 import { SupplierFinder } from "./finders/supplier-finder.ts";
 import { Environment, loadEnvironmentVariables } from "./infra/config.env.ts";
-import { createLogger } from "./infra/config.logger.ts";
+import { createLogger, noopLogger } from "./infra/config.logger.ts";
 import { IdentityProvider } from "./integrations/identity-provider.ts";
 
 async function run() {
@@ -18,8 +18,8 @@ async function run() {
   const environment = Environment.parse(process.env["NODE_ENV"]);
   const env = loadEnvironmentVariables(environment);
 
-  const LOGGER_MODE = environment === "development" ? "pretty" : "json";
-  const logger = createLogger({ mode: LOGGER_MODE });
+  const logger =
+    environment === "test" ? noopLogger() : createLogger({ mode: environment === "development" ? "pretty" : "json" });
 
   const db = createDrizzle(env.DB_URL);
   await db.execute("SELECT 1");
@@ -64,12 +64,18 @@ async function run() {
   });
 }
 
-process.on("uncaughtException", (error) => {
-  console.error(chalk.red("Uncaught Exception:"), error);
-  process.exit(1);
-});
+const __IS_MAIN_MODULE__ = import.meta.url === `file://${process.argv[1]}`;
 
-run().catch((error) => {
-  console.error(chalk.red("Error during startup:"), error);
-  process.exit(1);
-});
+if (__IS_MAIN_MODULE__) {
+  process.on("uncaughtException", (error) => {
+    console.error(chalk.red("Uncaught Exception:"), error);
+    process.exit(1);
+  });
+
+  run().catch((error) => {
+    console.error(chalk.red("Error during startup:"), error);
+    process.exit(1);
+  });
+}
+
+export { run };

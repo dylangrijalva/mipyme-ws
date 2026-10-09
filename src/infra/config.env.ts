@@ -46,7 +46,7 @@ function loadEnvironmentVariables(environment: Environment): EnvVars {
     test: ".env.test",
   };
 
-  const { parsed } = dotenvx.config({ path: ENVIRONMENT_FILES[environment], quiet: true, override: true });
+  const { parsed } = dotenvx.config({ path: ENVIRONMENT_FILES[environment], quiet: true });
   const env = { ...process.env, ...(parsed ?? {}) };
 
   const { success, data, error } = EnvVars.safeParse(env);
