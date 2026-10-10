@@ -155,6 +155,8 @@ For fixed sets of string values, use `type: "string"` with an `enum` array inste
 
 Apply the general rules above, plus these requirements:
 
+- For every new service or use case, add a corresponding integration test under `tests/services` and an HTTP test under `tests/http/workflows`.
+- Write HTTP tests as StepCI workflows, following the existing `.spec.yaml` convention.
 - Exercise the service’s public interface or API endpoint. Keep the application components whose interaction is being tested real; stub external systems at their boundaries when needed.
 - Assert contractually relevant results, status codes, and errors alongside actual effects. A success response alone does not prove that the intended operation occurred.
 - For persistence tests, use an isolated test database with the production database engine. Query or reload records to verify saved values and relationships, and isolate test data between tests.

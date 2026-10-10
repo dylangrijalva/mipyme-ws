@@ -27,6 +27,7 @@ const EnvVars = z.object({
   POSTHOG_KEY: z.string(),
   CLERK_SECRET_KEY: z.string(),
   CLERK_JWKS_URL: z.string(),
+  CLERK_TEST_USER_ID: z.string().optional(),
   BUCKET_STORAGE_ENDPOINT: z.url(),
   BUCKET_STORAGE_REGION: z.string().nonempty(),
   BUCKET_STORAGE_ACCESS_KEY_ID: z.string().nonempty(),

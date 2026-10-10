@@ -7,6 +7,10 @@
   },
   "tags": [
     {
+      "name": "Authentication",
+      "description": "Inspect the identity claims associated with the authenticated account."
+    },
+    {
       "name": "Onboarding",
       "description": "Set up a business in Facilito. Create a merchant and its first location, and assign the current account as the business owner."
     },
@@ -24,6 +28,33 @@
     }
   ],
   "paths": {
+    "/me": {
+      "get": {
+        "tags": ["Authentication"],
+        "operationId": "getCurrentAccountClaims",
+        "summary": "Get the current account claims",
+        "description": "Returns the identity claims from the authenticated bearer token.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Returns the authenticated identity claims.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JsonWebTokenPayload" }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/onboarding": {
       "post": {
         "tags": ["Onboarding"],

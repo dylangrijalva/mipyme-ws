@@ -3,6 +3,7 @@ import { MySqlContainer } from "@testcontainers/mysql";
 import { RedisContainer } from "@testcontainers/redis";
 import chalk from "chalk";
 import { migrate } from "drizzle-orm/mysql2/migrator";
+import { decodeJwt } from "jose";
 import { createConnection } from "mysql2/promise";
 import { readdir } from "node:fs/promises";
 import { basename, resolve } from "node:path";
@@ -11,11 +12,12 @@ import pino, { type Logger } from "pino";
 import pretty from "pino-pretty";
 import { createDrizzle } from "../../src/db/index.ts";
 import { run } from "../../src/index.ts";
-import type { Environment } from "../../src/infra/config.env.ts";
+import { loadEnvironmentVariables, type Environment } from "../../src/infra/config.env.ts";
 
 class HttpTestRunner {
   private readonly environment: Environment;
   private readonly logger: Logger;
+  private readonly sessionIds: Array<string> = [];
 
   constructor(environment: Environment) {
     this.logger = pino({ name: "http-tests", level: "info" }, pretty({ colorize: true }));
@@ -23,29 +25,107 @@ class HttpTestRunner {
   }
 
   async run(): Promise<void> {
-    const __IS_TEST_ENVIRONMENT__ = this.environment === "test";
-    if (__IS_TEST_ENVIRONMENT__) {
-      const PORT = await this.prepareTestEnvironment();
-      await this.runTests(new URL(`http://localhost:${PORT}`));
-      return;
+    if (this.environment !== "test") {
+      throw new Error("Only `test` environment is currently supported.");
     }
 
-    throw new Error("Only `test` environment is currently supported.");
+    const PORT = await this.prepareTestEnvironment();
+    const env = loadEnvironmentVariables(this.environment);
+
+    if (!env.CLERK_TEST_USER_ID) {
+      throw new Error("CLERK_TEST_USER_ID is required to run HTTP tests.");
+    }
+
+    try {
+      const token = await this.generateToken(env.CLERK_SECRET_KEY, env.CLERK_TEST_USER_ID);
+      await this.runTests(new URL(`http://localhost:${PORT}`), token, env.CLERK_TEST_USER_ID);
+    } finally {
+      await this.revokeSessions(env.CLERK_SECRET_KEY);
+    }
   }
 
-  private async runTests(baseUrl: URL) {
+  private async generateToken(secretKey: string, userId: string): Promise<string> {
+    const headers = {
+      Accept: "application/json",
+      Authorization: `Bearer ${secretKey}`,
+      "Content-Type": "application/json",
+    };
+
+    const sessionResponse = await fetch("https://api.clerk.com/v1/sessions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ user_id: userId }),
+    });
+
+    if (!sessionResponse.ok) {
+      const details = await sessionResponse.text();
+      throw new Error(`Clerk failed to create a session (${sessionResponse.status}): ${details}`);
+    }
+
+    const session = (await sessionResponse.json()) as { id: string };
+    this.sessionIds.push(session.id);
+
+    const tokenResponse = await fetch(`https://api.clerk.com/v1/sessions/${encodeURIComponent(session.id)}/tokens`, {
+      method: "POST",
+      headers,
+    });
+
+    if (!tokenResponse.ok) {
+      const details = await tokenResponse.text();
+      throw new Error(`Clerk failed to create a session token (${tokenResponse.status}): ${details}`);
+    }
+
+    const token = (await tokenResponse.json()) as { jwt: string };
+    const payload = decodeJwt(token.jwt);
+    const currentTime = Math.floor(Date.now() / 1000);
+
+    if (typeof payload.sub !== "string" || typeof payload.exp !== "number") {
+      throw new Error("Clerk returned a session token without the required JWT claims.");
+    }
+
+    if (payload.exp <= currentTime) {
+      throw new Error("Clerk returned an expired session token.");
+    }
+
+    return token.jwt;
+  }
+
+  private async revokeSessions(secretKey: string): Promise<void> {
+    for (const sessionId of this.sessionIds) {
+      const response = await fetch(`https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}/revoke`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${secretKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        const details = await response.text();
+        throw new Error(`Clerk failed to revoke test session ${sessionId} (${response.status}): ${details}`);
+      }
+    }
+  }
+
+  private async runTests(baseUrl: URL, token: string, testUserId: string) {
     const WORKFLOWS_DIRECTORY = fileURLToPath(new URL("./workflows/", import.meta.url));
     const entries = await readdir(WORKFLOWS_DIRECTORY, { withFileTypes: true });
 
     const workflowEntries = entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".spec.yml"))
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".spec.yaml"))
       .map((entry) => resolve(WORKFLOWS_DIRECTORY, entry.name))
       .sort();
 
     for (const workflowEntry of workflowEntries) {
       const workflow = basename(workflowEntry);
-      const { result } = await runFromFile(workflowEntry, { env: { baseUrl: baseUrl.origin } });
+      const { result } = await runFromFile(workflowEntry, {
+        env: { baseUrl: baseUrl.origin, token, testUserId },
+      });
       this.reportWorkflowResult(workflow, result);
+
+      if (!result.passed) {
+        throw new Error(`HTTP workflow failed: ${workflow}`);
+      }
     }
   }
 
@@ -135,7 +215,6 @@ class HttpTestRunner {
     const databaseUrl = `mysql://root:${DB_PASSWORD}@${mySqlContainer.getHost()}:${DB_PORT}/test`;
 
     process.env["PORT"] = "3000".toString();
-    process.env["NODE_ENV"] = "test";
     process.env["NODE_ENV"] = "test";
     process.env["DB_URL"] = databaseUrl;
     process.env["DB_HOST"] = mySqlContainer.getHost();

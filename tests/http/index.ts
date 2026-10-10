@@ -14,6 +14,10 @@ const { values } = parseArgs({
 
 const environment = values.environment as Environment;
 
-new HttpTestRunner(environment).run().finally(() => {
-  process.exit(0);
-});
+new HttpTestRunner(environment).run().then(
+  () => process.exit(0),
+  (error: unknown) => {
+    console.error(error);
+    process.exit(1);
+  },
+);

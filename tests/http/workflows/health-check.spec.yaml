@@ -1,0 +1,12 @@
+version: "1.1"
+name: Health Check API
+tests:
+  health_check:
+    name: returns 204 No Content when dependencies are healthy
+    steps:
+      - name: sends a GET request to /_health
+        http:
+          url: ${{env.baseUrl}}/_health
+          method: GET
+          check:
+            status: 204

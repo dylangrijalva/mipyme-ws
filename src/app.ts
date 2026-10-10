@@ -14,6 +14,7 @@ import type { SupplierFinder } from "./finders/supplier-finder.ts";
 import { devGuard } from "./guards/dev-guard.ts";
 import type { EnvVars } from "./infra/config.env.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
+import { authorize } from "./middlewares/authorize.ts";
 import { camelCase } from "./middlewares/camel-case.ts";
 import { errorHandler } from "./middlewares/error-handler.ts";
 import { inject } from "./middlewares/inject.ts";
@@ -71,6 +72,10 @@ function createApp(dependencies: InjectedDependencies): FacilitoHono {
     await db.execute("SELECT 1;");
     await cache.ping();
     return ctx.body(null, 204);
+  });
+
+  app.get("/me", authorize(), async (ctx) => {
+    return ctx.json(ctx.var.claims);
   });
 
   app.get("/openapi.json", devGuard(), (ctx) => {
