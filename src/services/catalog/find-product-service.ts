@@ -31,7 +31,7 @@ class FindProductService extends BaseService<string, Product> {
   }
 
   async execute(id: string): Promise<Result<Product, BusinessError>> {
-    const product = await this.productFinder.find(this.db, { id, merchantId: this.user.id });
+    const product = await this.productFinder.find(this.db, { id, merchantId: this.user.merchantId });
     if (!product) {
       return err({
         code: codes.resourceNotFound,

@@ -15,8 +15,12 @@
       "description": "Set up a business in Facilito. Create a merchant and its first location, and assign the current account as the business owner."
     },
     {
-      "name": "Catalog",
-      "description": "Create and manage items and services in the merchant catalog."
+      "name": "Products",
+      "description": "Create and manage merchant products, including items and services."
+    },
+    {
+      "name": "Collections",
+      "description": "Create and manage collections that organize merchant products."
     },
     {
       "name": "Suppliers",
@@ -146,10 +150,10 @@
     },
     "/v1/products": {
       "get": {
-        "tags": ["Catalog"],
+        "tags": ["Products"],
         "operationId": "listProducts",
         "summary": "List products",
-        "description": "Returns one page of products in the authenticated merchant's catalog. Use `next_cursor` to retrieve the next page.",
+        "description": "Returns one page of products in the catalog of the merchant associated with the authenticated account's membership. Use `next_cursor` to retrieve the next page.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
@@ -216,7 +220,7 @@
         }
       },
       "post": {
-        "tags": ["Catalog"],
+        "tags": ["Products"],
         "operationId": "createProduct",
         "summary": "Create a product",
         "description": "Creates a draft item or an active service with one default variant, included in the response. Items require unit_cost greater than zero, and item price must be equal to or greater than unit_cost. Items start with zero stock at every merchant location. Services have no inventory records and store unit_cost as \"0.00\" and SKU and barcode as null, ignoring supplied values after request validation. Optional images are stored as external HTTP or HTTPS URLs. Names may repeat; slugs are unique within the merchant. SKU and barcode values remain reserved by archived products. All records are saved in one transaction. Requires an enabled owner or staff membership, resolved from the database using the authenticated account. Token membership metadata does not determine access.",
@@ -309,10 +313,10 @@
     },
     "/v1/products/{id}": {
       "get": {
-        "tags": ["Catalog"],
+        "tags": ["Products"],
         "operationId": "getProduct",
         "summary": "Get a product",
-        "description": "Returns a product belonging to the authenticated merchant.",
+        "description": "Returns a product belonging to the merchant associated with the authenticated account's membership.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
@@ -375,7 +379,7 @@
         }
       },
       "patch": {
-        "tags": ["Catalog"],
+        "tags": ["Products"],
         "operationId": "updateProduct",
         "summary": "Update a product",
         "description": "Updates the supplied fields for a product belonging to the authenticated merchant. Omitted fields remain unchanged. Set `collection_id` or `image_url` to null to clear it. For items, `unit_cost` must be greater than zero and can only change while the product is a draft; `price` must be equal to or greater than `unit_cost`.",
@@ -459,7 +463,7 @@
     },
     "/v1/collections": {
       "get": {
-        "tags": ["Catalog"],
+        "tags": ["Collections"],
         "operationId": "listCollections",
         "summary": "List collections",
         "description": "Returns one page of collections belonging to the authenticated merchant. Use `next_cursor` to retrieve the next page.",
@@ -545,7 +549,7 @@
         }
       },
       "post": {
-        "tags": ["Catalog"],
+        "tags": ["Collections"],
         "operationId": "createCollection",
         "summary": "Create a collection",
         "description": "Creates a collection for the authenticated merchant. The slug is generated from the name. Names that produce the same slug are not allowed within a merchant.",
@@ -630,7 +634,7 @@
     },
     "/v1/collections/{id}": {
       "get": {
-        "tags": ["Catalog"],
+        "tags": ["Collections"],
         "operationId": "getCollection",
         "summary": "Get a collection",
         "description": "Returns a collection belonging to the authenticated merchant.",
@@ -714,7 +718,7 @@
         }
       },
       "patch": {
-        "tags": ["Catalog"],
+        "tags": ["Collections"],
         "operationId": "updateCollection",
         "summary": "Update a collection",
         "description": "Updates the supplied fields for a collection belonging to the authenticated merchant. Omitted fields remain unchanged; an empty request leaves the record unchanged. The slug is generated from the name. Names that produce the same slug are not allowed within a merchant.",

@@ -35,7 +35,7 @@ class ListProductsService extends BaseService<PaginationRequest, PaginationRespo
   async execute(request: PaginationRequest): Promise<Result<PaginationResponse<Product>, BusinessError>> {
     const response = await this.productFinder.paginate(this.db, {
       ...request,
-      merchantId: this.user.id,
+      merchantId: this.user.merchantId,
     });
 
     return ok(response);
