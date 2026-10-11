@@ -18,10 +18,12 @@ class HttpTestRunner {
   private readonly environment: Environment;
   private readonly logger: Logger;
   private readonly sessionIds: Array<string> = [];
+  private readonly workflowNames: Array<string>;
 
-  constructor(environment: Environment) {
+  constructor(environment: Environment, workflowNames: Array<string> = []) {
     this.logger = pino({ name: "http-tests", level: "info" }, pretty({ colorize: true }));
     this.environment = environment;
+    this.workflowNames = workflowNames;
   }
 
   async run(): Promise<void> {
@@ -111,10 +113,24 @@ class HttpTestRunner {
     const WORKFLOWS_DIRECTORY = fileURLToPath(new URL("./workflows/", import.meta.url));
     const entries = await readdir(WORKFLOWS_DIRECTORY, { withFileTypes: true });
 
-    const workflowEntries = entries
+    const availableWorkflowEntries = entries
       .filter((entry) => entry.isFile() && entry.name.endsWith(".spec.yaml"))
       .map((entry) => resolve(WORKFLOWS_DIRECTORY, entry.name))
       .sort();
+
+    const selectedWorkflowEntries =
+      this.workflowNames.length === 0
+        ? availableWorkflowEntries
+        : this.workflowNames.map((name) => {
+            const filename = name.endsWith(".spec.yaml") ? name : `${name}.spec.yaml`;
+            const workflowEntry = availableWorkflowEntries.find((entry) => basename(entry) === filename);
+            if (!workflowEntry) {
+              throw new Error(`Unknown HTTP workflow: ${name}`);
+            }
+            return workflowEntry;
+          });
+
+    const workflowEntries = [...new Set(selectedWorkflowEntries)].sort();
 
     for (const workflowEntry of workflowEntries) {
       const workflow = basename(workflowEntry);

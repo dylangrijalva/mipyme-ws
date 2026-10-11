@@ -9,12 +9,16 @@ const { values } = parseArgs({
       type: "string",
       default: "test",
     },
+    workflow: {
+      type: "string",
+      multiple: true,
+    },
   },
 });
 
 const environment = values.environment as Environment;
 
-new HttpTestRunner(environment).run().then(
+new HttpTestRunner(environment, values.workflow).run().then(
   () => process.exit(0),
   (error: unknown) => {
     console.error(error);
