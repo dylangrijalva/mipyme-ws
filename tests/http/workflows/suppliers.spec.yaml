@@ -1,0 +1,637 @@
+version: "1.1"
+name: Suppliers API
+components:
+  schemas:
+    Supplier:
+      $ref: ./src/openapi.json#/components/schemas/Supplier
+    SupplierPaginationResponse:
+      $ref: ./src/openapi.json#/components/schemas/SupplierPaginationResponse
+    FacilitoError:
+      $ref: ./src/openapi.json#/components/schemas/FacilitoError
+    Merchant:
+      $ref: ./src/openapi.json#/components/schemas/Merchant
+config:
+  concurrency: 1
+before:
+  name: provisions the authenticated account
+  steps:
+    - name: checks whether onboarding is required
+      http:
+        url: ${{env.baseUrl}}/v1/suppliers
+        method: GET
+        auth:
+          bearer:
+            token: ${{env.token}}
+        check:
+          status:
+            - match: ^(200|403)$
+          schema:
+            anyOf:
+              - $ref: "#/components/schemas/SupplierPaginationResponse"
+              - allOf:
+                  - $ref: "#/components/schemas/FacilitoError"
+                  - type: object
+                    properties:
+                      code:
+                        const: account_not_provisioned
+                      status:
+                        const: 403
+        captures:
+          membershipError:
+            jsonpath: $.code
+    - name: completes onboarding
+      http:
+        url: ${{env.baseUrl}}/v1/onboarding
+        method: POST
+        auth:
+          bearer:
+            token: ${{env.token}}
+        json:
+          name: Monkey D. Luffy
+          country: ni
+          location:
+            name: Merry's Shop
+            business_type: electronics_store
+        check:
+          status: 200
+          schema:
+            $ref: "#/components/schemas/Merchant"
+      if: captures.membershipError == "account_not_provisioned"
+tests:
+  lifecycle:
+    name: creates, retrieves, paginates, and updates saved suppliers
+    steps:
+      - name: returns an empty terminal page before records are created
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/SupplierPaginationResponse"
+            jsonpath:
+              $.results.length:
+                - eq: 0
+              $.has_more:
+                - eq: false
+              $.next_cursor:
+                - eq: null
+      - name: creates a supplier with trimmed fields
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: "  Sanji  "
+            email: "  sanji@strawhatpirates.example.com  "
+            phone: "  50588888888  "
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Supplier"
+            jsonpath:
+              $.name:
+                - eq: Sanji
+              $.email:
+                - eq: sanji@strawhatpirates.example.com
+              $.phone:
+                - eq: "50588888888"
+          captures:
+            primaryId:
+              jsonpath: $.id
+            primary:
+              body: true
+            createdAt:
+              jsonpath: $.created_at
+      - name: fetches the saved supplier
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/${{captures.primaryId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Supplier"
+            body:
+              - eq: ${{captures.primary}}
+      - name: creates a second record with omitted contacts stored as null
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Zeff
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Supplier"
+            jsonpath:
+              $.name:
+                - eq: Zeff
+              $.email:
+                - eq: null
+              $.phone:
+                - eq: null
+          captures:
+            secondaryId:
+              jsonpath: $.id
+            secondary:
+              body: true
+      - name: lists both saved records with default pagination
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/SupplierPaginationResponse"
+            jsonpath:
+              $.results.length:
+                - eq: 2
+              $.has_more:
+                - eq: false
+              $.next_cursor:
+                - eq: null
+              $.results[?(@.name == "Sanji")].id:
+                - eq:
+                    - ${{captures.primaryId}}
+              $.results[?(@.name == "Zeff")].id:
+                - eq:
+                    - ${{captures.secondaryId}}
+          captures:
+            firstListedId:
+              jsonpath: $.results[0].id
+            secondListedId:
+              jsonpath: $.results[1].id
+      - name: returns the first record and a continuation cursor
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers?limit=1
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/SupplierPaginationResponse"
+            jsonpath:
+              $.results.length:
+                - eq: 1
+              $.results[0].id:
+                - eq: ${{captures.firstListedId}}
+              $.has_more:
+                - eq: true
+              $.next_cursor:
+                - isString: true
+                - match: ^.+$
+          captures:
+            cursor:
+              jsonpath: $.next_cursor
+      - name: returns the remaining record on the final page
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers?limit=1&cursor=${{captures.cursor}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/SupplierPaginationResponse"
+            jsonpath:
+              $.results.length:
+                - eq: 1
+              $.results[0].id:
+                - eq: ${{captures.secondListedId}}
+              $.has_more:
+                - eq: false
+              $.next_cursor:
+                - eq: null
+      - name: updates supplied fields while preserving the omitted email
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/${{captures.primaryId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: "  Vinsmoke Sanji  "
+            phone: "  50599999999  "
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Supplier"
+            jsonpath:
+              $.id:
+                - eq: ${{captures.primaryId}}
+              $.name:
+                - eq: Vinsmoke Sanji
+              $.created_at:
+                - eq: ${{captures.createdAt}}
+              $.email:
+                - eq: sanji@strawhatpirates.example.com
+              $.phone:
+                - eq: "50599999999"
+          captures:
+            updated:
+              body: true
+      - name: reloads the persisted update
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/${{captures.primaryId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Supplier"
+            body:
+              - eq: ${{captures.updated}}
+      - name: rejects an invalid update without changing the record
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/${{captures.primaryId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: "   "
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: the rejected update leaves the saved record unchanged
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/${{captures.primaryId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Supplier"
+            body:
+              - eq: ${{captures.updated}}
+      - name: an empty patch leaves fields and timestamps unchanged
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/${{captures.primaryId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json: {}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Supplier"
+            body:
+              - eq: ${{captures.updated}}
+      - name: clears both contacts with explicit null while preserving the name
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/${{captures.primaryId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            email: null
+            phone: null
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Supplier"
+            jsonpath:
+              $.id:
+                - eq: ${{captures.primaryId}}
+              $.name:
+                - eq: Vinsmoke Sanji
+              $.email:
+                - eq: null
+              $.phone:
+                - eq: null
+              $.created_at:
+                - eq: ${{captures.createdAt}}
+          captures:
+            cleared:
+              body: true
+      - name: reloads the cleared contacts
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/${{captures.primaryId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Supplier"
+            body:
+              - eq: ${{captures.cleared}}
+      - name: updates leave the other record unchanged
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/${{captures.secondaryId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Supplier"
+            body:
+              - eq: ${{captures.secondary}}
+      - name: the lifecycle leaves exactly two saved records
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/SupplierPaginationResponse"
+            jsonpath:
+              $.results.length:
+                - eq: 2
+  validation:
+    name: rejects invalid requests and missing resources
+    steps:
+      - name: captures saved records before rejected requests
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/SupplierPaginationResponse"
+          captures:
+            recordsBeforeInvalid:
+              body: true
+      - name: rejects a blank name
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: "   "
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: rejects a missing required name
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json: {}
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: rejects a non-string email
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Zeff
+            email: 42
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: rejects a blank phone after trimming
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Zeff
+            phone: "   "
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: rejects pagination limit 0
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers?limit=0
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: rejects pagination limit 101
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers?limit=101
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: GET rejects an invalid resource identifier
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/invalid
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: GET rejects a missing resource
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/supp_0000000000000000000
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: resource_not_found
+              $.status:
+                - eq: 404
+      - name: PATCH rejects an invalid resource identifier
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/invalid
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Zeff
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: PATCH rejects a missing resource
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/supp_0000000000000000000
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Zeff
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: resource_not_found
+              $.status:
+                - eq: 404
+      - name: rejected requests leave saved records unchanged
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/SupplierPaginationResponse"
+            body:
+              - eq: ${{captures.recordsBeforeInvalid}}
+  authentication:
+    name: requires authentication on every supplier endpoint
+    steps:
+      - name: GET /v1/suppliers requires a bearer token
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: GET
+          check:
+            status: 401
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: invalid_oauth_token
+              $.status:
+                - eq: 401
+      - name: POST /v1/suppliers requires a bearer token
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers
+          method: POST
+          json:
+            name: Sanji
+          check:
+            status: 401
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: invalid_oauth_token
+              $.status:
+                - eq: 401
+      - name: GET /v1/suppliers/{id} requires a bearer token
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/supp_0000000000000000000
+          method: GET
+          check:
+            status: 401
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: invalid_oauth_token
+              $.status:
+                - eq: 401
+      - name: PATCH /v1/suppliers/{id} requires a bearer token
+        http:
+          url: ${{env.baseUrl}}/v1/suppliers/supp_0000000000000000000
+          method: PATCH
+          json:
+            name: Vinsmoke Sanji
+          check:
+            status: 401
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: invalid_oauth_token
+              $.status:
+                - eq: 401

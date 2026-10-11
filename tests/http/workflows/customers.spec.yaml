@@ -1,0 +1,637 @@
+version: "1.1"
+name: Customers API
+components:
+  schemas:
+    Customer:
+      $ref: ./src/openapi.json#/components/schemas/Customer
+    CustomerPaginationResponse:
+      $ref: ./src/openapi.json#/components/schemas/CustomerPaginationResponse
+    FacilitoError:
+      $ref: ./src/openapi.json#/components/schemas/FacilitoError
+    Merchant:
+      $ref: ./src/openapi.json#/components/schemas/Merchant
+config:
+  concurrency: 1
+before:
+  name: provisions the authenticated account
+  steps:
+    - name: checks whether onboarding is required
+      http:
+        url: ${{env.baseUrl}}/v1/customers
+        method: GET
+        auth:
+          bearer:
+            token: ${{env.token}}
+        check:
+          status:
+            - match: ^(200|403)$
+          schema:
+            anyOf:
+              - $ref: "#/components/schemas/CustomerPaginationResponse"
+              - allOf:
+                  - $ref: "#/components/schemas/FacilitoError"
+                  - type: object
+                    properties:
+                      code:
+                        const: account_not_provisioned
+                      status:
+                        const: 403
+        captures:
+          membershipError:
+            jsonpath: $.code
+    - name: completes onboarding
+      http:
+        url: ${{env.baseUrl}}/v1/onboarding
+        method: POST
+        auth:
+          bearer:
+            token: ${{env.token}}
+        json:
+          name: Monkey D. Luffy
+          country: ni
+          location:
+            name: Merry's Shop
+            business_type: electronics_store
+        check:
+          status: 200
+          schema:
+            $ref: "#/components/schemas/Merchant"
+      if: captures.membershipError == "account_not_provisioned"
+tests:
+  lifecycle:
+    name: creates, retrieves, paginates, and updates saved customers
+    steps:
+      - name: returns an empty terminal page before records are created
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/CustomerPaginationResponse"
+            jsonpath:
+              $.results.length:
+                - eq: 0
+              $.has_more:
+                - eq: false
+              $.next_cursor:
+                - eq: null
+      - name: creates a customer with trimmed fields
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: "  Nico Robin  "
+            email: "  nico.robin@strawhatpirates.example.com  "
+            phone: "  50588888888  "
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Customer"
+            jsonpath:
+              $.name:
+                - eq: Nico Robin
+              $.email:
+                - eq: nico.robin@strawhatpirates.example.com
+              $.phone:
+                - eq: "50588888888"
+          captures:
+            primaryId:
+              jsonpath: $.id
+            primary:
+              body: true
+            createdAt:
+              jsonpath: $.created_at
+      - name: fetches the saved customer
+        http:
+          url: ${{env.baseUrl}}/v1/customers/${{captures.primaryId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Customer"
+            body:
+              - eq: ${{captures.primary}}
+      - name: creates a second record with omitted contacts stored as null
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Tony Tony Chopper
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Customer"
+            jsonpath:
+              $.name:
+                - eq: Tony Tony Chopper
+              $.email:
+                - eq: null
+              $.phone:
+                - eq: null
+          captures:
+            secondaryId:
+              jsonpath: $.id
+            secondary:
+              body: true
+      - name: lists both saved records with default pagination
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/CustomerPaginationResponse"
+            jsonpath:
+              $.results.length:
+                - eq: 2
+              $.has_more:
+                - eq: false
+              $.next_cursor:
+                - eq: null
+              $.results[?(@.name == "Nico Robin")].id:
+                - eq:
+                    - ${{captures.primaryId}}
+              $.results[?(@.name == "Tony Tony Chopper")].id:
+                - eq:
+                    - ${{captures.secondaryId}}
+          captures:
+            firstListedId:
+              jsonpath: $.results[0].id
+            secondListedId:
+              jsonpath: $.results[1].id
+      - name: returns the first record and a continuation cursor
+        http:
+          url: ${{env.baseUrl}}/v1/customers?limit=1
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/CustomerPaginationResponse"
+            jsonpath:
+              $.results.length:
+                - eq: 1
+              $.results[0].id:
+                - eq: ${{captures.firstListedId}}
+              $.has_more:
+                - eq: true
+              $.next_cursor:
+                - isString: true
+                - match: ^.+$
+          captures:
+            cursor:
+              jsonpath: $.next_cursor
+      - name: returns the remaining record on the final page
+        http:
+          url: ${{env.baseUrl}}/v1/customers?limit=1&cursor=${{captures.cursor}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/CustomerPaginationResponse"
+            jsonpath:
+              $.results.length:
+                - eq: 1
+              $.results[0].id:
+                - eq: ${{captures.secondListedId}}
+              $.has_more:
+                - eq: false
+              $.next_cursor:
+                - eq: null
+      - name: updates supplied fields while preserving the omitted email
+        http:
+          url: ${{env.baseUrl}}/v1/customers/${{captures.primaryId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: "  Robin  "
+            phone: "  50599999999  "
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Customer"
+            jsonpath:
+              $.id:
+                - eq: ${{captures.primaryId}}
+              $.name:
+                - eq: Robin
+              $.created_at:
+                - eq: ${{captures.createdAt}}
+              $.email:
+                - eq: nico.robin@strawhatpirates.example.com
+              $.phone:
+                - eq: "50599999999"
+          captures:
+            updated:
+              body: true
+      - name: reloads the persisted update
+        http:
+          url: ${{env.baseUrl}}/v1/customers/${{captures.primaryId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Customer"
+            body:
+              - eq: ${{captures.updated}}
+      - name: rejects an invalid update without changing the record
+        http:
+          url: ${{env.baseUrl}}/v1/customers/${{captures.primaryId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: "   "
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: the rejected update leaves the saved record unchanged
+        http:
+          url: ${{env.baseUrl}}/v1/customers/${{captures.primaryId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Customer"
+            body:
+              - eq: ${{captures.updated}}
+      - name: an empty patch leaves fields and timestamps unchanged
+        http:
+          url: ${{env.baseUrl}}/v1/customers/${{captures.primaryId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json: {}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Customer"
+            body:
+              - eq: ${{captures.updated}}
+      - name: clears both contacts with explicit null while preserving the name
+        http:
+          url: ${{env.baseUrl}}/v1/customers/${{captures.primaryId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            email: null
+            phone: null
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Customer"
+            jsonpath:
+              $.id:
+                - eq: ${{captures.primaryId}}
+              $.name:
+                - eq: Robin
+              $.email:
+                - eq: null
+              $.phone:
+                - eq: null
+              $.created_at:
+                - eq: ${{captures.createdAt}}
+          captures:
+            cleared:
+              body: true
+      - name: reloads the cleared contacts
+        http:
+          url: ${{env.baseUrl}}/v1/customers/${{captures.primaryId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Customer"
+            body:
+              - eq: ${{captures.cleared}}
+      - name: updates leave the other record unchanged
+        http:
+          url: ${{env.baseUrl}}/v1/customers/${{captures.secondaryId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Customer"
+            body:
+              - eq: ${{captures.secondary}}
+      - name: the lifecycle leaves exactly two saved records
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/CustomerPaginationResponse"
+            jsonpath:
+              $.results.length:
+                - eq: 2
+  validation:
+    name: rejects invalid requests and missing resources
+    steps:
+      - name: captures saved records before rejected requests
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/CustomerPaginationResponse"
+          captures:
+            recordsBeforeInvalid:
+              body: true
+      - name: rejects a blank name
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: "   "
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: rejects a missing required name
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json: {}
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: rejects a non-string email
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Tony Tony Chopper
+            email: 42
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: rejects a blank phone after trimming
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Tony Tony Chopper
+            phone: "   "
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: rejects pagination limit 0
+        http:
+          url: ${{env.baseUrl}}/v1/customers?limit=0
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: rejects pagination limit 101
+        http:
+          url: ${{env.baseUrl}}/v1/customers?limit=101
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: GET rejects an invalid resource identifier
+        http:
+          url: ${{env.baseUrl}}/v1/customers/invalid
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: GET rejects a missing resource
+        http:
+          url: ${{env.baseUrl}}/v1/customers/cust_0000000000000000000
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: resource_not_found
+              $.status:
+                - eq: 404
+      - name: PATCH rejects an invalid resource identifier
+        http:
+          url: ${{env.baseUrl}}/v1/customers/invalid
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Tony Tony Chopper
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+      - name: PATCH rejects a missing resource
+        http:
+          url: ${{env.baseUrl}}/v1/customers/cust_0000000000000000000
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Tony Tony Chopper
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: resource_not_found
+              $.status:
+                - eq: 404
+      - name: rejected requests leave saved records unchanged
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/CustomerPaginationResponse"
+            body:
+              - eq: ${{captures.recordsBeforeInvalid}}
+  authentication:
+    name: requires authentication on every customer endpoint
+    steps:
+      - name: GET /v1/customers requires a bearer token
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: GET
+          check:
+            status: 401
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: invalid_oauth_token
+              $.status:
+                - eq: 401
+      - name: POST /v1/customers requires a bearer token
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: POST
+          json:
+            name: Nico Robin
+          check:
+            status: 401
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: invalid_oauth_token
+              $.status:
+                - eq: 401
+      - name: GET /v1/customers/{id} requires a bearer token
+        http:
+          url: ${{env.baseUrl}}/v1/customers/cust_0000000000000000000
+          method: GET
+          check:
+            status: 401
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: invalid_oauth_token
+              $.status:
+                - eq: 401
+      - name: PATCH /v1/customers/{id} requires a bearer token
+        http:
+          url: ${{env.baseUrl}}/v1/customers/cust_0000000000000000000
+          method: PATCH
+          json:
+            name: Robin
+          check:
+            status: 401
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: invalid_oauth_token
+              $.status:
+                - eq: 401
