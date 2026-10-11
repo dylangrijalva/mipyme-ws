@@ -1,13 +1,13 @@
 import type { Logger } from "pino";
-import type { BusinessError } from "../../contracts/business-error.ts";
-import type { Collection } from "../../contracts/collection.ts";
-import type { CurrentUser } from "../../contracts/current-user.ts";
-import type { PaginationRequest } from "../../contracts/pagination-query.ts";
-import type { PaginationResponse } from "../../contracts/pagination-response.ts";
-import type { Database } from "../../db/index.ts";
-import type { CollectionFinder } from "../../finders/collection-finder.ts";
-import { ok, type Result } from "../../utils/result.ts";
-import { BaseService } from "../base-service.ts";
+import type { BusinessError } from "../../../contracts/business-error.ts";
+import type { Collection } from "../../../contracts/collection.ts";
+import type { CurrentUser } from "../../../contracts/current-user.ts";
+import type { PaginationRequest } from "../../../contracts/pagination-query.ts";
+import type { PaginationResponse } from "../../../contracts/pagination-response.ts";
+import type { Database } from "../../../db/index.ts";
+import type { CollectionFinder } from "../../../finders/collection-finder.ts";
+import { ok, type Result } from "../../../utils/result.ts";
+import { BaseService } from "../../base-service.ts";
 
 type InjectedDependencies = {
   logger: Logger;

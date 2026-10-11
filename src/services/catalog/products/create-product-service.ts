@@ -1,24 +1,24 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 import z from "zod";
-import { codes, type BusinessError } from "../../contracts/business-error.ts";
-import type { CurrentUser } from "../../contracts/current-user.ts";
-import { Decimal, PositiveDecimal } from "../../contracts/decimal.ts";
-import { ObjectId } from "../../contracts/object-id.ts";
-import { PRODUCT_IMAGE_URL_MAX_LENGTH } from "../../contracts/product-image.ts";
-import { ProductType } from "../../contracts/product-type.ts";
-import type { Product } from "../../contracts/product.ts";
-import type { Database } from "../../db/index.ts";
-import { tables } from "../../db/schema.ts";
-import type { CollectionFinder } from "../../finders/collection-finder.ts";
-import type { ProductFinder } from "../../finders/product-finder.ts";
-import { assertFound } from "../../utils/assert-found.ts";
-import { isPositive, lessThan } from "../../utils/decimal.ts";
-import { generateId } from "../../utils/generate-id.ts";
-import { now } from "../../utils/now.ts";
-import { err, ok, type Result } from "../../utils/result.ts";
-import { slugify } from "../../utils/slugify.ts";
-import { BaseService } from "../base-service.ts";
+import { codes, type BusinessError } from "../../../contracts/business-error.ts";
+import type { CurrentUser } from "../../../contracts/current-user.ts";
+import { Decimal, PositiveDecimal } from "../../../contracts/decimal.ts";
+import { ObjectId } from "../../../contracts/object-id.ts";
+import { PRODUCT_IMAGE_URL_MAX_LENGTH } from "../../../contracts/product-image.ts";
+import { ProductType } from "../../../contracts/product-type.ts";
+import type { Product } from "../../../contracts/product.ts";
+import type { Database } from "../../../db/index.ts";
+import { tables } from "../../../db/schema.ts";
+import type { CollectionFinder } from "../../../finders/collection-finder.ts";
+import type { ProductFinder } from "../../../finders/product-finder.ts";
+import { assertFound } from "../../../utils/assert-found.ts";
+import { isPositive, lessThan } from "../../../utils/decimal.ts";
+import { generateId } from "../../../utils/generate-id.ts";
+import { now } from "../../../utils/now.ts";
+import { err, ok, type Result } from "../../../utils/result.ts";
+import { slugify } from "../../../utils/slugify.ts";
+import { BaseService } from "../../base-service.ts";
 
 const CreateProductRequest = z.object({
   name: z.string().trim().nonempty().max(128),

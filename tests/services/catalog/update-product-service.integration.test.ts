@@ -6,7 +6,7 @@ import type { Database } from "../../../src/db/index.ts";
 import { tables } from "../../../src/db/schema.ts";
 import { CollectionFinder } from "../../../src/finders/collection-finder.ts";
 import { ProductFinder } from "../../../src/finders/product-finder.ts";
-import { UpdateProductService } from "../../../src/services/catalog/update-product-service.ts";
+import { UpdateProductService } from "../../../src/services/catalog/products/update-product-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
 import { waitForBlockedUpdate } from "../../utils/wait-for-blocked-update.ts";

@@ -7,7 +7,7 @@ import { CollectionFinder } from "../../../src/finders/collection-finder.ts";
 import {
   CreateCollectionRequest,
   CreateCollectionService,
-} from "../../../src/services/collections/create-collection-service.ts";
+} from "../../../src/services/catalog/collections/create-collection-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
 

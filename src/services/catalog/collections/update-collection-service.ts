@@ -1,16 +1,16 @@
 import { and, eq } from "drizzle-orm";
 import type { Logger } from "pino";
 import z from "zod";
-import { codes, type BusinessError } from "../../contracts/business-error.ts";
-import { Collection } from "../../contracts/collection.ts";
-import type { CurrentUser } from "../../contracts/current-user.ts";
-import type { Database } from "../../db/index.ts";
-import { tables } from "../../db/schema.ts";
-import type { CollectionFinder } from "../../finders/collection-finder.ts";
-import { hasDefinedValues } from "../../utils/has-defined-values.ts";
-import { err, ok, type Result } from "../../utils/result.ts";
-import { slugify } from "../../utils/slugify.ts";
-import { BaseService } from "../base-service.ts";
+import { codes, type BusinessError } from "../../../contracts/business-error.ts";
+import { Collection } from "../../../contracts/collection.ts";
+import type { CurrentUser } from "../../../contracts/current-user.ts";
+import type { Database } from "../../../db/index.ts";
+import { tables } from "../../../db/schema.ts";
+import type { CollectionFinder } from "../../../finders/collection-finder.ts";
+import { hasDefinedValues } from "../../../utils/has-defined-values.ts";
+import { err, ok, type Result } from "../../../utils/result.ts";
+import { slugify } from "../../../utils/slugify.ts";
+import { BaseService } from "../../base-service.ts";
 
 type InjectedDependencies = {
   logger: Logger;

@@ -3,10 +3,16 @@ import { ObjectId } from "../contracts/object-id.ts";
 import { PaginationRequest } from "../contracts/pagination-query.ts";
 import { membershipGuard } from "../guards/membership-guard.ts";
 import { authorize } from "../middlewares/authorize.ts";
-import { CreateCollectionRequest, CreateCollectionService } from "../services/collections/create-collection-service.ts";
-import { FindCollectionService } from "../services/collections/find-collection-service.ts";
-import { ListCollectionsService } from "../services/collections/list-collections-service.ts";
-import { UpdateCollectionRequest, UpdateCollectionService } from "../services/collections/update-collection-service.ts";
+import {
+  CreateCollectionRequest,
+  CreateCollectionService,
+} from "../services/catalog/collections/create-collection-service.ts";
+import { FindCollectionService } from "../services/catalog/collections/find-collection-service.ts";
+import { ListCollectionsService } from "../services/catalog/collections/list-collections-service.ts";
+import {
+  UpdateCollectionRequest,
+  UpdateCollectionService,
+} from "../services/catalog/collections/update-collection-service.ts";
 import { FacilitoHono } from "../types.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 

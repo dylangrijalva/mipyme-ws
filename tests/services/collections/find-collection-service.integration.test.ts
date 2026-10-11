@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { codes } from "../../../src/contracts/business-error.ts";
 import { tables } from "../../../src/db/schema.ts";
 import { CollectionFinder } from "../../../src/finders/collection-finder.ts";
-import { FindCollectionService } from "../../../src/services/collections/find-collection-service.ts";
+import { FindCollectionService } from "../../../src/services/catalog/collections/find-collection-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
 

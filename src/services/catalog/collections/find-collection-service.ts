@@ -1,11 +1,11 @@
 import type { Logger } from "pino";
-import { codes, type BusinessError } from "../../contracts/business-error.ts";
-import { Collection } from "../../contracts/collection.ts";
-import type { CurrentUser } from "../../contracts/current-user.ts";
-import type { Database } from "../../db/index.ts";
-import type { CollectionFinder } from "../../finders/collection-finder.ts";
-import { err, ok, type Result } from "../../utils/result.ts";
-import { BaseService } from "../base-service.ts";
+import { codes, type BusinessError } from "../../../contracts/business-error.ts";
+import { Collection } from "../../../contracts/collection.ts";
+import type { CurrentUser } from "../../../contracts/current-user.ts";
+import type { Database } from "../../../db/index.ts";
+import type { CollectionFinder } from "../../../finders/collection-finder.ts";
+import { err, ok, type Result } from "../../../utils/result.ts";
+import { BaseService } from "../../base-service.ts";
 
 type InjectedDependencies = {
   logger: Logger;

@@ -4,7 +4,10 @@ import { codes } from "../../../src/contracts/business-error.ts";
 import { tables } from "../../../src/db/schema.ts";
 import { CollectionFinder } from "../../../src/finders/collection-finder.ts";
 import { ProductFinder } from "../../../src/finders/product-finder.ts";
-import { CreateProductRequest, CreateProductService } from "../../../src/services/catalog/create-product-service.ts";
+import {
+  CreateProductRequest,
+  CreateProductService,
+} from "../../../src/services/catalog/products/create-product-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { err } from "../../../src/utils/result.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
