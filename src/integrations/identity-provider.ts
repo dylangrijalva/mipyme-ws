@@ -108,9 +108,11 @@ class IdentityProvider {
       },
       body: JSON.stringify(
         snakeCaseKeys({
-          merchantId: params.merchantId,
-          employeeId: params.employeeId,
-          accountType: params.accountType,
+          publicMetadata: {
+            merchantId: params.merchantId,
+            employeeId: params.employeeId,
+            accountType: params.accountType,
+          },
         }),
       ),
     });
