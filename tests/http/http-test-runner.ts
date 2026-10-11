@@ -148,12 +148,15 @@ class HttpTestRunner {
   }
 
   private reportWorkflowResult(workflow: string, result: WorkflowResult["result"]) {
+    const formatStatusIcon = (passed: boolean) => (passed ? chalk.green("✓") : chalk.red("✗"));
+    const formatDuration = (duration: unknown, numberColor = chalk.yellow) =>
+      `${numberColor(String(duration))}${chalk.yellow.dim("ms")}`;
+    const formatTestResult = (test: (typeof result.tests)[number]) =>
+      `  ${formatStatusIcon(test.passed)} ${test.name ?? test.id} ${formatDuration(test.duration)}`;
+    const summary = `${formatStatusIcon(result.passed)}  ${chalk.bgMagenta.black("http")} ${chalk.gray(`tests/http/workflows/${workflow}`)} ${chalk.gray(`(${result.tests.length} tests)`)} ${formatDuration(result.duration)}`;
+
     if (!this.verbose) {
-      const lines = [
-        `${result.passed ? chalk.green("✅ PASSED") : chalk.red("❌ FAILED")} ${chalk.bold(workflow)}`,
-        ...result.tests.map((test) => `  ${test.passed ? "✅" : "❌"} ${chalk.bold(test.name ?? test.id)}`),
-      ];
-      console.log(lines.join("\n"));
+      console.log([summary, ...result.tests.map(formatTestResult)].join("\n"));
       return;
     }
 
@@ -163,7 +166,7 @@ class HttpTestRunner {
     const failedStepCount = steps.filter((step) => !step.passed && !step.skipped).length;
     const skippedStepCount = steps.filter((step) => step.skipped).length;
     const lines = [
-      `${result.passed ? chalk.green("✅ PASSED") : chalk.red("❌ FAILED")} ${chalk.bold(workflow)}`,
+      summary,
       chalk.gray(
         `${passedTestCount}/${result.tests.length} tests passed · ${passedStepCount}/${steps.length} steps passed · ${failedStepCount} failed · ${skippedStepCount} skipped · ${result.duration}ms · ${result.bytesSent} B sent / ${result.bytesReceived} B received`,
       ),
@@ -183,13 +186,14 @@ class HttpTestRunner {
           typeof checkResult.passed === "boolean"
         ) {
           lines.push(
-            `    ${checkResult.passed ? "✅" : "❌"} ${fullName}: ${checkResult.passed ? chalk.green("passed") : chalk.red("failed")}`,
+            `    ${checkResult.passed ? "✓" : "✗"} ${fullName}: ${checkResult.passed ? chalk.green("passed") : chalk.red("failed")}`,
           );
           const isPassedSchema = fullName === "schema" && checkResult.passed;
           const expected = isPassedSchema ? "[json]" : formatValue(checkResult.expected);
           const received = isPassedSchema ? "[json]" : formatValue(checkResult.given);
+          const valueColor = checkResult.passed ? chalk.cyan : chalk.red;
           lines.push(
-            `${chalk.gray("       expected ")}${chalk.cyan(expected)}${chalk.gray(", received ")}${chalk.cyan(received)}`,
+            `${chalk.gray("       expected ")}${valueColor(expected)}${chalk.gray(", received ")}${valueColor(received)}`,
           );
           continue;
         }
@@ -199,12 +203,10 @@ class HttpTestRunner {
     };
 
     for (const test of result.tests) {
-      lines.push(
-        `\n  ${test.passed ? "✅" : "❌"} ${chalk.bold(test.name ?? test.id)} ${chalk.gray(`${test.duration}ms`)}`,
-      );
+      lines.push(formatTestResult(test));
 
       for (const step of test.steps) {
-        const statusIcon = step.skipped ? "⏭️" : step.passed ? "✅" : "❌";
+        const statusIcon = step.skipped ? "⏭️" : step.passed ? "✓" : "✗";
         const statusLabel = step.skipped
           ? chalk.yellow("skipped")
           : step.passed
@@ -214,11 +216,13 @@ class HttpTestRunner {
               : chalk.red("failed");
 
         lines.push(
-          `    ${statusIcon} ${step.name ?? step.id ?? step.type ?? "Unnamed step"} ${statusLabel} ${chalk.gray(`${step.duration}ms`)}`,
+          `    ${statusIcon} ${step.name ?? step.id ?? step.type ?? "Unnamed step"} ${statusLabel} ${formatDuration(step.duration, chalk.gray)}`,
         );
 
         if (step.response?.status !== undefined) {
-          lines.push(chalk.gray(`       HTTP ${step.response.status} · response ${step.responseTime}ms`));
+          lines.push(
+            `${chalk.gray(`       HTTP ${step.response.status} · response `)}${formatDuration(step.responseTime, chalk.gray)}`,
+          );
         }
 
         if (step.errorMessage) lines.push(`       ${chalk.red(step.errorMessage)}`);
