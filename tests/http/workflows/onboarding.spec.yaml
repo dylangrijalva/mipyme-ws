@@ -1,10 +1,10 @@
 version: "1.1"
-name: Account provisioning API
+name: Onboarding API
 tests:
   provision_account:
-    name: creates a merchant and returns it on retry
+    name: "POST /v1/onboarding should return the created merchant"
     steps:
-      - name: creates a merchant from a trimmed location name
+      - name: POST /v1/onboarding
         http:
           url: ${{env.baseUrl}}/v1/onboarding
           method: POST
@@ -12,17 +12,19 @@ tests:
             bearer:
               token: ${{env.token}}
           json:
-            name: "  Monkey D. Luffy  "
+            name: Monkey D. Luffy
             country: ni
             location:
-              name: "  Straw Hat Pirates  "
+              name: "  Merry's Shop  "
+              business_type: electronics_store
           check:
             status: 200
             jsonpath:
               $.id:
                 - isString: true
+                - match: ^merch_.{18}$
               $.name:
-                - eq: Straw Hat Pirates
+                - eq: Merry's Shop
               $.country:
                 - eq: ni
               $.created_at:
@@ -32,7 +34,7 @@ tests:
           captures:
             merchant:
               body: true
-      - name: returns the same merchant response when repeated with different input
+      - name: returns the created merchant when the same request is repeated
         http:
           url: ${{env.baseUrl}}/v1/onboarding
           method: POST
@@ -40,11 +42,11 @@ tests:
             bearer:
               token: ${{env.token}}
           json:
-            name: Trafalgar Law
-            country: cr
+            name: Monkey D. Luffy
+            country: ni
             location:
-              name: Heart Pirates
-              business_type: pharmacy
+              name: "  Merry's Shop  "
+              business_type: electronics_store
           check:
             status: 200
             body:
