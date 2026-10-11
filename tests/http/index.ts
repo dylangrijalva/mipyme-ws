@@ -13,12 +13,16 @@ const { values } = parseArgs({
       type: "string",
       multiple: true,
     },
+    verbose: {
+      type: "boolean",
+      default: false,
+    },
   },
 });
 
 const environment = values.environment as Environment;
 
-new HttpTestRunner(environment, values.workflow).run().then(
+new HttpTestRunner(environment, values.workflow, values.verbose).run().then(
   () => process.exit(0),
   (error: unknown) => {
     console.error(error);

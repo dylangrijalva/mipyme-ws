@@ -19,11 +19,13 @@ class HttpTestRunner {
   private readonly logger: Logger;
   private readonly sessionIds: Array<string> = [];
   private readonly workflowNames: Array<string>;
+  private readonly verbose: boolean;
 
-  constructor(environment: Environment, workflowNames: Array<string> = []) {
+  constructor(environment: Environment, workflowNames: Array<string> = [], verbose = false) {
     this.logger = pino({ name: "http-tests", level: "info" }, pretty({ colorize: true }));
     this.environment = environment;
     this.workflowNames = workflowNames;
+    this.verbose = verbose;
   }
 
   async run(): Promise<void> {
@@ -146,6 +148,15 @@ class HttpTestRunner {
   }
 
   private reportWorkflowResult(workflow: string, result: WorkflowResult["result"]) {
+    if (!this.verbose) {
+      const lines = [
+        `${result.passed ? chalk.green("✅ PASSED") : chalk.red("❌ FAILED")} ${chalk.bold(workflow)}`,
+        ...result.tests.map((test) => `  ${test.passed ? "✅" : "❌"} ${chalk.bold(test.name ?? test.id)}`),
+      ];
+      console.log(lines.join("\n"));
+      return;
+    }
+
     const steps = result.tests.flatMap((test) => test.steps);
     const passedTestCount = result.tests.filter((test) => test.passed).length;
     const passedStepCount = steps.filter((step) => step.passed && !step.skipped).length;
@@ -174,10 +185,11 @@ class HttpTestRunner {
           lines.push(
             `    ${checkResult.passed ? "✅" : "❌"} ${fullName}: ${checkResult.passed ? chalk.green("passed") : chalk.red("failed")}`,
           );
+          const isPassedSchema = fullName === "schema" && checkResult.passed;
+          const expected = isPassedSchema ? "[json]" : formatValue(checkResult.expected);
+          const received = isPassedSchema ? "[json]" : formatValue(checkResult.given);
           lines.push(
-            chalk.gray(
-              `       expected ${formatValue(checkResult.expected)}, received ${formatValue(checkResult.given)}`,
-            ),
+            `${chalk.gray("       expected ")}${chalk.cyan(expected)}${chalk.gray(", received ")}${chalk.cyan(received)}`,
           );
           continue;
         }
@@ -221,10 +233,10 @@ class HttpTestRunner {
     this.logger.info("💡 Preparing test environment");
 
     const mySqlContainer = await new MySqlContainer("mysql:8.4.8").start();
-    this.logger.info("✅ MySQL instance spun up");
+    this.logger.info("🔺 MySQL instance spun up");
 
     const redisContainer = await new RedisContainer("redis:8.2").start();
-    this.logger.info("✅ Redis instance spun up");
+    this.logger.info("🔺 Redis instance spun up");
 
     const DB_PORT = mySqlContainer.getMappedPort(3306);
     const DB_PASSWORD = mySqlContainer.getRootPassword();
