@@ -200,6 +200,7 @@ export const product = mysqlTable(
     price: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }).notNull(),
     unitCost: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }).notNull(),
     inventoryVersion: int({ unsigned: true }).notNull().default(0),
+    lastRestockAt: datetime({ mode: "date", fsp: 6 }),
     status: varchar({ length: 24 }).$type<ProductStatus>().notNull().default("draft"),
     type: varchar({ length: 24 }).$type<ProductType>().notNull().default("item"),
     createdAt: datetime({ mode: "date", fsp: 6 })
@@ -612,6 +613,8 @@ export const sale = mysqlTable(
       .notNull()
       .references(() => employee.id),
     voidedById: char({ length: ID_LENGTH }).references(() => employee.id),
+    voidedAt: datetime({ mode: "date", fsp: 6 }),
+    voidReason: varchar({ length: 256 }),
   },
   (table) => [
     unique("sales_location_id_transaction_number_unique").on(table.locationId, table.transactionNumber),

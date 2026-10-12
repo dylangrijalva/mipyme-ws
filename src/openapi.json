@@ -1673,6 +1673,113 @@
           }
         }
       }
+    },
+    "/v1/sales/{id}/void": {
+      "post": {
+        "tags": ["Sales"],
+        "operationId": "voidSale",
+        "summary": "Void a fulfilled sale",
+        "description": "Voids a fulfilled sale atomically, restores its physical quantities to the original location, and records inverse inventory movements linked to the sale. A void is rejected when any physical product has been restocked since the sale was created. Original payments remain as sale history; no refund is issued. Enabled owners may void sales. Enabled staff need void_sales permission and access to the sale's location. Repeated requests return the original void metadata without restoring stock again.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^sale_.+$"
+            },
+            "description": "The sale identifier."
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidSaleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The voided sale, including its original payments and void metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sale"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The reason is invalid, the sale is not fulfilled, or a product was restocked at or after the sale was created. Returns validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership, void permission, employee status, or sale-location access prevents voiding.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The sale does not exist within this merchant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Concurrent inventory changes prevented the void from completing. Returns concurrent_update_conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected persistence error. All void effects are rolled back.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4702,6 +4809,19 @@
         "type": "string",
         "enum": ["fulfilled", "pending", "voided"]
       },
+      "VoidSaleRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": ["string", "null"],
+            "description": "Optional reason for voiding. Surrounding whitespace is trimmed; blank or null values are stored as null. The trimmed value can contain up to 256 characters.",
+            "examples": ["Damaged package", null]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Optional details for voiding a sale. The reason may be omitted.",
+        "examples": [{}, { "reason": "Damaged package" }]
+      },
       "Sale": {
         "type": "object",
         "properties": {
@@ -4977,6 +5097,17 @@
             "description": "The employee associated with voiding the sale. Returns `null` if no voiding employee is recorded.",
             "examples": [null]
           },
+          "void_reason": {
+            "type": ["string", "null"],
+            "description": "The trimmed reason recorded when the sale was voided. Returns `null` when no reason was supplied.",
+            "examples": [null]
+          },
+          "voided_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "The time when the sale was voided, in RFC 3339 format. Returns `null` until the sale is voided.",
+            "examples": [null]
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -5009,6 +5140,8 @@
           "payments",
           "created_by",
           "voided_by",
+          "void_reason",
+          "voided_at",
           "created_at",
           "updated_at",
           "business_date"
@@ -5052,6 +5185,8 @@
               "name": "Nami"
             },
             "voided_by": null,
+            "void_reason": null,
+            "voided_at": null,
             "created_at": "2026-09-23T09:00:00.000Z",
             "updated_at": "2026-09-23T09:00:00.000Z",
             "business_date": "2026-09-23T09:00:00.000Z"

@@ -46,6 +46,7 @@ const Sale = z.object({
     })
     .nullable()
     .default(null),
+  voidReason: z.string().nullable(),
   voidedBy: z
     .object({
       id: z.string(),
@@ -53,6 +54,7 @@ const Sale = z.object({
     })
     .nullable()
     .default(null),
+  voidedAt: z.date().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

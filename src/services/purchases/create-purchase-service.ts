@@ -284,6 +284,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
           });
         }
 
+        const createdAt = now();
         for (const productId of productIds) {
           const productPurchase = productPurchases.get(productId)!;
           await trx
@@ -291,7 +292,8 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
             .set({
               unitCost: nextUnitCosts.get(productPurchase.productId)!,
               inventoryVersion: sql`${tables.product.inventoryVersion} + 1`,
-              updatedAt: now(),
+              lastRestockAt: createdAt,
+              updatedAt: createdAt,
             })
             .where(
               and(
@@ -316,7 +318,6 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
           );
 
         const purchaseId = generateId({ model: "purchaseOrder" });
-        const createdAt = now();
         const purchaseItemValues = purchaseLines.map((purchaseLine) => ({
           id: generateId({ model: "purchaseOrderItem" }),
           name: purchaseLine.variant.name,
