@@ -136,6 +136,253 @@ async function enableStaff(
 }
 
 describe("CreateSaleService", () => {
+  it("deducts both variants of one product and advances its inventory version once", async () => {
+    const { db, service, request, merchantId, productId, locationId, variantId } = await setup();
+    const secondVariantId = generateId({ model: "variant" });
+    const secondLevelId = generateId({ model: "inventoryLevel" });
+    await db.insert(tables.variant).values({
+      id: secondVariantId,
+      merchantId,
+      productId,
+      name: "Mandarin basket",
+      price: "75.00",
+    });
+    await db.insert(tables.inventoryLevel).values({
+      id: secondLevelId,
+      merchantId,
+      locationId,
+      variantId: secondVariantId,
+      onHand: 3,
+    });
+    const before = await inventoryState(db);
+
+    const result = await service.execute({
+      ...request,
+      lineItems: [...request.lineItems, { variantId: secondVariantId, price: "75.00", quantity: 3 }],
+      payments: [{ method: "cash", amount: "425.00" }],
+    });
+
+    expect(result).toMatchObject({ success: true, value: { status: "fulfilled", transactionNumber: 42 } });
+    const state = await checkoutState(db);
+    expect(state.sales).toHaveLength(1);
+    expect(state.items).toHaveLength(2);
+    expect(state.products.find((product) => product.id === productId)?.inventoryVersion).toBe(1);
+    expect(state.levels.find((level) => level.id === secondLevelId)?.onHand).toBe(0);
+    expect(state.levels.find((level) => level.locationId === locationId && level.variantId === variantId)?.onHand).toBe(
+      3,
+    );
+    expect(state.levels.filter((level) => level.locationId !== locationId)).toEqual(
+      before.levels.filter((level) => level.locationId !== locationId),
+    );
+    expect(state.movements).toHaveLength(2);
+    expect(state.movements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          inventoryLevelId: secondLevelId,
+          quantityDelta: -3,
+          referenceId: state.sales[0]!.id,
+        }),
+        expect.objectContaining({ quantityDelta: -2, referenceId: state.sales[0]!.id }),
+      ]),
+    );
+  });
+
+  it("retains sold names, prices, costs and dollar rates after catalog and location changes", async () => {
+    const { db, service, request, merchantId, productId, variantId, locationId } = await setup();
+    const result = await service.execute({
+      ...request,
+      lineItems: [{ variantId, price: "73.00", quantity: 1 }],
+      payments: [{ method: "cash_dollar", amount: "2.00" }],
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    await db
+      .update(tables.variant)
+      .set({ name: "Mandarin basket", price: "150.00" })
+      .where(eq(tables.variant.id, variantId));
+    await db.update(tables.product).set({ unitCost: "80.00" }).where(eq(tables.product.id, productId));
+    await db.update(tables.location).set({ exchangeRate: "40.00" }).where(eq(tables.location.id, locationId));
+    const reloaded = await new SaleFinder().find(db, { id: result.value.id, merchantId });
+
+    expect(reloaded?.lineItems).toEqual([
+      expect.objectContaining({ variantId, name: "Mandarin crate", price: "73.00", unitCost: "50.00", quantity: 1 }),
+    ]);
+    expect(reloaded?.payments).toEqual([
+      expect.objectContaining({ method: "cash_dollar", amount: "2.00", exchangeRate: "36.50" }),
+    ]);
+    expect(await db.select().from(tables.inventoryMovement)).toEqual([
+      expect.objectContaining({ referenceId: result.value.id, unitCost: "50.00", quantityDelta: -1 }),
+    ]);
+  });
+
+  it.each(["product", "inventory", "location"] as const)(
+    "retries a stale %s snapshot and commits checkout effects exactly once",
+    async (resource) => {
+      const { db, service, request, productId, variantId, locationId } = await setup();
+      const transact = db.transaction.bind(db);
+      const transactionSpy = vi.spyOn(db, "transaction");
+      // Commit a competing write after the checkout reads its snapshots, before its transaction starts.
+      transactionSpy.mockImplementationOnce(async (callback, config) => {
+        if (resource === "product") {
+          await db
+            .update(tables.product)
+            .set({ inventoryVersion: 1, unitCost: "60.00" })
+            .where(eq(tables.product.id, productId));
+        }
+        if (resource === "inventory") {
+          await db
+            .update(tables.inventoryLevel)
+            .set({ onHand: 4, updatedAt: new Date("2026-10-11T00:00:00Z") })
+            .where(
+              and(eq(tables.inventoryLevel.locationId, locationId), eq(tables.inventoryLevel.variantId, variantId)),
+            );
+        }
+        if (resource === "location") {
+          await db.update(tables.location).set({ nextSaleNumber: 43 }).where(eq(tables.location.id, locationId));
+        }
+        return transact(callback, config);
+      });
+
+      try {
+        const result = await service.execute(request);
+
+        expect(result).toMatchObject({
+          success: true,
+          value: { status: "fulfilled", transactionNumber: resource === "location" ? 43 : 42 },
+        });
+        const state = await checkoutState(db);
+        expect(state.sales).toHaveLength(1);
+        expect(state.items).toHaveLength(1);
+        expect(state.payments).toHaveLength(1);
+        expect(state.movements).toHaveLength(1);
+        expect(state.movements[0]).toMatchObject({
+          quantityDelta: -2,
+          unitCost: resource === "product" ? "60.00" : "50.00",
+          referenceId: state.sales[0]!.id,
+        });
+        expect(state.items[0]?.unitCost).toBe(resource === "product" ? "60.00" : "50.00");
+        expect(state.levels.find((level) => level.locationId === locationId)?.onHand).toBe(
+          resource === "inventory" ? 2 : 3,
+        );
+        expect(state.products.find((product) => product.id === productId)?.inventoryVersion).toBe(
+          resource === "product" ? 2 : 1,
+        );
+        expect(state.locations.find((location) => location.id === locationId)?.nextSaleNumber).toBe(
+          resource === "location" ? 44 : 43,
+        );
+      } finally {
+        transactionSpy.mockRestore();
+      }
+    },
+  );
+
+  it("revalidates pricing when product cost changes without an inventory version change", async () => {
+    const { db, service, request, productId } = await setup();
+    const transact = db.transaction.bind(db);
+    const competingStates: Array<Awaited<ReturnType<typeof checkoutState>>> = [];
+    const transactionSpy = vi.spyOn(db, "transaction").mockImplementationOnce(async (callback, config) => {
+      await db
+        .update(tables.product)
+        .set({ unitCost: "110.00", updatedAt: new Date("2026-10-11T00:00:00Z") })
+        .where(eq(tables.product.id, productId));
+      competingStates.push(await checkoutState(db));
+      return transact(callback, config);
+    });
+
+    try {
+      const result = await service.execute(request);
+
+      expect(result).toMatchObject({ success: false, error: { code: codes.priceBelowUnitCost } });
+      expect(await checkoutState(db)).toEqual(competingStates[0]);
+    } finally {
+      transactionSpy.mockRestore();
+    }
+  });
+
+  it("revalidates dollar payments when the location rate changes without a sale number change", async () => {
+    const { db, service, request, variantId, locationId } = await setup();
+    const transact = db.transaction.bind(db);
+    const competingStates: Array<Awaited<ReturnType<typeof checkoutState>>> = [];
+    const transactionSpy = vi.spyOn(db, "transaction").mockImplementationOnce(async (callback, config) => {
+      await db
+        .update(tables.location)
+        .set({ exchangeRate: "40.00", updatedAt: new Date("2026-10-11T00:00:00Z") })
+        .where(eq(tables.location.id, locationId));
+      competingStates.push(await checkoutState(db));
+      return transact(callback, config);
+    });
+
+    try {
+      const result = await service.execute({
+        ...request,
+        lineItems: [{ variantId, price: "73.00", quantity: 1 }],
+        payments: [{ method: "cash_dollar", amount: "2.00" }],
+      });
+
+      expect(result).toMatchObject({ success: false, error: { code: codes.validationError } });
+      expect(await checkoutState(db)).toEqual(competingStates[0]);
+    } finally {
+      transactionSpy.mockRestore();
+    }
+  });
+
+  it.each(["product", "inventory", "location"] as const)(
+    "returns concurrent_update_conflict when %s keeps changing and rolls back every attempt",
+    async (resource) => {
+      const { db, service, request, productId, variantId, locationId } = await setup();
+      const transact = db.transaction.bind(db);
+      const competingStates: Array<Awaited<ReturnType<typeof checkoutState>>> = [];
+      const transactionSpy = vi.spyOn(db, "transaction").mockImplementation(async (callback, config) => {
+        if (resource === "product") {
+          await db
+            .update(tables.product)
+            .set({ inventoryVersion: sql`${tables.product.inventoryVersion} + 1` })
+            .where(eq(tables.product.id, productId));
+        }
+        if (resource === "inventory") {
+          await db
+            .update(tables.inventoryLevel)
+            .set({ updatedAt: new Date(Date.UTC(2026, 9, 11, 0, 0, competingStates.length)) })
+            .where(
+              and(eq(tables.inventoryLevel.locationId, locationId), eq(tables.inventoryLevel.variantId, variantId)),
+            );
+        }
+        if (resource === "location") {
+          await db
+            .update(tables.location)
+            .set({ nextSaleNumber: sql`${tables.location.nextSaleNumber} + 1` })
+            .where(eq(tables.location.id, locationId));
+        }
+        competingStates.push(await checkoutState(db));
+        return transact(callback, config);
+      });
+
+      try {
+        const result = await service.execute(request);
+
+        expect(result).toMatchObject({ success: false, error: { code: codes.concurrentUpdateConflict } });
+        expect(competingStates.length).toBeGreaterThan(1);
+        expect(await checkoutState(db)).toEqual(competingStates.at(-1));
+        for (const [attempt, state] of competingStates.entries()) {
+          expect(state.sales).toHaveLength(0);
+          expect(state.items).toHaveLength(0);
+          expect(state.payments).toHaveLength(0);
+          expect(state.movements).toHaveLength(0);
+          expect(state.levels.find((level) => level.locationId === locationId)?.onHand).toBe(5);
+          expect(state.products.find((product) => product.id === productId)?.inventoryVersion).toBe(
+            resource === "product" ? attempt + 1 : 0,
+          );
+          expect(state.locations.find((location) => location.id === locationId)?.nextSaleNumber).toBe(
+            resource === "location" ? 43 + attempt : 42,
+          );
+        }
+      } finally {
+        transactionSpy.mockRestore();
+      }
+    },
+  );
+
   it("persists a fulfilled mixed checkout, snapshots prices, and deducts only physical stock at its location", async () => {
     const context = await setup();
     const { db, service, request, variantId, serviceVariantId, customerId, locationId, otherLocationId } = context;
@@ -237,6 +484,187 @@ describe("CreateSaleService", () => {
     },
   );
 
+  it("allocates consecutive numbers for overlapping pending checkouts without changing stock", async () => {
+    const { db, service, request, locationId } = await setup();
+    await db.update(tables.location).set({ allowBackorders: true }).where(eq(tables.location.id, locationId));
+    const before = await inventoryState(db);
+    const pendingRequest = {
+      ...request,
+      lineItems: [{ ...request.lineItems[0]!, quantity: 7 }],
+      payments: [{ method: "cash" as const, amount: "700.00" }],
+    };
+
+    const results = await waitForBlockedUpdate(db, "locations", generateId(), () =>
+      Promise.all([service.execute(pendingRequest), service.execute(pendingRequest)]),
+    );
+
+    expect(results.every((result) => result.success)).toBe(true);
+    const state = await checkoutState(db);
+    expect(state.sales).toHaveLength(2);
+    expect(state.sales.map((sale) => sale.transactionNumber).sort()).toEqual([42, 43]);
+    expect(state.sales.every((sale) => sale.status === "pending")).toBe(true);
+    expect(state.items).toHaveLength(2);
+    expect(state.items.every((item) => item.quantity === 7 && item.shortageQuantity === 2)).toBe(true);
+    expect(state.payments).toHaveLength(2);
+    for (const sale of state.sales) {
+      expect(state.items.filter((item) => item.saleId === sale.id)).toHaveLength(1);
+      expect(state.payments.filter((payment) => payment.saleId === sale.id)).toEqual([
+        expect.objectContaining({ method: "cash", amount: "700.00" }),
+      ]);
+    }
+    expect(state.locations.find((location) => location.id === locationId)?.nextSaleNumber).toBe(44);
+    expect(await inventoryState(db)).toEqual(before);
+  });
+
+  it("recomputes shortages after a location conflict and fulfills a replenished pending checkout", async () => {
+    const { db, service, request, locationId, variantId, productId } = await setup();
+    await db.update(tables.location).set({ allowBackorders: true }).where(eq(tables.location.id, locationId));
+    const transact = db.transaction.bind(db);
+    const transactionSpy = vi.spyOn(db, "transaction").mockImplementationOnce(async (callback, config) => {
+      await db
+        .update(tables.inventoryLevel)
+        .set({ onHand: 9, updatedAt: new Date("2026-10-11T00:00:00Z") })
+        .where(and(eq(tables.inventoryLevel.locationId, locationId), eq(tables.inventoryLevel.variantId, variantId)));
+      await db.update(tables.location).set({ nextSaleNumber: 43 }).where(eq(tables.location.id, locationId));
+      return transact(callback, config);
+    });
+
+    try {
+      const result = await service.execute({
+        ...request,
+        lineItems: [{ ...request.lineItems[0]!, quantity: 7 }],
+        payments: [{ method: "cash", amount: "700.00" }],
+      });
+
+      expect(result).toMatchObject({ success: true, value: { status: "fulfilled", transactionNumber: 43 } });
+      const state = await checkoutState(db);
+      expect(state.sales).toHaveLength(1);
+      expect(state.items).toEqual([expect.objectContaining({ quantity: 7, shortageQuantity: 0 })]);
+      expect(state.payments).toEqual([expect.objectContaining({ amount: "700.00" })]);
+      expect(state.movements).toEqual([
+        expect.objectContaining({ referenceId: state.sales[0]!.id, quantityDelta: -7 }),
+      ]);
+      expect(state.levels.find((level) => level.locationId === locationId)?.onHand).toBe(2);
+      expect(state.products.find((product) => product.id === productId)?.inventoryVersion).toBe(1);
+      expect(state.locations.find((location) => location.id === locationId)?.nextSaleNumber).toBe(44);
+    } finally {
+      transactionSpy.mockRestore();
+    }
+  });
+
+  it("rolls back pending checkout when sale numbering conflicts exhaust retries", async () => {
+    const { db, service, request, locationId } = await setup();
+    await db.update(tables.location).set({ allowBackorders: true }).where(eq(tables.location.id, locationId));
+    const before = await inventoryState(db);
+    const transact = db.transaction.bind(db);
+    const competingStates: Array<Awaited<ReturnType<typeof checkoutState>>> = [];
+    const transactionSpy = vi.spyOn(db, "transaction").mockImplementation(async (callback, config) => {
+      await db
+        .update(tables.location)
+        .set({ nextSaleNumber: sql`${tables.location.nextSaleNumber} + 1` })
+        .where(eq(tables.location.id, locationId));
+      competingStates.push(await checkoutState(db));
+      return transact(callback, config);
+    });
+
+    try {
+      const result = await service.execute({
+        ...request,
+        lineItems: [{ ...request.lineItems[0]!, quantity: 7 }],
+        payments: [{ method: "cash", amount: "700.00" }],
+      });
+
+      expect(result).toMatchObject({ success: false, error: { code: codes.concurrentUpdateConflict } });
+      expect(competingStates.length).toBeGreaterThan(1);
+      expect(await checkoutState(db)).toEqual(competingStates.at(-1));
+      for (const [attempt, state] of competingStates.entries()) {
+        expect(state.sales).toHaveLength(0);
+        expect(state.items).toHaveLength(0);
+        expect(state.payments).toHaveLength(0);
+        expect(state.locations.find((location) => location.id === locationId)?.nextSaleNumber).toBe(43 + attempt);
+      }
+      expect(await inventoryState(db)).toEqual(before);
+    } finally {
+      transactionSpy.mockRestore();
+    }
+  });
+
+  it.each(["sale_items", "sale_payments"] as const)(
+    "rolls back pending sale persistence when inserting %s fails",
+    async (tableName) => {
+      const { db, service, request, locationId } = await setup();
+      await db.update(tables.location).set({ allowBackorders: true }).where(eq(tables.location.id, locationId));
+      const before = await checkoutState(db);
+      await db.execute(
+        sql.raw(
+          `CREATE TRIGGER reject_pending_insert BEFORE INSERT ON ${tableName} FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Pending storage unavailable'`,
+        ),
+      );
+
+      try {
+        await expect(
+          service.execute({
+            ...request,
+            lineItems: [{ ...request.lineItems[0]!, quantity: 7 }],
+            payments: [{ method: "cash", amount: "700.00" }],
+          }),
+        ).rejects.toMatchObject({ cause: { sqlState: "45000", sqlMessage: "Pending storage unavailable" } });
+
+        expect(await checkoutState(db)).toEqual(before);
+      } finally {
+        await db.execute(sql`DROP TRIGGER reject_pending_insert`);
+      }
+    },
+  );
+
+  it("persists separate deficits for multiple short lines without deducting any available stock", async () => {
+    const { db, service, request, merchantId, productId, variantId, serviceVariantId, locationId } = await setup();
+    const secondVariantId = generateId({ model: "variant" });
+    await db
+      .insert(tables.variant)
+      .values({ id: secondVariantId, merchantId, productId, name: "Mandarin basket", price: "100.00" });
+    await db.insert(tables.inventoryLevel).values({
+      id: generateId({ model: "inventoryLevel" }),
+      merchantId,
+      locationId,
+      variantId: secondVariantId,
+      onHand: 1,
+    });
+    await db.update(tables.location).set({ allowBackorders: true }).where(eq(tables.location.id, locationId));
+    const before = await inventoryState(db);
+
+    const result = await service.execute({
+      ...request,
+      lineItems: [
+        { variantId, price: "100.00", quantity: 7 },
+        { variantId: secondVariantId, price: "100.00", quantity: 4 },
+        { variantId: serviceVariantId, price: "20.00", quantity: 1 },
+      ],
+      payments: [{ method: "cash", amount: "1120.00" }],
+    });
+
+    expect(result).toMatchObject({ success: true, value: { status: "pending", transactionNumber: 42 } });
+    const state = await checkoutState(db);
+    expect(state.sales).toHaveLength(1);
+    expect(state.sales[0]?.status).toBe("pending");
+    expect(state.items).toHaveLength(3);
+    expect(state.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ saleId: state.sales[0]!.id, variantId, quantity: 7, shortageQuantity: 2 }),
+        expect.objectContaining({
+          saleId: state.sales[0]!.id,
+          variantId: secondVariantId,
+          quantity: 4,
+          shortageQuantity: 3,
+        }),
+        expect.objectContaining({ saleId: state.sales[0]!.id, variantId: serviceVariantId, shortageQuantity: 0 }),
+      ]),
+    );
+    expect(state.payments).toEqual([expect.objectContaining({ saleId: state.sales[0]!.id, amount: "1120.00" })]);
+    expect(state.locations.find((location) => location.id === locationId)?.nextSaleNumber).toBe(43);
+    expect(await inventoryState(db)).toEqual(before);
+  });
+
   it("records only the deficit and preserves nonzero stock for a pending line", async () => {
     const { db, service, request, locationId } = await setup();
     await db.update(tables.location).set({ allowBackorders: true }).where(eq(tables.location.id, locationId));
@@ -258,7 +686,19 @@ describe("CreateSaleService", () => {
       lineItems: [{ ...request.lineItems[0]!, quantity: 6 }],
       payments: [{ method: "cash", amount: "600.00" }],
     });
-    expect(result).toMatchObject({ success: false, error: { code: codes.stockInsufficient } });
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        code: codes.stockInsufficient,
+        message: "One or more items do not have enough stock at this location.",
+        details: [
+          {
+            code: codes.stockInsufficient,
+            message: `Variant ${request.lineItems[0]!.variantId} is short by 1.`,
+          },
+        ],
+      },
+    });
     expect(await checkoutState(db)).toEqual(before);
   });
 
@@ -296,11 +736,30 @@ describe("CreateSaleService", () => {
     expect(await db.select().from(tables.inventoryMovement)).toHaveLength(0);
   });
 
-  it.each(["199.99", "200.01"])("rejects mismatched payments of %s without effects", async (amount) => {
+  it.each([
+    { scenario: "underpayment", amount: "199.99", code: codes.paymentInsufficient },
+    { scenario: "overpayment", amount: "200.01", code: codes.validationError },
+  ])("rejects $scenario with the matching payment error without effects", async ({ amount, code }) => {
     const { db, service, request } = await setup();
     const before = await checkoutState(db);
     const result = await service.execute({ ...request, payments: [{ method: "cash", amount }] });
-    expect(result.success).toBe(false);
+    expect(result).toMatchObject({ success: false, error: { code } });
+    expect(await checkoutState(db)).toEqual(before);
+  });
+
+  it("rejects a positive total with no payments without effects", async () => {
+    const { db, service, request } = await setup();
+    const before = await checkoutState(db);
+
+    const result = await service.execute({ ...request, payments: [] });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        code: codes.paymentInsufficient,
+        message: "Payments must exactly match the sale total after discounts and currency conversion.",
+      },
+    });
     expect(await checkoutState(db)).toEqual(before);
   });
 
@@ -408,6 +867,45 @@ describe("CreateSaleService", () => {
     const before = await checkoutState(db);
     expect(await service.execute(request)).toMatchObject({ success: false, error: { code: codes.validationError } });
     expect(await checkoutState(db)).toEqual(before);
+  });
+
+  it.each(["product", "variant"] as const)("rejects archived %s records without effects", async (resource) => {
+    const { db, service, request, productId, variantId } = await setup();
+    const archivedAt = new Date("2026-10-11T00:00:00.000Z");
+    if (resource === "product") {
+      await db.update(tables.product).set({ archivedAt }).where(eq(tables.product.id, productId));
+    } else {
+      await db.update(tables.variant).set({ archivedAt }).where(eq(tables.variant.id, variantId));
+    }
+    const before = await checkoutState(db);
+
+    const result = await service.execute(request);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: codes.validationError, message: "Only active products and unarchived variants can be sold." },
+    });
+    expect(await checkoutState(db)).toEqual(before);
+  });
+
+  it("rejects checkout when the authenticated employee does not exist", async () => {
+    const context = await setup();
+    const missingEmployeeId = generateId({ model: "employee" });
+    const service = CreateSaleService.create({
+      db: context.db,
+      user: { ...context.user, id: missingEmployeeId, employeeId: missingEmployeeId },
+      logger: pino({ enabled: false }),
+      saleFinder: new SaleFinder(),
+    });
+    const before = await checkoutState(context.db);
+
+    const result = await service.execute(context.request);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: codes.forbiddenError, message: "You do not have permission to checkout." },
+    });
+    expect(await checkoutState(context.db)).toEqual(before);
   });
 
   it("rejects duplicate variants without effects", async () => {
