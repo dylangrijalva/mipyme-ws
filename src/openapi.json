@@ -29,6 +29,9 @@
     {
       "name": "Customers",
       "description": "Create and manage merchant customers."
+    },
+    {
+      "name": "Sales"
     }
   ],
   "paths": {
@@ -38,13 +41,19 @@
         "operationId": "getCurrentAccountClaims",
         "summary": "Get the current account claims",
         "description": "Returns the identity claims from the authenticated bearer token.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Returns the authenticated identity claims.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/JsonWebTokenPayload" }
+                "schema": {
+                  "$ref": "#/components/schemas/JsonWebTokenPayload"
+                }
               }
             }
           },
@@ -52,7 +61,9 @@
             "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           }
@@ -65,7 +76,11 @@
         "operationId": "onboardAccount",
         "summary": "Create a business",
         "description": "Creates a merchant and its first location, and makes the current account the business owner. If the account already owns a business, returns the existing merchant without changing its details. An account that belongs to a staff member cannot create a business. Requires a valid bearer token; existing merchant membership is not required.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -101,7 +116,9 @@
             "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -154,7 +171,11 @@
         "operationId": "listProducts",
         "summary": "List products",
         "description": "Returns one page of products in the catalog of the merchant associated with the authenticated account's membership. Use `next_cursor` to retrieve the next page.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "limit",
@@ -173,7 +194,9 @@
             "in": "query",
             "required": false,
             "description": "The `next_cursor` value returned by the previous page.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -181,7 +204,9 @@
             "description": "Returns a page of products and pagination information.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ProductPaginationResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/ProductPaginationResponse"
+                }
               }
             }
           },
@@ -189,7 +214,9 @@
             "description": "The limit query parameter is invalid. Returns `validation_error`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -197,7 +224,9 @@
             "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -205,7 +234,9 @@
             "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -213,7 +244,9 @@
             "description": "An unexpected error prevented the products from being listed. Returns `internal_server_error`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           }
@@ -274,7 +307,9 @@
             "description": "The account has no provisioned membership (account_not_provisioned), or its employee is invited or disabled (forbidden_error).",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -317,14 +352,20 @@
         "operationId": "getProduct",
         "summary": "Get a product",
         "description": "Returns a product belonging to the merchant associated with the authenticated account's membership.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
             "description": "The product identifier.",
-            "schema": { "$ref": "#/components/schemas/ObjectId" }
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
           }
         ],
         "responses": {
@@ -332,7 +373,9 @@
             "description": "Returns the product.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Product" }
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
               }
             }
           },
@@ -340,7 +383,9 @@
             "description": "The product identifier is invalid. Returns `validation_error`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -348,7 +393,9 @@
             "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -356,7 +403,9 @@
             "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -364,7 +413,9 @@
             "description": "The product does not exist or does not belong to the current merchant. Returns `resource_not_found`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -372,7 +423,9 @@
             "description": "An unexpected error prevented the product from being retrieved. Returns `internal_server_error`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           }
@@ -383,21 +436,29 @@
         "operationId": "updateProduct",
         "summary": "Update a product",
         "description": "Updates the supplied fields for a product belonging to the authenticated merchant. Omitted fields remain unchanged. Set `collection_id` or `image_url` to null to clear it. For items, `unit_cost` must be greater than zero and can only change while the product is a draft; `price` must be equal to or greater than `unit_cost`.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
             "description": "The product identifier.",
-            "schema": { "$ref": "#/components/schemas/ObjectId" }
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
           }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateProductRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductRequest"
+              }
             }
           }
         },
@@ -406,7 +467,9 @@
             "description": "Returns the updated product.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Product" }
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
               }
             }
           },
@@ -414,7 +477,9 @@
             "description": "The request contains invalid JSON or field values, an item has an invalid unit cost, or its price is below its unit cost. Returns `validation_error` or `price_below_unit_cost`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -422,7 +487,9 @@
             "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -430,7 +497,9 @@
             "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -438,7 +507,9 @@
             "description": "The product or collection does not exist or does not belong to the current merchant. Returns `resource_not_found`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -446,7 +517,9 @@
             "description": "The SKU or barcode is already used within this merchant. Returns `sku_already_exists` or `barcode_already_exists`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           },
@@ -454,7 +527,9 @@
             "description": "An unexpected error prevented the product from being updated. Returns `internal_server_error`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FacilitoError" }
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
               }
             }
           }
@@ -609,8 +684,8 @@
               }
             }
           },
-          "500": {
-            "description": "An unexpected error prevented creation. Returns `internal_server_error`. Database errors, including concurrent uniqueness violations, return this response.",
+          "409": {
+            "description": "Another collection in this merchant has a name that produces the same slug. Returns `collection_name_already_exists`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -619,8 +694,8 @@
               }
             }
           },
-          "409": {
-            "description": "Another collection in this merchant has a name that produces the same slug. Returns `collection_name_already_exists`.",
+          "500": {
+            "description": "An unexpected error prevented creation. Returns `internal_server_error`. Database errors, including concurrent uniqueness violations, return this response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -799,8 +874,8 @@
               }
             }
           },
-          "500": {
-            "description": "An unexpected error prevented the collection from being updated. Returns `internal_server_error`. Database errors, including concurrent uniqueness violations, return this response.",
+          "409": {
+            "description": "Another collection in this merchant has a name that produces the same slug. Returns `collection_name_already_exists`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -809,8 +884,8 @@
               }
             }
           },
-          "409": {
-            "description": "Another collection in this merchant has a name that produces the same slug. Returns `collection_name_already_exists`.",
+          "500": {
+            "description": "An unexpected error prevented the collection from being updated. Returns `internal_server_error`. Database errors, including concurrent uniqueness violations, return this response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1503,6 +1578,101 @@
           }
         }
       }
+    },
+    "/v1/sales": {
+      "post": {
+        "tags": ["Sales"],
+        "operationId": "createSale",
+        "summary": "Record a completed checkout",
+        "description": "Records the sale, lines, payments and location transaction number atomically. Sale IDs are generated by the server. Fulfilled physical lines deduct inventory and record movements at server time; services skip inventory. Any stock shortage defers all inventory operations for the whole sale, preserving current stock and recording only deficits on the lines. Web shortages are rejected when allowBackorders is false; Android and iOS always record these as pending. Missing inventory counts as zero. Requires enabled membership; staff also need checkout permission and location access. Staff price reductions and explicit discounts require apply_discounts, and each line’s compounded discount must stay within maxDiscountRate. Owners bypass the cap, but final prices must never be below unit cost. Tax is ignored. Discounted line totals and converted dollar payments round to cents, half up, before summing. Payments must exactly match the sale total. The location exchange rate is copied to dollar payments; a zero rate contributes zero to the paid total. Pending-sale reconciliation is handled separately.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSaleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The saved fulfilled or pending sale.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sale"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid fields, duplicate variants, inactive catalog entries, a final price below cost, or payment mismatch. Returns validation_error, price_below_unit_cost, or payment_insufficient.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership, checkout permission, location access, discount permission or discount cap prevents checkout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Location, variant or optional customer is not found within this merchant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Insufficient web stock with backorders disabled or exhausted location numbering. Returns stock_insufficient or conflict_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected persistence error. All transaction effects are rolled back.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2010,9 +2180,25 @@
             "format": "date-time",
             "description": "The date and time when the employee was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "maxDiscountRate": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d{1,2})?$",
+            "description": "Maximum effective line discount as a fraction. 0.10 means 10%. Defaults to 0.00. Owners are exempt.",
+            "default": "0.00"
           }
         },
-        "required": ["id", "name", "isOwner", "posAccessStatus", "permissions", "account", "createdAt", "updatedAt"],
+        "required": [
+          "id",
+          "name",
+          "isOwner",
+          "posAccessStatus",
+          "permissions",
+          "account",
+          "createdAt",
+          "updatedAt",
+          "maxDiscountRate"
+        ],
         "additionalProperties": false,
         "description": "A staff member associated with a merchant. Describes their ownership status, point-of-sale access, permissions, and linked sign-in account. Sales, purchase orders, and stock records reference employees to identify who recorded an operation.",
         "examples": [
@@ -2027,7 +2213,8 @@
               "email": "nami@strawhatpirates.example.com"
             },
             "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "updatedAt": "2026-09-23T09:00:00.000Z",
+            "maxDiscountRate": "0.00"
           }
         ]
       },
@@ -2806,6 +2993,12 @@
             "format": "date-time",
             "description": "The date and time when the location was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "exchangeRate": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d{1,2})?$",
+            "description": "Local currency per US dollar, used for cash_dollar sale payments. Defaults to 0.00.",
+            "default": "0.00"
           }
         },
         "required": [
@@ -2822,7 +3015,8 @@
           "receiptHeaderText",
           "receiptFooterText",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "exchangeRate"
         ],
         "additionalProperties": false,
         "description": "A place where a merchant sells products and holds stock. Each location has its own inventory levels, sale and purchase-order counters, tax settings, backorder policy, and receipt text.",
@@ -2841,7 +3035,8 @@
             "receiptHeaderText": "Straw Hat Pirates",
             "receiptFooterText": "Thank you for shopping with us.",
             "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "updatedAt": "2026-09-23T09:00:00.000Z",
+            "exchangeRate": "0.00"
           }
         ]
       },
@@ -4522,15 +4717,15 @@
           },
           "status": {
             "$ref": "#/components/schemas/SaleStatus",
-            "description": "The fulfillment state of the sale: fulfilled, pending, or voided.",
+            "description": "Pending means the paid sale awaits all inventory deductions; fulfilled means applicable inventory deductions were committed.",
             "examples": ["fulfilled"]
           },
-          "transactionNumber": {
+          "transaction_number": {
             "type": "number",
             "description": "The sale number assigned within the location.",
             "examples": [1]
           },
-          "discountRate": {
+          "discount_rate": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Decimal"
@@ -4539,10 +4734,10 @@
                 "type": "null"
               }
             ],
-            "description": "The discount rate recorded for the sale, expressed as a decimal string. Returns `null` if no rate is recorded.",
+            "description": "Sale-wide discount as a fractional decimal string: 0.10 means 10%. Null means no discount. Applied after submitted line prices.",
             "examples": [null]
           },
-          "locationId": {
+          "location_id": {
             "type": "string",
             "description": "The identifier of the location where the sale was recorded.",
             "examples": ["loc_00000000000000000001"]
@@ -4590,7 +4785,7 @@
               }
             ]
           },
-          "lineItems": {
+          "line_items": {
             "type": "array",
             "items": {
               "type": "object",
@@ -4605,16 +4800,16 @@
                   "description": "The item name recorded on the sale line.",
                   "examples": ["East Blue Tangerines / 1 kg"]
                 },
-                "variantId": {
+                "variant_id": {
                   "type": "string",
                   "description": "The identifier of the product variant sold.",
                   "examples": ["var_00000000000000000001"]
                 },
-                "shortageQuantity": {
+                "shortage_quantity": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991,
-                  "description": "The number of units on the line that could not be fulfilled from available stock.",
+                  "description": "Stock deficit at checkout, not the quantity awaiting deduction. All inventory remains unchanged for a pending sale.",
                   "examples": [0]
                 },
                 "price": {
@@ -4622,7 +4817,7 @@
                   "description": "The selling price per unit captured for the sale line, expressed as a decimal string.",
                   "examples": ["125.50"]
                 },
-                "unitCost": {
+                "unit_cost": {
                   "$ref": "#/components/schemas/Decimal",
                   "description": "The cost per unit captured for the sale line, expressed as a decimal string.",
                   "examples": ["80.00"]
@@ -4633,16 +4828,16 @@
                   "examples": [2]
                 }
               },
-              "required": ["id", "name", "variantId", "shortageQuantity", "price", "unitCost", "quantity"],
+              "required": ["id", "name", "variant_id", "shortage_quantity", "price", "unit_cost", "quantity"],
               "additionalProperties": false,
               "examples": [
                 {
                   "id": "sal_ite_0000000000000001",
                   "name": "East Blue Tangerines / 1 kg",
-                  "variantId": "var_00000000000000000001",
-                  "shortageQuantity": 0,
+                  "variant_id": "var_00000000000000000001",
+                  "shortage_quantity": 0,
                   "price": "125.50",
-                  "unitCost": "80.00",
+                  "unit_cost": "80.00",
                   "quantity": 2
                 }
               ]
@@ -4653,10 +4848,10 @@
                 {
                   "id": "sal_ite_0000000000000001",
                   "name": "East Blue Tangerines / 1 kg",
-                  "variantId": "var_00000000000000000001",
-                  "shortageQuantity": 0,
+                  "variant_id": "var_00000000000000000001",
+                  "shortage_quantity": 0,
                   "price": "125.50",
-                  "unitCost": "80.00",
+                  "unit_cost": "80.00",
                   "quantity": 2
                 }
               ]
@@ -4679,10 +4874,10 @@
                 },
                 "amount": {
                   "$ref": "#/components/schemas/Decimal",
-                  "description": "The amount recorded for the payment, expressed as a decimal string.",
+                  "description": "Amount applied to the sale, excluding change. USD for cash_dollar, local currency for other methods.",
                   "examples": ["251.00"]
                 },
-                "exchangeRate": {
+                "exchange_rate": {
                   "default": null,
                   "anyOf": [
                     {
@@ -4692,18 +4887,18 @@
                       "type": "null"
                     }
                   ],
-                  "description": "The exchange rate recorded for the payment, expressed as a decimal string. Returns `null` if no exchange rate is recorded.",
+                  "description": "Location exchange rate captured for cash_dollar payments, or null for other methods. Multiply USD amount by this rate for local currency.",
                   "examples": [null]
                 }
               },
-              "required": ["id", "method", "amount", "exchangeRate"],
+              "required": ["id", "method", "amount", "exchange_rate"],
               "additionalProperties": false,
               "examples": [
                 {
                   "id": "sal_pay_0000000000000001",
                   "method": "cash",
                   "amount": "251.00",
-                  "exchangeRate": null
+                  "exchange_rate": null
                 }
               ]
             },
@@ -4714,12 +4909,12 @@
                   "id": "sal_pay_0000000000000001",
                   "method": "cash",
                   "amount": "251.00",
-                  "exchangeRate": null
+                  "exchange_rate": null
                 }
               ]
             ]
           },
-          "createdBy": {
+          "created_by": {
             "default": null,
             "anyOf": [
               {
@@ -4757,7 +4952,7 @@
               }
             ]
           },
-          "voidedBy": {
+          "voided_by": {
             "default": null,
             "anyOf": [
               {
@@ -4782,34 +4977,41 @@
             "description": "The employee associated with voiding the sale. Returns `null` if no voiding employee is recorded.",
             "examples": [null]
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the sale was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the sale was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "business_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Client checkout time, normalized and stored in UTC. Independent of server creation and inventory deduction timestamps.",
+            "examples": ["2026-10-10T18:30:00.000Z"]
           }
         },
         "required": [
           "id",
           "source",
           "status",
-          "transactionNumber",
-          "discountRate",
-          "locationId",
+          "transaction_number",
+          "discount_rate",
+          "location_id",
           "notes",
           "customer",
-          "lineItems",
+          "line_items",
           "payments",
-          "createdBy",
-          "voidedBy",
-          "createdAt",
-          "updatedAt"
+          "created_by",
+          "voided_by",
+          "created_at",
+          "updated_at",
+          "business_date"
         ],
         "additionalProperties": false,
         "description": "A record of a checkout at a location. Contains the purchased variants, quantities, captured prices and costs, discount rate, and payments. It also identifies the customer and the employees who recorded or voided the sale when those details are available.",
@@ -4818,22 +5020,22 @@
             "id": "sale_0000000000000000001",
             "source": "pos.web",
             "status": "fulfilled",
-            "transactionNumber": 1,
-            "discountRate": null,
-            "locationId": "loc_00000000000000000001",
+            "transaction_number": 1,
+            "discount_rate": null,
+            "location_id": "loc_00000000000000000001",
             "notes": null,
             "customer": {
               "id": "cust_0000000000000000001",
               "name": "Trafalgar Law"
             },
-            "lineItems": [
+            "line_items": [
               {
                 "id": "sal_ite_0000000000000001",
                 "name": "East Blue Tangerines / 1 kg",
-                "variantId": "var_00000000000000000001",
-                "shortageQuantity": 0,
+                "variant_id": "var_00000000000000000001",
+                "shortage_quantity": 0,
                 "price": "125.50",
-                "unitCost": "80.00",
+                "unit_cost": "80.00",
                 "quantity": 2
               }
             ],
@@ -4842,16 +5044,17 @@
                 "id": "sal_pay_0000000000000001",
                 "method": "cash",
                 "amount": "251.00",
-                "exchangeRate": null
+                "exchange_rate": null
               }
             ],
-            "createdBy": {
+            "created_by": {
               "id": "empl_0000000000000000001",
               "name": "Nami"
             },
-            "voidedBy": null,
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "voided_by": null,
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z",
+            "business_date": "2026-09-23T09:00:00.000Z"
           }
         ]
       },
@@ -4984,7 +5187,9 @@
         "properties": {
           "results": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/Product" },
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            },
             "description": "The products returned in this page."
           },
           "next_cursor": {
@@ -5123,13 +5328,19 @@
         "allOf": [
           {
             "if": {
-              "properties": { "product_type": { "const": "service" } },
+              "properties": {
+                "product_type": {
+                  "const": "service"
+                }
+              },
               "required": ["product_type"]
             },
             "else": {
               "required": ["unit_cost"],
               "properties": {
-                "unit_cost": { "$ref": "#/components/schemas/PositiveDecimal" }
+                "unit_cost": {
+                  "$ref": "#/components/schemas/PositiveDecimal"
+                }
               }
             }
           }
@@ -5160,11 +5371,29 @@
             "description": "Product name, trimmed before validation."
           },
           "barcode": {
-            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 128 }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Optional barcode for items. Must be unique within the merchant, including across archived products."
           },
           "sku": {
-            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 128 }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Optional SKU for items. Must be unique within the merchant, including across archived products."
           },
           "price": {
@@ -5176,7 +5405,14 @@
             "description": "Item cost per unit. For items, it must be greater than zero and can only change before an inventory movement."
           },
           "collection_id": {
-            "anyOf": [{ "$ref": "#/components/schemas/ObjectId" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Optional collection belonging to the current merchant. Set to null to remove the collection."
           },
           "image_url": {
@@ -5187,14 +5423,22 @@
                 "pattern": "^https?://",
                 "maxLength": 2048
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ],
             "description": "Optional external image URL. Must use HTTP or HTTPS. Set to null to remove the image."
           }
         },
         "examples": [
-          { "name": "Updated product name", "price": "135.00" },
-          { "collection_id": null, "image_url": null }
+          {
+            "name": "Updated product name",
+            "price": "135.00"
+          },
+          {
+            "collection_id": null,
+            "image_url": null
+          }
         ]
       },
       "CollectionPaginationResponse": {
@@ -5380,6 +5624,85 @@
             "minLength": 1,
             "maxLength": 32,
             "description": "Trimmed contact phone. Use null to clear it."
+          }
+        }
+      },
+      "CreateSaleRequest": {
+        "type": "object",
+        "required": ["location_id", "business_date", "line_items", "payments"],
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/Source",
+            "default": "pos.web",
+            "description": "Android and iOS sales bypass allowBackorders. Web sales respect the location setting. Defaults to pos.web."
+          },
+          "location_id": {
+            "$ref": "#/components/schemas/ObjectId"
+          },
+          "business_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Original client checkout timestamp, with UTC or an explicit offset. Stored in UTC."
+          },
+          "customer_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional customer belonging to the authenticated merchant."
+          },
+          "notes": {
+            "type": ["string", "null"],
+            "maxLength": 256,
+            "description": "Optional notes. Leading and trailing whitespace is trimmed."
+          },
+          "discount_rate": {
+            "type": ["string", "null"],
+            "pattern": "^(?:0+(?:\\.\\d{1,2})?|0*1(?:\\.0{1,2})?)$",
+            "description": "Optional fractional rate between 0.00 and 1.00. For example, 0.10 means 10%. Omitted or null means no discount."
+          },
+          "line_items": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Each variant must appear exactly once. Only active products and unarchived variants may be sold. Quantities are positive integers.",
+            "items": {
+              "type": "object",
+              "required": ["variant_id", "price", "quantity"],
+              "properties": {
+                "variant_id": {
+                  "$ref": "#/components/schemas/ObjectId"
+                },
+                "price": {
+                  "$ref": "#/components/schemas/Decimal",
+                  "description": "Nonnegative decimal string with at most two fractional digits."
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "payments": {
+            "type": "array",
+            "description": "Amounts applied to the sale, excluding change. Repeated methods are allowed. An empty list is allowed for a zero total. Client exchange rates are not used.",
+            "items": {
+              "type": "object",
+              "required": ["method", "amount"],
+              "properties": {
+                "method": {
+                  "$ref": "#/components/schemas/PaymentMethod"
+                },
+                "amount": {
+                  "$ref": "#/components/schemas/PositiveDecimal",
+                  "description": "Positive decimal string. USD for cash_dollar; local currency otherwise."
+                }
+              }
+            }
           }
         }
       }

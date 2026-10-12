@@ -77,6 +77,7 @@ export const employee = mysqlTable(
     isOwner: boolean().notNull().default(false),
     status: varchar({ length: 24 }).notNull().default("invited").$type<Employee["status"]>(),
     permissions: varchar({ length: 256 }),
+    maxDiscountRate: decimal({ precision: 3, scale: 2, mode: "string", unsigned: true }).notNull().default("0.00"),
     accountId: char({ length: ID_LENGTH }).references(() => account.id),
     createdAt: datetime({ mode: "date", fsp: 6 })
       .notNull()
@@ -107,6 +108,9 @@ export const location = mysqlTable(
     taxId: char({ length: 32 }),
     businessType: varchar({ length: 24 }).$type<BusinessType>().notNull().default("other"),
     allowBackorders: boolean().notNull().default(false),
+    exchangeRate: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true })
+      .notNull()
+      .default("0.00"),
     receiptHeaderText: varchar({ length: 256 }),
     receiptFooterText: varchar({ length: 256 }),
     taxRate: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }).default(
@@ -587,6 +591,7 @@ export const sale = mysqlTable(
     status: varchar({ length: 24 }).$type<SaleStatus>().notNull(),
     transactionNumber: int({ unsigned: true }).notNull(),
     source: varchar({ length: 24 }).$type<Source>().notNull(),
+    businessDate: datetime({ mode: "date", fsp: 3 }).notNull(),
     discountRate: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }),
     notes: varchar({ length: 256 }),
     createdAt: datetime({ mode: "date", fsp: 6 })

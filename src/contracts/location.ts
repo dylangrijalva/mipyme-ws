@@ -10,6 +10,7 @@ const Location = z.object({
   phone: z.string().nullable(),
   taxId: z.string().nullable(),
   taxRate: Decimal.nullable(),
+  exchangeRate: Decimal,
   nextSaleNumber: z.number().int(),
   nextPurchaseOrderNumber: z.number().int(),
   allowBackorders: z.boolean().default(false),

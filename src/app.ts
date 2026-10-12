@@ -10,6 +10,7 @@ import type { CustomerFinder } from "./finders/customer-finder.ts";
 import type { MerchantFinder } from "./finders/merchant-finder.ts";
 import type { ProductFinder } from "./finders/product-finder.ts";
 import type { PurchaseFinder } from "./finders/purchase-finder.ts";
+import type { SaleFinder } from "./finders/sale-finder.ts";
 import type { SupplierFinder } from "./finders/supplier-finder.ts";
 import { devGuard } from "./guards/dev-guard.ts";
 import type { EnvVars } from "./infra/config.env.ts";
@@ -43,6 +44,7 @@ type InjectedDependencies = {
   supplierFinder: SupplierFinder;
   productFinder: ProductFinder;
   purchaseFinder: PurchaseFinder;
+  saleFinder: SaleFinder;
 };
 
 function createApp(dependencies: InjectedDependencies): FacilitoHono {

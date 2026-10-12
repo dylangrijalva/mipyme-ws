@@ -7,6 +7,7 @@ import { Source } from "./source.ts";
 const Sale = z.object({
   id: z.string(),
   source: Source,
+  businessDate: z.date(),
   status: SaleStatus,
   transactionNumber: z.number(),
   discountRate: Decimal.nullable(),

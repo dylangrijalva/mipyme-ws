@@ -1,5 +1,6 @@
 import z from "zod";
 import { splitDistinct } from "../utils/split-distinct.ts";
+import { Decimal } from "./decimal.ts";
 
 const PERMISSIONS_DELIMITER = " " as const;
 
@@ -7,6 +8,7 @@ const Employee = z.object({
   id: z.string(),
   name: z.string(),
   isOwner: z.boolean(),
+  maxDiscountRate: Decimal,
   status: z.union([z.literal("invited"), z.literal("enabled"), z.literal("disabled")]),
   permissions: z
     .string()

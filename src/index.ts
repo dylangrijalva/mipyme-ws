@@ -8,6 +8,7 @@ import { CustomerFinder } from "./finders/customer-finder.ts";
 import { MerchantFinder } from "./finders/merchant-finder.ts";
 import { ProductFinder } from "./finders/product-finder.ts";
 import { PurchaseFinder } from "./finders/purchase-finder.ts";
+import { SaleFinder } from "./finders/sale-finder.ts";
 import { SupplierFinder } from "./finders/supplier-finder.ts";
 import { Environment, loadEnvironmentVariables } from "./infra/config.env.ts";
 import { createLogger, noopLogger } from "./infra/config.logger.ts";
@@ -37,6 +38,7 @@ async function run() {
   const supplierFinder = new SupplierFinder();
   const productFinder = new ProductFinder();
   const purchaseFinder = new PurchaseFinder();
+  const saleFinder = new SaleFinder();
 
   const app = createApp({
     logger,
@@ -50,6 +52,7 @@ async function run() {
     supplierFinder,
     productFinder,
     purchaseFinder,
+    saleFinder,
   });
 
   serve({ fetch: app.fetch, port: env.PORT }, ({ address, port }) => {
