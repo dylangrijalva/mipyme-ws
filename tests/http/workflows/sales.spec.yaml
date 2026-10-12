@@ -4,6 +4,8 @@ components:
   schemas:
     Sale:
       $ref: ./src/openapi.json#/components/schemas/Sale
+    SalePaginationResponse:
+      $ref: ./src/openapi.json#/components/schemas/SalePaginationResponse
     FacilitoError:
       $ref: ./src/openapi.json#/components/schemas/FacilitoError
     Product:
@@ -163,6 +165,83 @@ tests:
               $.customer.id: ${{captures.customerId}}
               $.line_items.length: 1
               $.payments.length: 2
+          captures:
+            readSaleId:
+              jsonpath: $.id
+            readSaleBody:
+              body: true
+      - name: retrieves the complete sale through the detail endpoint
+        http:
+          url: ${{env.baseUrl}}/v1/sales/${{captures.readSaleId}}
+          method: GET
+          auth: *auth
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Sale"
+            body:
+              - eq: ${{captures.readSaleBody}}
+      - name: lists full sales using snake case filters and inclusive business dates
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: GET
+          auth: *auth
+          params:
+            limit: 1
+            location_id: ${{captures.locationId}}
+            customer_id: ${{captures.customerId}}
+            status: fulfilled
+            from: "2026-10-10T12:30:00-06:00"
+            to: "2026-10-10T18:30:00Z"
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/SalePaginationResponse"
+            jsonpath:
+              $.results.length: 1
+              $.results[0].id: ${{captures.readSaleId}}
+              $.results[0].line_items.length: 1
+              $.results[0].payments.length: 2
+              $.results[0].customer.id: ${{captures.customerId}}
+              $.next_cursor: null
+              $.has_more: false
+      - name: returns no sales when the business date lower bound is after the saved timestamp by a microsecond
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: GET
+          auth: *auth
+          params:
+            from: "2026-10-10T18:30:00.000001Z"
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/SalePaginationResponse"
+            jsonpath:
+              $.results.length: 0
+              $.next_cursor: null
+              $.has_more: false
+      - name: applies the status filter even when the merchant has a sale
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: GET
+          auth: *auth
+          params:
+            status: voided
+          check:
+            status: 200
+            jsonpath:
+              $.results.length: 0
+      - name: applies the snake case customer filter
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: GET
+          auth: *auth
+          params:
+            customer_id: cust_0000000000000000000
+          check:
+            status: 200
+            jsonpath:
+              $.results.length: 0
       - name: rejects invalid decimal text as a client error
         http:
           url: ${{env.baseUrl}}/v1/sales
@@ -621,3 +700,159 @@ tests:
             jsonpath:
               $.status: voided
               $.void_reason: null
+  read_validation:
+    name: rejects invalid sale read requests and requires authentication
+    steps:
+      - name: rejects invalid limits
+        http:
+          url: ${{env.baseUrl}}/v1/sales?limit=101
+          method: GET
+          auth: *auth
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+      - name: rejects zero limits
+        http:
+          url: ${{env.baseUrl}}/v1/sales?limit=0
+          method: GET
+          auth: *auth
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+      - name: rejects invalid status
+        http:
+          url: ${{env.baseUrl}}/v1/sales?status=refunded
+          method: GET
+          auth: *auth
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+      - name: rejects invalid location identifiers
+        http:
+          url: ${{env.baseUrl}}/v1/sales?location_id=Water7
+          method: GET
+          auth: *auth
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+      - name: rejects invalid customer identifiers
+        http:
+          url: ${{env.baseUrl}}/v1/sales?customer_id=Luffy
+          method: GET
+          auth: *auth
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+      - name: rejects malformed cursors
+        http:
+          url: ${{env.baseUrl}}/v1/sales?cursor=not-a-cursor
+          method: GET
+          auth: *auth
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+      - name: rejects timestamps without a timezone
+        http:
+          url: ${{env.baseUrl}}/v1/sales?from=2026-10-10T18:30:00
+          method: GET
+          auth: *auth
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+      - name: rejects invalid calendar dates
+        http:
+          url: ${{env.baseUrl}}/v1/sales?from=2026-02-30T00:00:00Z
+          method: GET
+          auth: *auth
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+      - name: rejects reversed date ranges
+        http:
+          url: ${{env.baseUrl}}/v1/sales?from=2026-10-11T00:00:00Z&to=2026-10-10T00:00:00Z
+          method: GET
+          auth: *auth
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+      - name: rejects invalid sale ID
+        http:
+          url: ${{env.baseUrl}}/v1/sales/not-an-id
+          method: GET
+          auth: *auth
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+      - name: rejects missing sale
+        http:
+          url: ${{env.baseUrl}}/v1/sales/sale_0000000000000000000
+          method: GET
+          auth: *auth
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: resource_not_found
+      - name: rejects unauthenticated detail
+        http:
+          url: ${{env.baseUrl}}/v1/sales/sale_0000000000000000000
+          method: GET
+          check:
+            status: 401
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: invalid_oauth_token
+      - name: rejects unauthenticated list
+        http:
+          url: ${{env.baseUrl}}/v1/sales/
+          method: GET
+          check:
+            status: 401
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: invalid_oauth_token
+      - name: rejects reversed ranges that differ only in fractional milliseconds
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: GET
+          auth: *auth
+          params:
+            from: "2026-10-10T18:30:00.000900Z"
+            to: "2026-10-10T18:30:00.000100Z"
+          check:
+            status: 400
+            jsonpath:
+              $.code: validation_error

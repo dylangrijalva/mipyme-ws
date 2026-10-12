@@ -1672,6 +1672,140 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": ["Sales"],
+        "operationId": "listSales",
+        "summary": "List sales",
+        "description": "Returns full sales, including line items and payments, ordered by created_at descending and then id descending. All statuses are included unless filtered. Pass next_cursor as cursor with the same filters to continue. Enabled owners can read all sales for their merchant. Enabled staff need view_transactions permission and may read only assigned locations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "The maximum number of sales to return. Defaults to 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The `next_cursor` value returned by the previous page.",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "location_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter by location id. Unknown or inaccessible IDs return an empty page.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          },
+          {
+            "name": "customer_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter by customer id. Unknown or inaccessible IDs return an empty page.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["fulfilled", "pending", "voided"]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "Inclusive lower bound on business_date. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "Inclusive upper bound on business_date. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns a page of sales and pagination information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalePaginationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filters, limit, cursor, timestamps, or reversed date range. Returns validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership is not provisioned, employee access is not enabled, or staff lack view_transactions permission. Returns account_not_provisioned or forbidden_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the sales from being listed. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/sales/{id}/void": {
@@ -1770,6 +1904,92 @@
           },
           "500": {
             "description": "Unexpected persistence error. All void effects are rolled back.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sales/{id}": {
+      "get": {
+        "tags": ["Sales"],
+        "operationId": "getSale",
+        "summary": "Get a sale",
+        "description": "Returns the full sale, including line items, payments, customer, creator, and void metadata. Enabled owners can read all sales for their merchant. Enabled staff need view_transactions permission and may read only assigned locations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The sale identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the sale.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sale"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership is not provisioned, employee access is not enabled, or staff lack view_transactions permission. Returns account_not_provisioned or forbidden_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The sale is missing, belongs to another merchant, or is at a location the staff member cannot access. Returns resource_not_found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the sale from being retrieved. Returns `internal_server_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4820,7 +5040,12 @@
         },
         "additionalProperties": false,
         "description": "Optional details for voiding a sale. The reason may be omitted.",
-        "examples": [{}, { "reason": "Damaged package" }]
+        "examples": [
+          {},
+          {
+            "reason": "Damaged package"
+          }
+        ]
       },
       "Sale": {
         "type": "object",
@@ -5840,6 +6065,29 @@
             }
           }
         }
+      },
+      "SalePaginationResponse": {
+        "type": "object",
+        "description": "A page of sales and the information needed to request the next page. Continue with `next_cursor` while `has_more` is true.",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Sale"
+            },
+            "description": "The sales returned in this page."
+          },
+          "next_cursor": {
+            "type": ["string", "null"],
+            "description": "The opaque cursor to pass when requesting the next page. Returns `null` on the final page."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether more sales are available after this page."
+          }
+        },
+        "required": ["results", "next_cursor", "has_more"],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
