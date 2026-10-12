@@ -452,3 +452,172 @@ tests:
               $.line_items[0].price: "20.00"
               $.payments.length: 1
               $.payments[0].amount: "10.00"
+      - name: creates a service sale for the void endpoint contract
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            location_id: ${{captures.locationId}}
+            business_date: "2026-10-10T18:30:00Z"
+            line_items:
+              - variant_id: ${{captures.serviceVariantId}}
+                price: "20.00"
+                quantity: 1
+            payments:
+              - method: cash
+                amount: "20.00"
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: fulfilled
+              $.payments.length: 1
+          captures:
+            voidSaleId:
+              jsonpath: $.id
+      - name: rejects unauthenticated void requests
+        http:
+          url: ${{env.baseUrl}}/v1/sales/${{captures.voidSaleId}}/void
+          method: POST
+          json: {}
+          check:
+            status: 401
+      - name: rejects a non-string void reason at the HTTP boundary
+        http:
+          url: ${{env.baseUrl}}/v1/sales/${{captures.voidSaleId}}/void
+          method: POST
+          auth: *auth
+          json:
+            reason: 75
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+      - name: returns not found for an unknown sale
+        http:
+          url: ${{env.baseUrl}}/v1/sales/sale_missing/void
+          method: POST
+          auth: *auth
+          json: {}
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: resource_not_found
+      - name: trims and records the void reason and returns the original payment
+        http:
+          url: ${{env.baseUrl}}/v1/sales/${{captures.voidSaleId}}/void
+          method: POST
+          auth: *auth
+          json:
+            reason: "  Voided at the counter  "
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: voided
+              $.void_reason: Voided at the counter
+              $.voided_by.name: Monkey D. Luffy
+              $.voided_at:
+                - match: ^\d{4}-\d{2}-\d{2}T
+              $.payments.length: 1
+              $.payments[0].amount: "20.00"
+      - name: keeps the first void reason when a repeated request supplies a blank reason
+        http:
+          url: ${{env.baseUrl}}/v1/sales/${{captures.voidSaleId}}/void
+          method: POST
+          auth: *auth
+          json:
+            reason: "   "
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: voided
+              $.void_reason: Voided at the counter
+              $.payments.length: 1
+      - name: returns the original voided sale when the request has no body
+        http:
+          url: ${{env.baseUrl}}/v1/sales/${{captures.voidSaleId}}/void
+          method: POST
+          auth: *auth
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: voided
+              $.void_reason: Voided at the counter
+      - name: creates another sale for an omitted void reason
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            location_id: ${{captures.locationId}}
+            business_date: "2026-10-10T18:30:00Z"
+            line_items:
+              - variant_id: ${{captures.serviceVariantId}}
+                price: "20.00"
+                quantity: 1
+            payments:
+              - method: cash
+                amount: "20.00"
+          check:
+            status: 201
+          captures:
+            noReasonSaleId:
+              jsonpath: $.id
+      - name: voids without a body and returns a null reason
+        http:
+          url: ${{env.baseUrl}}/v1/sales/${{captures.noReasonSaleId}}/void
+          method: POST
+          auth: *auth
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: voided
+              $.void_reason: null
+      - name: creates a sale for a whitespace-only void reason
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            location_id: ${{captures.locationId}}
+            business_date: "2026-10-10T18:30:00Z"
+            line_items:
+              - variant_id: ${{captures.serviceVariantId}}
+                price: "20.00"
+                quantity: 1
+            payments:
+              - method: cash
+                amount: "20.00"
+          check:
+            status: 201
+          captures:
+            blankReasonSaleId:
+              jsonpath: $.id
+      - name: voids a sale with a whitespace-only reason and returns a null reason
+        http:
+          url: ${{env.baseUrl}}/v1/sales/${{captures.blankReasonSaleId}}/void
+          method: POST
+          auth: *auth
+          json:
+            reason: "   "
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: voided
+              $.void_reason: null
