@@ -14,6 +14,8 @@ import { createDrizzle } from "../../src/db/index.ts";
 import { run } from "../../src/index.ts";
 import { loadEnvironmentVariables, type Environment } from "../../src/infra/config.env.ts";
 
+import { preparePendingSaleFixture } from "./fixtures/pending-sales.ts";
+
 class HttpTestRunner {
   private readonly environment: Environment;
   private readonly logger: Logger;
@@ -136,13 +138,24 @@ class HttpTestRunner {
 
     for (const workflowEntry of workflowEntries) {
       const workflow = basename(workflowEntry);
-      const { result } = await runFromFile(workflowEntry, {
-        env: { baseUrl: baseUrl.origin, token, testUserId },
-      });
-      this.reportWorkflowResult(workflow, result);
+      const database = workflow === "pending-sales.spec.yaml" ? createDrizzle(process.env["DB_URL"]!) : undefined;
+      try {
+        const fixture = database ? await preparePendingSaleFixture(database, testUserId) : undefined;
+        try {
+          const { result } = await runFromFile(workflowEntry, {
+            env: { baseUrl: baseUrl.origin, token, testUserId, ...fixture?.environment },
+          });
+          this.reportWorkflowResult(workflow, result);
 
-      if (!result.passed) {
-        throw new Error(`HTTP workflow failed: ${workflow}`);
+          if (!result.passed) {
+            throw new Error(`HTTP workflow failed: ${workflow}`);
+          }
+          await fixture?.verify();
+        } finally {
+          await fixture?.cleanup();
+        }
+      } finally {
+        await database?.$client.promise().end();
       }
     }
   }

@@ -81,6 +81,8 @@ before:
             $.variants.length: 1
             $.variants[0].inventory_levels.length: 1
         captures:
+          itemVariantId:
+            jsonpath: $.variants[0].id
           locationId:
             jsonpath: $.variants[0].inventory_levels[0].location_id
     - name: creates an active service variant for checkout
@@ -173,6 +175,128 @@ tests:
             status: 400
             jsonpath:
               $.code: validation_error
+      - name: rejects an empty line item list as invalid input
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            line_items: []
+            payments: []
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+              $.status: 400
+      - name: rejects an underpayment with payment_insufficient
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            payments:
+              - method: cash
+                amount: "19.99"
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: payment_insufficient
+              $.status: 400
+      - name: rejects an overpayment with validation_error
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            payments:
+              - method: cash
+                amount: "20.01"
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+              $.status: 400
+      - name: rejects a positive total with no payments
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            payments: []
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: payment_insufficient
+              $.status: 400
+      - name: rejects duplicate variants in one sale
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            line_items:
+              - variant_id: ${{captures.serviceVariantId}}
+                price: "20.00"
+                quantity: 1
+              - variant_id: ${{captures.serviceVariantId}}
+                price: "20.00"
+                quantity: 1
+            payments:
+              - method: cash
+                amount: "40.00"
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+              $.status: 400
+      - name: rejects a missing customer
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            customer_id: AAAAAAAAAAAAAAAAAAAAAAAA
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: resource_not_found
+              $.status: 404
+      - name: rejects a missing variant
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            line_items:
+              - variant_id: BBBBBBBBBBBBBBBBBBBBBBBB
+                price: "20.00"
+                quantity: 1
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: resource_not_found
+              $.status: 404
       - name: requires authentication
         http:
           url: ${{env.baseUrl}}/v1/sales
@@ -204,3 +328,127 @@ tests:
               $.status: fulfilled
               $.transaction_number: 2
               $.payments.length: 0
+      - name: rejects a business date without a timezone
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            business_date: "2026-10-10T12:30:00"
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+              $.status: 400
+      - name: rejects a draft item through the sale HTTP contract
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            line_items:
+              - variant_id: ${{captures.itemVariantId}}
+                price: "100.00"
+                quantity: 2
+            payments:
+              - method: cash
+                amount: "200.00"
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+              $.message: Only active products and unarchived variants can be sold.
+              $.status: 400
+      - name: rejects a missing checkout location
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            location_id: CCCCCCCCCCCCCCCCCCCCCCCC
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: resource_not_found
+              $.message: The location has not been found.
+              $.status: 404
+      - name: rejects a discount greater than the whole sale value
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            discount_rate: "1.01"
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: validation_error
+              $.status: 400
+      - name: records an Android service sale without consuming numbers for rejected requests
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            source: pos.android
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: fulfilled
+              $.source: pos.android
+              $.transaction_number: 3
+              $.line_items[0].shortage_quantity: 0
+      - name: records an iOS service sale with the next number
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            source: pos.ios
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: fulfilled
+              $.source: pos.ios
+              $.transaction_number: 4
+              $.line_items[0].shortage_quantity: 0
+      - name: accepts exact payment after an owner discount and persists its rate
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            discount_rate: "0.50"
+            payments:
+              - method: cash
+                amount: "10.00"
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: fulfilled
+              $.transaction_number: 5
+              $.discount_rate: "0.50"
+              $.line_items[0].price: "20.00"
+              $.payments.length: 1
+              $.payments[0].amount: "10.00"

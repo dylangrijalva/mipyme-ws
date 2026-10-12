@@ -1,0 +1,104 @@
+version: "1.1"
+name: Pending sales API
+components:
+  schemas:
+    Sale:
+      $ref: ./src/openapi.json#/components/schemas/Sale
+    FacilitoError:
+      $ref: ./src/openapi.json#/components/schemas/FacilitoError
+config:
+  concurrency: 1
+tests:
+  pendingCheckout:
+    name: records paid pending sales and preserves stock across POS sources
+    steps:
+      - name: records a web backorder with only the stock deficit
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: &auth
+            bearer:
+              token: ${{env.token}}
+          json: &checkout
+            source: pos.web
+            location_id: ${{env.webLocationId}}
+            business_date: "2026-10-10T18:30:00Z"
+            line_items:
+              - variant_id: ${{env.pendingVariantId}}
+                price: "100.00"
+                quantity: 5
+            payments:
+              - method: cash
+                amount: "500.00"
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: pending
+              $.source: pos.web
+              $.transaction_number: 42
+              $.location_id: ${{env.webLocationId}}
+              $.line_items.length: 1
+              $.line_items[0].variant_id: ${{env.pendingVariantId}}
+              $.line_items[0].quantity: 5
+              $.line_items[0].shortage_quantity: 3
+              $.payments.length: 1
+              $.payments[0].method: cash
+              $.payments[0].amount: "500.00"
+      - name: rejects web shortages at a location with backorders disabled
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            location_id: ${{env.mobileLocationId}}
+          check:
+            status: 409
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code: stock_insufficient
+              $.status: 409
+              $.details.length: 1
+              $.details[0].code: stock_insufficient
+      - name: records an Android shortage despite disabled backorders
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            source: pos.android
+            location_id: ${{env.mobileLocationId}}
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: pending
+              $.source: pos.android
+              $.transaction_number: 42
+              $.location_id: ${{env.mobileLocationId}}
+              $.line_items[0].shortage_quantity: 3
+              $.payments[0].amount: "500.00"
+      - name: records an iOS shortage without reserving stock from the Android sale
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            source: pos.ios
+            location_id: ${{env.mobileLocationId}}
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Sale"
+            jsonpath:
+              $.status: pending
+              $.source: pos.ios
+              $.transaction_number: 43
+              $.line_items[0].shortage_quantity: 3
+              $.payments[0].amount: "500.00"
