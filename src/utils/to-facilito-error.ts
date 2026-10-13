@@ -19,6 +19,9 @@ const ERROR_STATUS_CODES: Record<ErrorCode, number> = Object.freeze({
   [codes.resourceNotFound]: 404,
   [codes.locationLimitExceeded]: 403,
   [codes.concurrentUpdateConflict]: 409,
+  [codes.idempotencyKeyMismatch]: 409,
+  [codes.idempotencyRequestInProgress]: 409,
+  [codes.idempotencyUnavailable]: 503,
 });
 
 function toFacilitoError({ requestId, error }: { requestId: string; error: Error | BusinessError }): FacilitoError {

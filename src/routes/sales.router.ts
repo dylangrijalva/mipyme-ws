@@ -3,6 +3,7 @@ import { ObjectId } from "../contracts/object-id.ts";
 import { SalePaginationRequest } from "../contracts/sale-pagination-query.ts";
 import { membershipGuard } from "../guards/membership-guard.ts";
 import { authorize } from "../middlewares/authorize.ts";
+import { idempotency } from "../middlewares/idempotency.ts";
 import { createAuthScopedKey, DEFAULT_RATE_LIMIT_CONFIG, rateLimiter } from "../middlewares/rate-limiter.ts";
 import { CreateSaleRequest, CreateSaleService } from "../services/sales/create-sale-service.ts";
 import { FindSaleService } from "../services/sales/find-sale-service.ts";
@@ -38,6 +39,7 @@ function salesRouter(): FacilitoHono {
   router.post(
     "/",
     validator("json", (input) => CreateSaleRequest.parse(input)),
+    idempotency(),
     async (ctx) => {
       const request = ctx.req.valid("json");
       const service = CreateSaleService.create(ctx.var);
@@ -49,6 +51,7 @@ function salesRouter(): FacilitoHono {
   router.post(
     "/:id/void",
     validator("json", (input) => VoidSaleRequest.parse(input)),
+    idempotency(),
     async (ctx) => {
       const id = ctx.req.param("id");
       const request = ctx.req.valid("json");

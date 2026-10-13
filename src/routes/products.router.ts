@@ -3,6 +3,7 @@ import { ObjectId } from "../contracts/object-id.ts";
 import { PaginationRequest } from "../contracts/pagination-query.ts";
 import { membershipGuard } from "../guards/membership-guard.ts";
 import { authorize } from "../middlewares/authorize.ts";
+import { idempotency } from "../middlewares/idempotency.ts";
 import { createAuthScopedKey, DEFAULT_RATE_LIMIT_CONFIG, rateLimiter } from "../middlewares/rate-limiter.ts";
 import { CreateProductRequest, CreateProductService } from "../services/catalog/products/create-product-service.ts";
 import { FindProductService } from "../services/catalog/products/find-product-service.ts";
@@ -19,6 +20,7 @@ function productsRouter(): FacilitoHono {
   router.post(
     "/",
     validator("json", (input) => CreateProductRequest.parse(input)),
+    idempotency(),
     async (ctx) => {
       const request = ctx.req.valid("json");
       const service = CreateProductService.create(ctx.var);

@@ -1,5 +1,6 @@
 import { validator } from "hono/validator";
 import { authorize } from "../middlewares/authorize.ts";
+import { idempotency } from "../middlewares/idempotency.ts";
 import { createAuthOperationScopedKey, DEFAULT_RATE_LIMIT_CONFIG, rateLimiter } from "../middlewares/rate-limiter.ts";
 import { OnboardAccountRequest, ProvisionAccountService } from "../services/onboarding/provision-account-service.ts";
 import { FacilitoHono } from "../types.ts";
@@ -16,6 +17,7 @@ function onboardingRouter(): FacilitoHono {
   router.post(
     "/",
     validator("json", (payload) => OnboardAccountRequest.parse(payload)),
+    idempotency(),
     async (ctx) => {
       const request = ctx.req.valid("json");
       const service = ProvisionAccountService.create(ctx.var);

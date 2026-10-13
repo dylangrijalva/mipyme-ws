@@ -134,7 +134,7 @@
             }
           },
           "409": {
-            "description": "The account belongs to a staff member, or a conflicting change prevents the account from being updated. Returns `conflict_error`.",
+            "description": "The account belongs to a staff member, or a conflicting change prevents the account from being updated. Returns `conflict_error`. Also returned for idempotency_key_mismatch or idempotency_request_in_progress when Idempotency-Key is supplied.",
             "content": {
               "application/json": {
                 "schema": {
@@ -153,8 +153,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
       }
     },
     "/v1/products": {
@@ -318,7 +326,7 @@
             }
           },
           "409": {
-            "description": "The SKU or barcode is already used within this merchant, including by archived products. Returns sku_already_exists or barcode_already_exists.",
+            "description": "The SKU or barcode is already used within this merchant, including by archived products. Returns sku_already_exists or barcode_already_exists. Also returned for idempotency_key_mismatch or idempotency_request_in_progress when Idempotency-Key is supplied.",
             "content": {
               "application/json": {
                 "schema": {
@@ -336,8 +344,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
       }
     },
     "/v1/products/{id}": {
@@ -683,7 +699,7 @@
             }
           },
           "409": {
-            "description": "Another collection in this merchant has a name that produces the same slug. Returns `collection_name_already_exists`.",
+            "description": "Another collection in this merchant has a name that produces the same slug. Returns `collection_name_already_exists`. Also returned for idempotency_key_mismatch or idempotency_request_in_progress when Idempotency-Key is supplied.",
             "content": {
               "application/json": {
                 "schema": {
@@ -701,8 +717,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
       }
     },
     "/v1/collections/{id}": {
@@ -1056,8 +1080,19 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
       }
     },
     "/v1/suppliers/{id}": {
@@ -1401,8 +1436,19 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
       }
     },
     "/v1/customers/{id}": {
@@ -1661,7 +1707,7 @@
             }
           },
           "409": {
-            "description": "Insufficient web stock with backorders disabled or exhausted location numbering. Returns stock_insufficient or conflict_error.",
+            "description": "Insufficient web stock with backorders disabled or exhausted location numbering. Returns stock_insufficient or conflict_error. Also returned for idempotency_key_mismatch or idempotency_request_in_progress when Idempotency-Key is supplied.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1679,8 +1725,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
       },
       "get": {
         "tags": ["Sales"],
@@ -1839,6 +1893,9 @@
               "pattern": "^sale_.+$"
             },
             "description": "The sale identifier."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "requestBody": {
@@ -1904,7 +1961,7 @@
             }
           },
           "409": {
-            "description": "Concurrent inventory changes prevented the void from completing. Returns concurrent_update_conflict.",
+            "description": "Concurrent inventory changes prevented the void from completing. Returns concurrent_update_conflict. Also returned for idempotency_key_mismatch or idempotency_request_in_progress when Idempotency-Key is supplied.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1922,6 +1979,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
           }
         }
       }
@@ -2039,6 +2099,26 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/FacilitoError" }
+          }
+        }
+      },
+      "IdempotencyConflict": {
+        "description": "The key belongs to a different request (idempotency_key_mismatch), or the matching request is unfinished (idempotency_request_in_progress). No operation is executed. An unfinished request may have completed its effects without saving its response; check its result before starting a new operation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FacilitoError"
+            }
+          }
+        }
+      },
+      "IdempotencyUnavailable": {
+        "description": "Idempotency lookup or claim is unavailable, or the stored record is invalid. The operation is not executed. Retry with the same key. Redis failures in the preceding rate limiter reach the generic error handler and return 500. If saving a response fails after execution, the operation response is returned and the surviving claim stays blocked until expiry.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FacilitoError"
+            }
           }
         }
       }
@@ -2609,7 +2689,10 @@
               "price_below_unit_cost",
               "payment_insufficient",
               "stock_insufficient",
-              "location_limit_exceeded"
+              "location_limit_exceeded",
+              "idempotency_key_mismatch",
+              "idempotency_request_in_progress",
+              "idempotency_unavailable"
             ]
           },
           "message": {
@@ -6135,6 +6218,20 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "description": "Optional client-generated key, scoped to the authenticated user across all POST endpoints. Use a UUID v4 or another unique opaque string. Matching retries replay the original status and body, including handler errors except validation_error responses. Validation errors are not saved, including those returned by the handler; their claim is released so a corrected request can reuse the key. The actual URL path, query values, and parsed JSON must match. JSON whitespace and query parameter name order do not matter. JSON object field order, array order, repeated query value order, and JSON value types must match. Authentication, rate limits, membership checks, and request validation run before lookup. Validation failures do not claim a key. Keys expire 24 hours after the first valid request claims them; retries and completion do not extend expiry. Unfinished requests remain blocked until expiry. After expiry, reuse can execute again. Avoid sensitive information in keys.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "example": "a1a8dc82-4da7-4ab6-a3d7-8adf2dd39466"
       }
     }
   }
