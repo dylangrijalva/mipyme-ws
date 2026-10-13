@@ -16,6 +16,12 @@ import { devGuard } from "./guards/dev-guard.ts";
 import type { EnvVars } from "./infra/config.env.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
 import { authorize } from "./middlewares/authorize.ts";
+import {
+  createAuthScopedKey,
+  createPublicScopedKey,
+  DEFAULT_RATE_LIMIT_CONFIG,
+  rateLimiter,
+} from "./middlewares/rate-limiter.ts";
 import { camelCase } from "./middlewares/camel-case.ts";
 import { errorHandler } from "./middlewares/error-handler.ts";
 import { inject } from "./middlewares/inject.ts";
@@ -69,14 +75,14 @@ function createApp(dependencies: InjectedDependencies): FacilitoHono {
   app.route("/v1/suppliers", suppliersRouter());
   app.route("/v1/sales", salesRouter());
 
-  app.get("/_health", async (ctx) => {
+  app.get("/_health", rateLimiter({ key: createPublicScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), async (ctx) => {
     const { db, cache } = ctx.var;
     await db.execute("SELECT 1;");
     await cache.ping();
     return ctx.body(null, 204);
   });
 
-  app.get("/me", authorize(), async (ctx) => {
+  app.get("/me", authorize(), rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), async (ctx) => {
     return ctx.json(ctx.var.claims);
   });
 

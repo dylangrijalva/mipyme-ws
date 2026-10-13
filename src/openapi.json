@@ -47,6 +47,7 @@
           }
         ],
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns the authenticated identity claims.",
             "content": {
@@ -142,16 +143,7 @@
               }
             }
           },
-          "429": {
-            "description": "Too many account requests. Wait before trying again. Returns `rate_limit_exceeded`.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FacilitoError"
-                }
-              }
-            }
-          },
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "500": {
             "description": "An unexpected error prevented the request from completing. Returns `internal_server_error`.",
             "content": {
@@ -200,6 +192,7 @@
           }
         ],
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns a page of products and pagination information.",
             "content": {
@@ -273,6 +266,7 @@
           }
         },
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "201": {
             "description": "Returns the created product and its default variant. Items start as draft; services start as active.",
             "content": {
@@ -369,6 +363,7 @@
           }
         ],
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns the product.",
             "content": {
@@ -463,6 +458,7 @@
           }
         },
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns the updated product.",
             "content": {
@@ -571,6 +567,7 @@
           }
         ],
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns a page of collections and pagination information.",
             "content": {
@@ -644,6 +641,7 @@
           }
         },
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "201": {
             "description": "Returns the created collection.",
             "content": {
@@ -730,6 +728,7 @@
           }
         ],
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns the collection.",
             "content": {
@@ -824,6 +823,7 @@
           }
         },
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns the updated collection.",
             "content": {
@@ -932,6 +932,7 @@
           }
         ],
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns a page of suppliers and pagination information.",
             "content": {
@@ -1005,6 +1006,7 @@
           }
         },
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "201": {
             "description": "Returns the created supplier.",
             "content": {
@@ -1081,6 +1083,7 @@
           }
         ],
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns the supplier.",
             "content": {
@@ -1175,6 +1178,7 @@
           }
         },
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns the updated supplier.",
             "content": {
@@ -1273,6 +1277,7 @@
           }
         ],
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns a page of customers and pagination information.",
             "content": {
@@ -1346,6 +1351,7 @@
           }
         },
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "201": {
             "description": "Returns the created customer.",
             "content": {
@@ -1422,6 +1428,7 @@
           }
         ],
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns the customer.",
             "content": {
@@ -1516,6 +1523,7 @@
           }
         },
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns the updated customer.",
             "content": {
@@ -1601,6 +1609,7 @@
           }
         },
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "201": {
             "description": "The saved fulfilled or pending sale.",
             "content": {
@@ -1755,6 +1764,7 @@
           }
         ],
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns a page of sales and pagination information.",
             "content": {
@@ -1842,6 +1852,7 @@
           }
         },
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "The voided sale, including its original payments and void metadata.",
             "content": {
@@ -1938,6 +1949,7 @@
           }
         ],
         "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
             "description": "Returns the sale.",
             "content": {
@@ -2003,6 +2015,34 @@
     }
   },
   "components": {
+    "responses": {
+      "RateLimitExceeded": {
+        "description": "Too many requests. Wait for the duration in the Retry-After header before trying again. Returns `rate_limit_exceeded`.",
+        "headers": {
+          "RateLimit-Limit": {
+            "description": "Maximum requests allowed during the current window.",
+            "schema": { "type": "integer" }
+          },
+          "RateLimit-Remaining": {
+            "description": "Requests remaining in the current window.",
+            "schema": { "type": "integer" }
+          },
+          "RateLimit-Reset": {
+            "description": "Seconds until the current rate limit window resets.",
+            "schema": { "type": "integer" }
+          },
+          "Retry-After": {
+            "description": "Seconds to wait before trying again.",
+            "schema": { "type": "integer" }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/FacilitoError" }
+          }
+        }
+      }
+    },
     "schemas": {
       "AccountType": {
         "description": "The role of an account within Facilito. Identifies a merchant owner, a staff member, or an internal account.",

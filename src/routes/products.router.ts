@@ -3,6 +3,7 @@ import { ObjectId } from "../contracts/object-id.ts";
 import { PaginationRequest } from "../contracts/pagination-query.ts";
 import { membershipGuard } from "../guards/membership-guard.ts";
 import { authorize } from "../middlewares/authorize.ts";
+import { createAuthScopedKey, DEFAULT_RATE_LIMIT_CONFIG, rateLimiter } from "../middlewares/rate-limiter.ts";
 import { CreateProductRequest, CreateProductService } from "../services/catalog/products/create-product-service.ts";
 import { FindProductService } from "../services/catalog/products/find-product-service.ts";
 import { ListProductsService } from "../services/catalog/products/list-product-service.ts";
@@ -13,7 +14,7 @@ import { toHttpResponse } from "../utils/to-http-response.ts";
 function productsRouter(): FacilitoHono {
   const router = new FacilitoHono();
 
-  router.use(authorize(), membershipGuard());
+  router.use(authorize(), rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), membershipGuard());
 
   router.post(
     "/",
