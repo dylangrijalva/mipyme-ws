@@ -259,7 +259,7 @@ class HttpTestRunner {
     const DB_PASSWORD = mySqlContainer.getRootPassword();
     const databaseUrl = `mysql://root:${DB_PASSWORD}@${mySqlContainer.getHost()}:${DB_PORT}/test`;
 
-    process.env["PORT"] = "3000".toString();
+    process.env["PORT"] = "5000".toString();
     process.env["NODE_ENV"] = "test";
     process.env["DB_URL"] = databaseUrl;
     process.env["DB_HOST"] = mySqlContainer.getHost();
