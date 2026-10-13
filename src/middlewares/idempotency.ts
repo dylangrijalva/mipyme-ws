@@ -16,6 +16,7 @@ const REDIS_FALLBACK_POLICY = fallback(handleAll, () => null);
 const REPLAY_HEADERS = ["content-type", "location", "content-language", "content-disposition", "cache-control", "etag"];
 
 const ClaimResult = z.tuple([z.enum(["claimed", "existing", "invalid"]), z.string(), z.string()]);
+
 const CachedResponse = z.object({
   status: z.number().int().min(200).max(599),
   body: z.string(),
