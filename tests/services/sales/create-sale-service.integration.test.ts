@@ -11,7 +11,7 @@ import { CreatePurchaseService } from "../../../src/services/purchases/create-pu
 import { CreateSaleRequest, CreateSaleService } from "../../../src/services/sales/create-sale-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
-import { waitForBlockedUpdate } from "../../utils/wait-for-blocked-update.ts";
+import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
 
 async function setup() {
   const db = await prepareDatabase();
