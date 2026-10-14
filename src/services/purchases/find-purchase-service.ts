@@ -33,7 +33,7 @@ class FindPurchaseService extends BaseService<string, Purchase> {
     return new FindPurchaseService(deps.logger, deps.db, deps.purchaseFinder, deps.user);
   }
 
-  async execute(request: string): Promise<Result<Purchase, BusinessError>> {
+  async execute(id: string): Promise<Result<Purchase, BusinessError>> {
     const [employee] = await this.db
       .select()
       .from(tables.employee)
@@ -52,7 +52,7 @@ class FindPurchaseService extends BaseService<string, Purchase> {
     }
 
     const purchase = await this.purchaseFinder.find(this.db, {
-      id: request,
+      id,
       merchantId: this.user.merchantId,
       employeeId: employee.isOwner ? undefined : employee.id,
     });
@@ -60,7 +60,7 @@ class FindPurchaseService extends BaseService<string, Purchase> {
     if (!purchase) {
       return err({
         code: codes.resourceNotFound,
-        message: `Purchase ${request} has not been found.`,
+        message: `Purchase ${id} has not been found.`,
         details: [],
       });
     }

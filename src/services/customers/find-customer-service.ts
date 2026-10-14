@@ -30,13 +30,13 @@ class FindCustomerService extends BaseService<string, Customer> {
     return new FindCustomerService(deps.logger, deps.db, deps.customerFinder, deps.user);
   }
 
-  async execute(request: string): Promise<Result<Customer, BusinessError>> {
-    const customer = await this.customerFinder.find(this.db, { id: request, merchantId: this.user.merchantId });
+  async execute(id: string): Promise<Result<Customer, BusinessError>> {
+    const customer = await this.customerFinder.find(this.db, { id, merchantId: this.user.merchantId });
 
     if (!customer) {
       return err({
         code: codes.resourceNotFound,
-        message: `Customer ${request} has not been found.`,
+        message: `Customer ${id} has not been found.`,
         details: [],
       });
     }

@@ -35,16 +35,16 @@ class FindCollectionService extends BaseService<string, Collection> {
     );
   }
 
-  async execute(request: string): Promise<Result<Collection, BusinessError>> {
+  async execute(id: string): Promise<Result<Collection, BusinessError>> {
     const collection = await this.collectionFinder.find(this.db, {
-      id: request,
+      id,
       merchantId: this.user.merchantId,
     });
 
     if (!collection) {
       return err({
         code: codes.resourceNotFound,
-        message: `Collection ${request} has not been found.`,
+        message: `Collection ${id} has not been found.`,
         details: [],
       });
     }

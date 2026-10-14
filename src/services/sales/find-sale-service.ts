@@ -33,7 +33,7 @@ class FindSaleService extends BaseService<string, Sale> {
     return new FindSaleService(deps.logger, deps.db, deps.saleFinder, deps.user);
   }
 
-  async execute(request: string): Promise<Result<Sale, BusinessError>> {
+  async execute(id: string): Promise<Result<Sale, BusinessError>> {
     const [employee] = await this.db
       .select()
       .from(tables.employee)
@@ -52,7 +52,7 @@ class FindSaleService extends BaseService<string, Sale> {
     }
 
     const sale = await this.saleFinder.find(this.db, {
-      id: request,
+      id,
       merchantId: this.user.merchantId,
       employeeId: employee.isOwner ? undefined : employee.id,
     });
@@ -60,7 +60,7 @@ class FindSaleService extends BaseService<string, Sale> {
     if (!sale) {
       return err({
         code: codes.resourceNotFound,
-        message: `Sale ${request} has not been found.`,
+        message: `Sale ${id} has not been found.`,
         details: [],
       });
     }

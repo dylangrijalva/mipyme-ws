@@ -30,11 +30,11 @@ class FindSupplierService extends BaseService<string, Supplier> {
     return new FindSupplierService(deps.logger, deps.db, deps.supplierFinder, deps.user);
   }
 
-  async execute(request: string): Promise<Result<Supplier, BusinessError>> {
-    const supplier = await this.supplierFinder.find(this.db, { id: request, merchantId: this.user.merchantId });
+  async execute(id: string): Promise<Result<Supplier, BusinessError>> {
+    const supplier = await this.supplierFinder.find(this.db, { id, merchantId: this.user.merchantId });
 
     if (!supplier) {
-      return err({ code: codes.resourceNotFound, message: `Supplier ${request} has not been found.`, details: [] });
+      return err({ code: codes.resourceNotFound, message: `Supplier ${id} has not been found.`, details: [] });
     }
 
     return ok(supplier);
