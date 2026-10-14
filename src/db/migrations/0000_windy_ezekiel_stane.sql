@@ -1,3 +1,4 @@
+START TRANSACTION;--> statement-breakpoint
 CREATE TABLE `accounts` (
 	`id` char(24) NOT NULL,
 	`email` varchar(320) NOT NULL,
@@ -456,4 +457,5 @@ CREATE INDEX `suppliers_merchant_id_idx` ON `suppliers` (`merchantId`);--> state
 CREATE INDEX `supplier_products_product_id_idx` ON `supplier_products` (`productId`);--> statement-breakpoint
 CREATE INDEX `supplier_products_merchant_id_idx` ON `supplier_products` (`merchantId`);--> statement-breakpoint
 CREATE INDEX `variant_options_option_id_idx` ON `variant_options` (`optionId`);--> statement-breakpoint
-CREATE INDEX `variant_options_merchant_id_idx` ON `variant_options` (`merchantId`);
+CREATE INDEX `variant_options_merchant_id_idx` ON `variant_options` (`merchantId`);--> statement-breakpoint
+COMMIT;
