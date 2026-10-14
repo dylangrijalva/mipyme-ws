@@ -1,12 +1,20 @@
+import pino from "pino";
 import { vi } from "vitest";
 import type { Database } from "../../src/db/index.ts";
-import type { BroadcastEventParams } from "../../src/integrations/realtime-event-publisher.ts";
+import { RealtimeEventPublisher } from "../../src/integrations/realtime-event-publisher.ts";
+import { createRealtimeEnv } from "./realtime-env.ts";
 
-function createBroadcastMock() {
-  return vi.fn<(params: BroadcastEventParams) => Promise<void>>().mockImplementation(() => new Promise<void>(() => {}));
+function createRealtimeEventPublisherMock() {
+  const publisher = new RealtimeEventPublisher({ env: createRealtimeEnv(), logger: pino({ enabled: false }) });
+  const broadcast = vi.spyOn(publisher, "broadcast").mockImplementation(() => new Promise<void>(() => {}));
+
+  return { broadcast, publisher };
 }
 
-function trackCommittedBroadcasts(db: Database, broadcast: ReturnType<typeof createBroadcastMock>) {
+function trackCommittedBroadcasts(
+  db: Database,
+  broadcast: ReturnType<typeof createRealtimeEventPublisherMock>["broadcast"],
+) {
   const transaction = db.transaction.bind(db);
   const committedAtPublish: Array<boolean> = [];
   let transactionCommitted = false;
@@ -23,4 +31,4 @@ function trackCommittedBroadcasts(db: Database, broadcast: ReturnType<typeof cre
   return committedAtPublish;
 }
 
-export { createBroadcastMock, trackCommittedBroadcasts };
+export { createRealtimeEventPublisherMock, trackCommittedBroadcasts };

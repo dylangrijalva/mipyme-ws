@@ -8,22 +8,22 @@ import { BaseService } from "./base-service.ts";
 
 type InjectedDependencies = {
   logger: Logger;
-  user: CurrentUser;
   publisher: RealtimeEventPublisher;
+  user: CurrentUser;
 };
 
 class AuthorizeRealtimeChannelService extends BaseService<AuthorizeChannelRequest, Pusher.ChannelAuthResponse> {
-  private readonly user: CurrentUser;
   private readonly publisher: RealtimeEventPublisher;
+  private readonly user: CurrentUser;
 
-  constructor(logger: Logger, user: CurrentUser, publisher: RealtimeEventPublisher) {
+  constructor(logger: Logger, publisher: RealtimeEventPublisher, user: CurrentUser) {
     super(logger);
-    this.user = user;
     this.publisher = publisher;
+    this.user = user;
   }
 
   static create(dependencies: InjectedDependencies): AuthorizeRealtimeChannelService {
-    return new AuthorizeRealtimeChannelService(dependencies.logger, dependencies.user, dependencies.publisher);
+    return new AuthorizeRealtimeChannelService(dependencies.logger, dependencies.publisher, dependencies.user);
   }
 
   async execute(request: AuthorizeChannelRequest): Promise<Result<Pusher.ChannelAuthResponse, BusinessError>> {

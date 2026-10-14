@@ -11,7 +11,10 @@ import {
 } from "../../../src/services/purchases/create-purchase-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
-import { createBroadcastMock, trackCommittedBroadcasts } from "../../test-utils/realtime-publisher-mock.ts";
+import {
+  createRealtimeEventPublisherMock,
+  trackCommittedBroadcasts,
+} from "../../test-utils/realtime-publisher-mock.ts";
 import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
 
 async function setup() {
@@ -75,9 +78,9 @@ async function setup() {
     },
   ]);
 
-  const broadcast = createBroadcastMock();
+  const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const service = CreatePurchaseService.create({
-    publisher: { broadcast },
+    publisher,
     db,
     purchaseFinder: new PurchaseFinder(),
     logger: pino({ enabled: false }),
@@ -563,7 +566,6 @@ describe("CreatePurchaseService", () => {
           details: [],
         },
       });
-      // Three lock-holder transactions plus the service's three attempts.
       expect(transactionSpy).toHaveBeenCalledTimes(6);
 
       const state = await readState(db, merchantId);

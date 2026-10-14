@@ -23,9 +23,9 @@ const CollectionName = z
   }, "Provide a name that produces a nonempty slug of at most 128 characters.");
 
 type InjectedDependencies = {
-  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
+  publisher: RealtimeEventPublisher;
   collectionFinder: CollectionFinder;
   user: CurrentUser;
 };
@@ -35,8 +35,8 @@ const CreateCollectionRequest = z.object({ name: CollectionName });
 type CreateCollectionRequest = z.infer<typeof CreateCollectionRequest>;
 
 class CreateCollectionService extends BaseService<CreateCollectionRequest, Collection> {
-  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
+  private readonly publisher: RealtimeEventPublisher;
   private readonly collectionFinder: CollectionFinder;
   private readonly user: CurrentUser;
 
@@ -44,12 +44,12 @@ class CreateCollectionService extends BaseService<CreateCollectionRequest, Colle
     logger: Logger,
     db: Database,
     collectionFinder: CollectionFinder,
+    publisher: RealtimeEventPublisher,
     user: CurrentUser,
-    publisher: Pick<RealtimeEventPublisher, "broadcast">,
   ) {
     super(logger);
-    this.publisher = publisher;
     this.db = db;
+    this.publisher = publisher;
     this.collectionFinder = collectionFinder;
     this.user = user;
   }
@@ -59,8 +59,8 @@ class CreateCollectionService extends BaseService<CreateCollectionRequest, Colle
       dependencies.logger,
       dependencies.db,
       dependencies.collectionFinder,
-      dependencies.user,
       dependencies.publisher,
+      dependencies.user,
     );
   }
 

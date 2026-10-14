@@ -11,7 +11,10 @@ import { CreatePurchaseService } from "../../../src/services/purchases/create-pu
 import { CreateSaleRequest, CreateSaleService } from "../../../src/services/sales/create-sale-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
-import { createBroadcastMock, trackCommittedBroadcasts } from "../../test-utils/realtime-publisher-mock.ts";
+import {
+  createRealtimeEventPublisherMock,
+  trackCommittedBroadcasts,
+} from "../../test-utils/realtime-publisher-mock.ts";
 import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
 
 async function setup() {
@@ -71,9 +74,9 @@ async function setup() {
     email: "nami@strawhatpirates.example.com",
     accountType: "owner",
   };
-  const broadcast = createBroadcastMock();
+  const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const service = CreateSaleService.create({
-    publisher: { broadcast },
+    publisher,
     db,
     user,
     logger: pino({ enabled: false }),
@@ -236,7 +239,6 @@ describe("CreateSaleService", () => {
       const { db, service, request, productId, variantId, locationId } = await setup();
       const transact = db.transaction.bind(db);
       const transactionSpy = vi.spyOn(db, "transaction");
-      // Commit a competing write after the checkout reads its snapshots, before its transaction starts.
       transactionSpy.mockImplementationOnce(async (callback, config) => {
         if (resource === "product") {
           await db
@@ -913,7 +915,7 @@ describe("CreateSaleService", () => {
     const context = await setup();
     const missingEmployeeId = generateId({ model: "employee" });
     const service = CreateSaleService.create({
-      publisher: { broadcast: async () => {} },
+      publisher: createRealtimeEventPublisherMock().publisher,
       db: context.db,
       user: { ...context.user, id: missingEmployeeId, employeeId: missingEmployeeId },
       logger: pino({ enabled: false }),
@@ -1092,7 +1094,7 @@ describe("CreateSaleService", () => {
     const supplierId = generateId({ model: "supplier" });
     await db.insert(tables.supplier).values({ id: supplierId, merchantId, name: "Baratie" });
     const purchaseService = CreatePurchaseService.create({
-      publisher: { broadcast: async () => {} },
+      publisher: createRealtimeEventPublisherMock().publisher,
       db,
       user,
       logger: pino({ enabled: false }),
@@ -1106,7 +1108,6 @@ describe("CreateSaleService", () => {
     expect(purchase.success).toBe(true);
     if (!sale.success) return;
     const [product] = await db.select().from(tables.product).where(eq(tables.product.id, productId));
-    // Initial pooled stock is 12. A sale-first purchase averages over 10 remaining units.
     expect(product?.unitCost).toBe(sale.value.lineItems[0]!.unitCost === "50.00" ? "55.00" : "54.29");
     expect(product?.inventoryVersion).toBe(2);
     const [level] = await db

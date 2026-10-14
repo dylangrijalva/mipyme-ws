@@ -46,35 +46,35 @@ const VOID_SALE_FALLBACK_POLICY = fallback(handleWhen(isConcurrentUpdateError), 
 );
 
 type InjectedDependencies = {
-  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
-  user: CurrentUser;
+  publisher: RealtimeEventPublisher;
   saleFinder: SaleFinder;
+  user: CurrentUser;
 };
 
 class VoidSaleService extends BaseService<string, Sale> {
-  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
-  private readonly user: CurrentUser;
+  private readonly publisher: RealtimeEventPublisher;
   private readonly saleFinder: SaleFinder;
+  private readonly user: CurrentUser;
 
   constructor(
     logger: Logger,
     db: Database,
-    user: CurrentUser,
     saleFinder: SaleFinder,
-    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+    publisher: RealtimeEventPublisher,
+    user: CurrentUser,
   ) {
     super(logger);
-    this.publisher = publisher;
     this.db = db;
-    this.user = user;
+    this.publisher = publisher;
     this.saleFinder = saleFinder;
+    this.user = user;
   }
 
-  static create({ logger, db, user, saleFinder, publisher }: InjectedDependencies): VoidSaleService {
-    return new VoidSaleService(logger, db, user, saleFinder, publisher);
+  static create({ logger, db, saleFinder, publisher, user }: InjectedDependencies): VoidSaleService {
+    return new VoidSaleService(logger, db, saleFinder, publisher, user);
   }
 
   async execute(id: string, request: VoidSaleRequest = {}): Promise<Result<Sale, BusinessError>> {

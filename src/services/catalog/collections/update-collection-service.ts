@@ -14,9 +14,9 @@ import { slugify } from "../../../utils/slugify.ts";
 import { BaseService } from "../../base-service.ts";
 
 type InjectedDependencies = {
-  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
+  publisher: RealtimeEventPublisher;
   collectionFinder: CollectionFinder;
   user: CurrentUser;
 };
@@ -37,8 +37,8 @@ const UpdateCollectionRequest = z.object({
 type UpdateCollectionRequest = z.infer<typeof UpdateCollectionRequest>;
 
 class UpdateCollectionService extends BaseService<[string, UpdateCollectionRequest], Collection> {
-  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
+  private readonly publisher: RealtimeEventPublisher;
   private readonly collectionFinder: CollectionFinder;
   private readonly user: CurrentUser;
 
@@ -46,12 +46,12 @@ class UpdateCollectionService extends BaseService<[string, UpdateCollectionReque
     logger: Logger,
     db: Database,
     collectionFinder: CollectionFinder,
+    publisher: RealtimeEventPublisher,
     user: CurrentUser,
-    publisher: Pick<RealtimeEventPublisher, "broadcast">,
   ) {
     super(logger);
-    this.publisher = publisher;
     this.db = db;
+    this.publisher = publisher;
     this.collectionFinder = collectionFinder;
     this.user = user;
   }
@@ -61,8 +61,8 @@ class UpdateCollectionService extends BaseService<[string, UpdateCollectionReque
       dependencies.logger,
       dependencies.db,
       dependencies.collectionFinder,
-      dependencies.user,
       dependencies.publisher,
+      dependencies.user,
     );
   }
 

@@ -39,46 +39,46 @@ const CreateProductRequest = z.object({
 type CreateProductRequest = z.infer<typeof CreateProductRequest>;
 
 type InjectedDependencies = {
-  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
-  user: CurrentUser;
+  publisher: RealtimeEventPublisher;
   collectionFinder: CollectionFinder;
   productFinder: ProductFinder;
+  user: CurrentUser;
 };
 
 class CreateProductService extends BaseService<CreateProductRequest, Product> {
-  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
-  private readonly user: CurrentUser;
+  private readonly publisher: RealtimeEventPublisher;
   private readonly collectionFinder: CollectionFinder;
   private readonly productFinder: ProductFinder;
+  private readonly user: CurrentUser;
 
   constructor(
     logger: Logger,
     db: Database,
-    user: CurrentUser,
     collectionFinder: CollectionFinder,
     productFinder: ProductFinder,
-    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+    publisher: RealtimeEventPublisher,
+    user: CurrentUser,
   ) {
     super(logger);
-    this.publisher = publisher;
     this.db = db;
-    this.user = user;
+    this.publisher = publisher;
     this.collectionFinder = collectionFinder;
     this.productFinder = productFinder;
+    this.user = user;
   }
 
   static create({
     logger,
     db,
-    user,
     collectionFinder,
     productFinder,
     publisher,
+    user,
   }: InjectedDependencies): CreateProductService {
-    return new CreateProductService(logger, db, user, collectionFinder, productFinder, publisher);
+    return new CreateProductService(logger, db, collectionFinder, productFinder, publisher, user);
   }
 
   async execute(request: CreateProductRequest): Promise<Result<Product, BusinessError>> {

@@ -15,9 +15,9 @@ import { err, ok, type Result } from "../../utils/result.ts";
 import { BaseService } from "../base-service.ts";
 
 type InjectedDependencies = {
-  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
+  publisher: RealtimeEventPublisher;
   supplierFinder: SupplierFinder;
   user: CurrentUser;
 };
@@ -31,8 +31,8 @@ const UpdateSupplierRequest = z.object({
 type UpdateSupplierRequest = z.infer<typeof UpdateSupplierRequest>;
 
 class UpdateSupplierService extends BaseService<[string, UpdateSupplierRequest], Supplier> {
-  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
+  private readonly publisher: RealtimeEventPublisher;
   private readonly supplierFinder: SupplierFinder;
   private readonly user: CurrentUser;
 
@@ -40,18 +40,18 @@ class UpdateSupplierService extends BaseService<[string, UpdateSupplierRequest],
     logger: Logger,
     db: Database,
     supplierFinder: SupplierFinder,
+    publisher: RealtimeEventPublisher,
     user: CurrentUser,
-    publisher: Pick<RealtimeEventPublisher, "broadcast">,
   ) {
     super(logger);
-    this.publisher = publisher;
     this.db = db;
+    this.publisher = publisher;
     this.supplierFinder = supplierFinder;
     this.user = user;
   }
 
   static create(deps: InjectedDependencies): UpdateSupplierService {
-    return new UpdateSupplierService(deps.logger, deps.db, deps.supplierFinder, deps.user, deps.publisher);
+    return new UpdateSupplierService(deps.logger, deps.db, deps.supplierFinder, deps.publisher, deps.user);
   }
 
   async execute(request: [string, UpdateSupplierRequest]): Promise<Result<Supplier, BusinessError>> {
@@ -91,4 +91,4 @@ class UpdateSupplierService extends BaseService<[string, UpdateSupplierRequest],
   }
 }
 
-export { UpdateSupplierService, UpdateSupplierRequest };
+export { UpdateSupplierRequest, UpdateSupplierService };

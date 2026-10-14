@@ -34,7 +34,6 @@ const shouldRetryCreatePurchaseResult = (result: unknown): boolean => {
 };
 
 const CREATE_PURCHASE_RETRY_POLICY = retry(handleWhenResult(shouldRetryCreatePurchaseResult), {
-  // Cockatiel counts maxAttempts as retries after the initial execution.
   maxAttempts: 2,
   backoff: new ExponentialBackoff({ initialDelay: 25, maxDelay: 100 }),
 });
@@ -57,11 +56,11 @@ const CreatePurchaseRequest = z.object({
 type CreatePurchaseRequest = z.infer<typeof CreatePurchaseRequest>;
 
 type InjectedDependencies = {
-  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
-  user: CurrentUser;
+  publisher: RealtimeEventPublisher;
   purchaseFinder: PurchaseFinder;
+  user: CurrentUser;
 };
 
 type ProductPurchase = {
@@ -73,27 +72,27 @@ type ProductPurchase = {
 };
 
 class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase> {
-  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
-  private readonly user: CurrentUser;
+  private readonly publisher: RealtimeEventPublisher;
   private readonly purchaseFinder: PurchaseFinder;
+  private readonly user: CurrentUser;
 
   constructor(
     logger: Logger,
     db: Database,
-    user: CurrentUser,
     purchaseFinder: PurchaseFinder,
-    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+    publisher: RealtimeEventPublisher,
+    user: CurrentUser,
   ) {
     super(logger);
-    this.publisher = publisher;
     this.db = db;
-    this.user = user;
+    this.publisher = publisher;
     this.purchaseFinder = purchaseFinder;
+    this.user = user;
   }
 
   static create(deps: InjectedDependencies): CreatePurchaseService {
-    return new CreatePurchaseService(deps.logger, deps.db, deps.user, deps.purchaseFinder, deps.publisher);
+    return new CreatePurchaseService(deps.logger, deps.db, deps.purchaseFinder, deps.publisher, deps.user);
   }
 
   async execute(request: CreatePurchaseRequest): Promise<Result<Purchase, BusinessError>> {

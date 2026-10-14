@@ -21,16 +21,16 @@ const CreateCustomerRequest = z.object({
 type CreateCustomerRequest = z.infer<typeof CreateCustomerRequest>;
 
 type InjectedDependencies = {
-  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
+  publisher: RealtimeEventPublisher;
   customerFinder: CustomerFinder;
   user: CurrentUser;
 };
 
 class CreateCustomerService extends BaseService<CreateCustomerRequest, Customer> {
-  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
+  private readonly publisher: RealtimeEventPublisher;
   private readonly customerFinder: CustomerFinder;
   private readonly user: CurrentUser;
 
@@ -38,18 +38,18 @@ class CreateCustomerService extends BaseService<CreateCustomerRequest, Customer>
     logger: Logger,
     db: Database,
     customerFinder: CustomerFinder,
+    publisher: RealtimeEventPublisher,
     user: CurrentUser,
-    publisher: Pick<RealtimeEventPublisher, "broadcast">,
   ) {
     super(logger);
-    this.publisher = publisher;
     this.db = db;
+    this.publisher = publisher;
     this.customerFinder = customerFinder;
     this.user = user;
   }
 
   static create(deps: InjectedDependencies): CreateCustomerService {
-    return new CreateCustomerService(deps.logger, deps.db, deps.customerFinder, deps.user, deps.publisher);
+    return new CreateCustomerService(deps.logger, deps.db, deps.customerFinder, deps.publisher, deps.user);
   }
 
   async execute(request: CreateCustomerRequest): Promise<Result<Customer, BusinessError>> {

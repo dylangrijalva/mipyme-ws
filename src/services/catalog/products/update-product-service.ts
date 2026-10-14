@@ -37,35 +37,35 @@ const UpdateProductRequest = z.object({
 type UpdateProductRequest = z.infer<typeof UpdateProductRequest>;
 
 type InjectedDependencies = {
-  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
+  publisher: RealtimeEventPublisher;
   collectionFinder: CollectionFinder;
   productFinder: ProductFinder;
   user: CurrentUser;
 };
 
 class UpdateProductService extends BaseService<[string, UpdateProductRequest], Product> {
-  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
-  private readonly user: CurrentUser;
+  private readonly publisher: RealtimeEventPublisher;
   private readonly collectionFinder: CollectionFinder;
   private readonly productFinder: ProductFinder;
+  private readonly user: CurrentUser;
 
   constructor(
     logger: Logger,
     db: Database,
     collectionFinder: CollectionFinder,
     productFinder: ProductFinder,
+    publisher: RealtimeEventPublisher,
     user: CurrentUser,
-    publisher: Pick<RealtimeEventPublisher, "broadcast">,
   ) {
     super(logger);
-    this.publisher = publisher;
     this.db = db;
-    this.user = user;
+    this.publisher = publisher;
     this.collectionFinder = collectionFinder;
     this.productFinder = productFinder;
+    this.user = user;
   }
 
   static create(deps: InjectedDependencies): UpdateProductService {
@@ -74,8 +74,8 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
       deps.db,
       deps.collectionFinder,
       deps.productFinder,
-      deps.user,
       deps.publisher,
+      deps.user,
     );
   }
 

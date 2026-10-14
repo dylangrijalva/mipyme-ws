@@ -11,7 +11,7 @@ import {
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { err } from "../../../src/utils/result.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
-import { createBroadcastMock } from "../../test-utils/realtime-publisher-mock.ts";
+import { createRealtimeEventPublisherMock } from "../../test-utils/realtime-publisher-mock.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -21,9 +21,9 @@ async function setup() {
     { id: merchantId, name: "Straw Hat Pirates", country: "ni" },
     { id: otherMerchantId, name: "Heart Pirates", country: "ni" },
   ]);
-  const broadcast = createBroadcastMock();
+  const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const service = UpdateCustomerService.create({
-    publisher: { broadcast },
+    publisher,
     db,
     customerFinder: new CustomerFinder(),
     logger: pino({ enabled: false }),

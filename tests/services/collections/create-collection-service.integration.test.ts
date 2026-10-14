@@ -10,7 +10,7 @@ import {
 } from "../../../src/services/catalog/collections/create-collection-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
-import { createBroadcastMock } from "../../test-utils/realtime-publisher-mock.ts";
+import { createRealtimeEventPublisherMock } from "../../test-utils/realtime-publisher-mock.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -21,9 +21,9 @@ async function setup() {
     { id: otherMerchantId, name: "Heart Pirates", country: "ni" },
   ]);
   const collectionFinder = new CollectionFinder();
-  const broadcast = createBroadcastMock();
+  const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const service = CreateCollectionService.create({
-    publisher: { broadcast },
+    publisher,
     db,
     collectionFinder,
     logger: pino({ enabled: false }),

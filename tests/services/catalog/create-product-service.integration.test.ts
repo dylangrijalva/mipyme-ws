@@ -12,7 +12,10 @@ import {
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { err } from "../../../src/utils/result.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
-import { createBroadcastMock, trackCommittedBroadcasts } from "../../test-utils/realtime-publisher-mock.ts";
+import {
+  createRealtimeEventPublisherMock,
+  trackCommittedBroadcasts,
+} from "../../test-utils/realtime-publisher-mock.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -23,9 +26,9 @@ async function setup() {
     merchantId,
     name: "Thousand Sunny",
   });
-  const broadcast = createBroadcastMock();
+  const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const service = CreateProductService.create({
-    publisher: { broadcast },
+    publisher,
     db,
     collectionFinder: new CollectionFinder(),
     productFinder: new ProductFinder(),

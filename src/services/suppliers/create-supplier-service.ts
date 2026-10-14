@@ -13,9 +13,9 @@ import { ok, type Result } from "../../utils/result.ts";
 import { BaseService } from "../base-service.ts";
 
 type InjectedDependencies = {
-  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
+  publisher: RealtimeEventPublisher;
   supplierFinder: SupplierFinder;
   user: CurrentUser;
 };
@@ -29,8 +29,8 @@ const CreateSupplierRequest = z.object({
 type CreateSupplierRequest = z.infer<typeof CreateSupplierRequest>;
 
 class CreateSupplierService extends BaseService<CreateSupplierRequest, Supplier> {
-  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
+  private readonly publisher: RealtimeEventPublisher;
   private readonly supplierFinder: SupplierFinder;
   private readonly user: CurrentUser;
 
@@ -38,18 +38,18 @@ class CreateSupplierService extends BaseService<CreateSupplierRequest, Supplier>
     logger: Logger,
     db: Database,
     supplierFinder: SupplierFinder,
+    publisher: RealtimeEventPublisher,
     user: CurrentUser,
-    publisher: Pick<RealtimeEventPublisher, "broadcast">,
   ) {
     super(logger);
-    this.publisher = publisher;
     this.db = db;
+    this.publisher = publisher;
     this.supplierFinder = supplierFinder;
     this.user = user;
   }
 
   static create(deps: InjectedDependencies): CreateSupplierService {
-    return new CreateSupplierService(deps.logger, deps.db, deps.supplierFinder, deps.user, deps.publisher);
+    return new CreateSupplierService(deps.logger, deps.db, deps.supplierFinder, deps.publisher, deps.user);
   }
 
   async execute(request: CreateSupplierRequest): Promise<Result<Supplier, BusinessError>> {

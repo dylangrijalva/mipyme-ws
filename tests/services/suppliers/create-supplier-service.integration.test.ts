@@ -6,7 +6,7 @@ import { SupplierFinder } from "../../../src/finders/supplier-finder.ts";
 import { CreateSupplierService } from "../../../src/services/suppliers/create-supplier-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
-import { createBroadcastMock } from "../../test-utils/realtime-publisher-mock.ts";
+import { createRealtimeEventPublisherMock } from "../../test-utils/realtime-publisher-mock.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -16,9 +16,9 @@ async function setup() {
     { id: merchantId, name: "Straw Hat Pirates" },
     { id: otherMerchantId, name: "Heart Pirates" },
   ]);
-  const broadcast = createBroadcastMock();
+  const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const service = CreateSupplierService.create({
-    publisher: { broadcast },
+    publisher,
     db,
     logger: pino({ enabled: false }),
     supplierFinder: new SupplierFinder(),
