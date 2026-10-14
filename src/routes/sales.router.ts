@@ -18,24 +18,6 @@ function salesRouter(): FacilitoHono {
 
   router.use(authorize(), rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), membershipGuard());
 
-  router.get(
-    "/:id",
-    validator("param", (input) => ObjectId.parse(input.id)),
-    async (ctx) => {
-      const service = FindSaleService.create(ctx.var);
-      return toHttpResponse(await service.execute(ctx.req.valid("param")));
-    },
-  );
-
-  router.get(
-    "/",
-    validator("query", (input) => SalePaginationRequest.parse(camelCaseKeys(input))),
-    async (ctx) => {
-      const service = ListSalesService.create(ctx.var);
-      return toHttpResponse(await service.execute(ctx.req.valid("query")));
-    },
-  );
-
   router.post(
     "/",
     validator("json", (input) => CreateSaleRequest.parse(input)),
@@ -58,6 +40,24 @@ function salesRouter(): FacilitoHono {
       const service = VoidSaleService.create(ctx.var);
       const result = await service.execute(id, request);
       return toHttpResponse(result);
+    },
+  );
+
+  router.get(
+    "/:id",
+    validator("param", (input) => ObjectId.parse(input.id)),
+    async (ctx) => {
+      const service = FindSaleService.create(ctx.var);
+      return toHttpResponse(await service.execute(ctx.req.valid("param")));
+    },
+  );
+
+  router.get(
+    "/",
+    validator("query", (input) => SalePaginationRequest.parse(camelCaseKeys(input))),
+    async (ctx) => {
+      const service = ListSalesService.create(ctx.var);
+      return toHttpResponse(await service.execute(ctx.req.valid("query")));
     },
   );
 

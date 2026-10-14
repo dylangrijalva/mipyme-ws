@@ -3,7 +3,9 @@ import { ObjectId } from "../contracts/object-id.ts";
 import { PurchasePaginationRequest } from "../contracts/purchase-pagination-query.ts";
 import { membershipGuard } from "../guards/membership-guard.ts";
 import { authorize } from "../middlewares/authorize.ts";
+import { idempotency } from "../middlewares/idempotency.ts";
 import { createAuthScopedKey, DEFAULT_RATE_LIMIT_CONFIG, rateLimiter } from "../middlewares/rate-limiter.ts";
+import { CreatePurchaseRequest, CreatePurchaseService } from "../services/purchases/create-purchase-service.ts";
 import { FindPurchaseService } from "../services/purchases/find-purchase-service.ts";
 import { ListPurchasesService } from "../services/purchases/list-purchases-service.ts";
 import { FacilitoHono } from "../types.ts";
@@ -14,6 +16,18 @@ function purchasesRouter(): FacilitoHono {
   const router = new FacilitoHono();
 
   router.use(authorize(), rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), membershipGuard());
+
+  router.post(
+    "/",
+    validator("json", (input) => CreatePurchaseRequest.parse(input)),
+    idempotency(),
+    async (ctx) => {
+      const request = ctx.req.valid("json");
+      const service = CreatePurchaseService.create(ctx.var);
+      const result = await service.execute(request);
+      return toHttpResponse(result, 201);
+    },
+  );
 
   router.get(
     "/:id",

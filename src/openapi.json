@@ -3,39 +3,48 @@
   "info": {
     "title": "Facilito API",
     "version": "1.0.0",
-    "description": "The Facilito API lets you manage your business catalog, customers, staff, locations, inventory, and sales. It is organized around REST, accepts JSON request bodies, and returns JSON responses with standard HTTP methods and status codes.\n\nSend a bearer access token in the Authorization header with each request. Your authenticated account identifies the merchant whose data you can access and the permissions available to you.\n\nList operations return one page at a time. Omit `cursor` for the first page, then pass the response's `next_cursor` as `cursor` while `has_more` is true. Keep any filters unchanged between pages.\n\nError responses include a stable `code`, a human-readable `message`, and a `request_id`. Use `code` for error handling and retain `request_id` when investigating a failed request. POST operations accept an optional `Idempotency-Key` header for safe retries. See the header description for retry requirements and expiry."
+    "description": "Facilito helps retail and service businesses manage products, customers, suppliers, purchases, and sales under one merchant account.\n\n## Conventions\nSend `Authorization: Bearer <token>`. Your account controls merchant and location access; health is public. Requests and responses use JSON except realtime authorization (form fields). `/v1` uses `snake_case`; send money as decimal strings.\nLists use cursor pagination: omit `cursor` on the first page, then send `next_cursor` with unchanged filters while `has_more` is true. PATCH updates supplied fields only; omit fields to preserve them or use `null` to clear when allowed.\n\n## Retries and errors\nPOST endpoints documenting `Idempotency-Key` support retries. Errors include `code`, `message`, HTTP `status`, `request_id`, and `details`. Handle by `code`; keep `request_id` for investigation."
   },
   "tags": [
-    { "name": "Realtime", "description": "Authorize private realtime subscriptions for your merchant." },
+    {
+      "name": "Realtime",
+      "description": "Realtime notifications report changes to your merchant's data. Authorize the private channel for your merchant before subscribing."
+    },
     {
       "name": "Authentication",
-      "description": "Inspect the identity claims associated with the authenticated account."
+      "description": "Use the current account endpoint to identify the account associated with your access token."
     },
     {
       "name": "Onboarding",
-      "description": "Set up a business in Facilito. Create a merchant and its first location, and assign the current account as the business owner."
+      "description": "Onboarding associates an owner account with a merchant and its first location. Staff accounts cannot create a merchant."
     },
     {
       "name": "Products",
-      "description": "Create and manage merchant products, including items and services."
+      "description": "Products are the goods and services in a merchant's catalog. Use collections to group related products and variants to define the options available for sale."
     },
     {
       "name": "Collections",
-      "description": "Create and manage collections that organize merchant products."
+      "description": "Collections group related products in a merchant's catalog. Each product can belong to one collection."
     },
     {
       "name": "Suppliers",
-      "description": "Create and manage merchant suppliers."
+      "description": "Suppliers provide products to a merchant. Link them to purchases to track where received stock came from."
     },
     {
       "name": "Customers",
-      "description": "Create and manage merchant customers."
+      "description": "Customers are the people or businesses who buy from a merchant. Link a customer to a sale to record who made the purchase."
     },
     {
-      "name": "Sales"
+      "name": "Sales",
+      "description": "A sale records a checkout at a location. Review its fulfillment and payment history, or void a fulfilled sale to restore item quantities."
     },
     {
-      "name": "Purchases"
+      "name": "Purchases",
+      "description": "A purchase records stock received from a supplier at a location. Use it to track where inventory came from and what it cost."
+    },
+    {
+      "name": "Health",
+      "description": "The health endpoint reports whether the API is available."
     }
   ],
   "paths": {
@@ -43,8 +52,8 @@
       "post": {
         "tags": ["Realtime"],
         "operationId": "authorizeRealtimeChannel",
-        "summary": "Authorize a realtime subscription",
-        "description": "Signs a Pusher subscription to private-{merchantId} for the authenticated account. The merchant and enabled owner or staff membership are resolved from the database. Only an exact match with the current merchant channel is allowed. Send socket_id and channel_name as form fields. The response can be passed directly to Pusher.",
+        "summary": "Authorize a private realtime channel",
+        "description": "Authorizes a client for the private channel of the merchant tied to its access token. Send `socket_id` and `channel_name` as form fields (`private-{merchantId}`), then pass the returned authorization to the client.",
         "security": [
           {
             "bearerAuth": []
@@ -122,12 +131,38 @@
         }
       }
     },
+    "/_health": {
+      "get": {
+        "tags": ["Health"],
+        "operationId": "healthCheck",
+        "summary": "Check API health",
+        "description": "Checks whether the API is available. No access token is required.",
+        "responses": {
+          "204": {
+            "description": "The API is available. The response has no body."
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "description": "The API is unavailable. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "tags": ["Authentication"],
         "operationId": "getCurrentAccountClaims",
-        "summary": "Get the current account claims",
-        "description": "Returns the identity claims from the authenticated bearer token.",
+        "summary": "Retrieve the current account",
+        "description": "Retrieves the identity and merchant context associated with your access token.",
         "security": [
           {
             "bearerAuth": []
@@ -136,7 +171,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
-            "description": "Returns the authenticated identity claims.",
+            "description": "The identity information associated with your access token.",
             "content": {
               "application/json": {
                 "schema": {
@@ -162,8 +197,8 @@
       "post": {
         "tags": ["Onboarding"],
         "operationId": "onboardAccount",
-        "summary": "Create a business",
-        "description": "Creates a merchant and its first location, and makes the current account the business owner. If the account already owns a business, returns the existing merchant without changing its details. An account that belongs to a staff member cannot create a business. Requires a valid bearer token; existing merchant membership is not required.",
+        "summary": "Create a merchant",
+        "description": "Creates a merchant and its first location, then makes the authenticated account its owner. If the account already owns a merchant, the endpoint returns it. Staff accounts cannot create a merchant.",
         "security": [
           {
             "bearerAuth": []
@@ -221,7 +256,7 @@
             }
           },
           "409": {
-            "description": "The account belongs to a staff member, or a conflicting change prevents the account from being updated. Returns `conflict_error`. Also returned for idempotency_key_mismatch or idempotency_request_in_progress when Idempotency-Key is supplied.",
+            "description": "The account is a staff member, or a conflicting change prevents the update (`conflict_error`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -256,8 +291,8 @@
       "get": {
         "tags": ["Products"],
         "operationId": "listProducts",
-        "summary": "List products",
-        "description": "Returns a page of products belonging to your merchant. Pass `next_cursor` as `cursor` to retrieve the next page.",
+        "summary": "List all products",
+        "description": "Lists products in your merchant's catalog. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
         "security": [
           {
             "bearerAuth": []
@@ -344,7 +379,7 @@
         "tags": ["Products"],
         "operationId": "createProduct",
         "summary": "Create a product",
-        "description": "Creates a product with one default variant. Items start as drafts with zero stock at each location. Services start as active and do not track inventory.\n\nRequires an enabled owner or staff account. See the request fields for pricing, identifiers, and collection requirements.",
+        "description": "Creates a product and its initial variant. Items start as drafts with zero stock and require positive `unit_cost`; services start active and do not track inventory. Requires an enabled owner or staff member.",
         "security": [
           {
             "bearerAuth": []
@@ -413,7 +448,7 @@
             }
           },
           "409": {
-            "description": "The SKU or barcode is already used within this merchant, including by archived products. Returns sku_already_exists or barcode_already_exists. Also returned for idempotency_key_mismatch or idempotency_request_in_progress when Idempotency-Key is supplied.",
+            "description": "Duplicate merchant SKUs or barcodes, even on archived products, return `sku_already_exists` or `barcode_already_exists`. Idempotency conflicts may return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -447,8 +482,8 @@
       "get": {
         "tags": ["Products"],
         "operationId": "getProduct",
-        "summary": "Get a product",
-        "description": "Returns a product belonging to your merchant.",
+        "summary": "Retrieve a product",
+        "description": "Retrieves the product identified by `id`.",
         "security": [
           {
             "bearerAuth": []
@@ -533,7 +568,7 @@
         "tags": ["Products"],
         "operationId": "updateProduct",
         "summary": "Update a product",
-        "description": "Updates the supplied fields for a product belonging to the authenticated merchant. Omitted fields remain unchanged. Set `collection_id` or `image_url` to null to clear it. For items, `unit_cost` must be greater than zero and can only change while the product is a draft; `price` must be equal to or greater than `unit_cost`.",
+        "description": "Updates supplied fields; omitted fields are unchanged. Use `null` to clear `sku`, `barcode`, `collection_id`, or `image_url`. For items, `unit_cost` must be positive and may change only before stock moves; `price` cannot be below `unit_cost`.",
         "security": [
           {
             "bearerAuth": []
@@ -639,8 +674,8 @@
       "get": {
         "tags": ["Collections"],
         "operationId": "listCollections",
-        "summary": "List collections",
-        "description": "Returns a page of collections belonging to your merchant. Pass `next_cursor` as `cursor` to retrieve the next page.",
+        "summary": "List all collections",
+        "description": "Lists collections in your merchant's catalog. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
         "security": [
           {
             "bearerAuth": []
@@ -727,7 +762,7 @@
         "tags": ["Collections"],
         "operationId": "createCollection",
         "summary": "Create a collection",
-        "description": "Creates a collection for the authenticated merchant. The slug is generated from the name. Names that produce the same slug are not allowed within a merchant.",
+        "description": "Creates a collection in your catalog. Its name must produce a URL-friendly slug that is unique within your merchant.",
         "security": [
           {
             "bearerAuth": []
@@ -786,7 +821,7 @@
             }
           },
           "409": {
-            "description": "Another collection in this merchant has a name that produces the same slug. Returns `collection_name_already_exists`. Also returned for idempotency_key_mismatch or idempotency_request_in_progress when Idempotency-Key is supplied.",
+            "description": "The collection name creates a slug already used in this merchant (`collection_name_already_exists`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -820,8 +855,8 @@
       "get": {
         "tags": ["Collections"],
         "operationId": "getCollection",
-        "summary": "Get a collection",
-        "description": "Returns a collection belonging to the authenticated merchant.",
+        "summary": "Retrieve a collection",
+        "description": "Retrieves the collection identified by `id`.",
         "security": [
           {
             "bearerAuth": []
@@ -906,7 +941,7 @@
         "tags": ["Collections"],
         "operationId": "updateCollection",
         "summary": "Update a collection",
-        "description": "Updates the supplied fields for a collection belonging to the authenticated merchant. Omitted fields remain unchanged; an empty request leaves the record unchanged. The slug is generated from the name. Names that produce the same slug are not allowed within a merchant.",
+        "description": "Updates a collection's name. Omit `name` to keep it unchanged; the new name must produce a unique URL-friendly slug within your merchant.",
         "security": [
           {
             "bearerAuth": []
@@ -1012,8 +1047,8 @@
       "get": {
         "tags": ["Suppliers"],
         "operationId": "listSuppliers",
-        "summary": "List suppliers",
-        "description": "Returns a page of suppliers belonging to your merchant. Pass `next_cursor` as `cursor` to retrieve the next page.",
+        "summary": "List all suppliers",
+        "description": "Lists suppliers for your merchant. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
         "security": [
           {
             "bearerAuth": []
@@ -1100,7 +1135,7 @@
         "tags": ["Suppliers"],
         "operationId": "createSupplier",
         "summary": "Create a supplier",
-        "description": "Creates a supplier for the authenticated merchant. Email and phone are optional and default to null. Duplicate names are allowed.",
+        "description": "Creates a supplier for your merchant. Only `name` is required; email and phone are optional, and supplier names do not need to be unique.",
         "security": [
           {
             "bearerAuth": []
@@ -1186,8 +1221,8 @@
       "get": {
         "tags": ["Suppliers"],
         "operationId": "getSupplier",
-        "summary": "Get a supplier",
-        "description": "Returns a supplier belonging to the authenticated merchant.",
+        "summary": "Retrieve a supplier",
+        "description": "Retrieves the supplier identified by `id`.",
         "security": [
           {
             "bearerAuth": []
@@ -1272,7 +1307,7 @@
         "tags": ["Suppliers"],
         "operationId": "updateSupplier",
         "summary": "Update a supplier",
-        "description": "Updates the supplied fields for a supplier belonging to the authenticated merchant. Omitted fields remain unchanged; an empty request leaves the record unchanged. Set `email` or `phone` to null to clear it.",
+        "description": "Updates the supplier fields you provide; omitted fields remain unchanged. Set `email` or `phone` to `null` to clear either value.",
         "security": [
           {
             "bearerAuth": []
@@ -1368,8 +1403,8 @@
       "get": {
         "tags": ["Customers"],
         "operationId": "listCustomers",
-        "summary": "List customers",
-        "description": "Returns a page of customers belonging to your merchant. Pass `next_cursor` as `cursor` to retrieve the next page.",
+        "summary": "List all customers",
+        "description": "Lists customers for your merchant. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
         "security": [
           {
             "bearerAuth": []
@@ -1456,7 +1491,7 @@
         "tags": ["Customers"],
         "operationId": "createCustomer",
         "summary": "Create a customer",
-        "description": "Creates a customer for the authenticated merchant. Email and phone are optional and default to null. Duplicate names are allowed.",
+        "description": "Creates a customer for your merchant. Only `name` is required; email and phone are optional, and customer names do not need to be unique.",
         "security": [
           {
             "bearerAuth": []
@@ -1542,8 +1577,8 @@
       "get": {
         "tags": ["Customers"],
         "operationId": "getCustomer",
-        "summary": "Get a customer",
-        "description": "Returns a customer belonging to the authenticated merchant.",
+        "summary": "Retrieve a customer",
+        "description": "Retrieves the customer identified by `id`.",
         "security": [
           {
             "bearerAuth": []
@@ -1628,7 +1663,7 @@
         "tags": ["Customers"],
         "operationId": "updateCustomer",
         "summary": "Update a customer",
-        "description": "Updates the supplied fields for a customer belonging to the authenticated merchant. Omitted fields remain unchanged; an empty request leaves the record unchanged. Set `email` or `phone` to null to clear it.",
+        "description": "Updates the customer fields you provide; omitted fields remain unchanged. Set `email` or `phone` to `null` to clear either value.",
         "security": [
           {
             "bearerAuth": []
@@ -1721,11 +1756,113 @@
       }
     },
     "/v1/purchases": {
+      "post": {
+        "tags": ["Purchases"],
+        "operationId": "createPurchase",
+        "summary": "Create a purchase",
+        "description": "Receives supplier stock at a location, increasing inventory and average unit costs. Supplier, location, and unique variants must belong to your merchant; services cannot be purchased. Requires an enabled owner or staff member.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePurchaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
+          "201": {
+            "description": "Returns the created fulfilled purchase.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Purchase"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values, duplicate variants, or a service product. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership is not provisioned or the employee is not enabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The location, supplier, or one of the variants does not exist within the authenticated merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A concurrent update prevented the purchase (`concurrent_update_conflict`). Retry the request. With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the purchase from being created. No purchase or inventory changes are applied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      },
       "get": {
         "tags": ["Purchases"],
         "operationId": "listPurchases",
-        "summary": "List purchases",
-        "description": "Returns a page of purchases with line items, newest first by `created_at`, then by `id`. Includes all statuses unless you supply a status filter. Pass `next_cursor` as `cursor` with the same filters to retrieve the next page.\n\nEnabled owners can read all purchases for their merchant. Enabled staff need `view_transactions` permission and can read purchases only at their assigned locations.",
+        "summary": "List all purchases",
+        "description": "Lists purchases newest first, with all statuses unless filtered by `status`. Continue with `next_cursor` and unchanged filters. Owners see all; staff need `view_transactions` and access to the location.",
         "security": [
           {
             "bearerAuth": []
@@ -1748,10 +1885,12 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "The `next_cursor` value returned by the previous page.",
+            "description": "The opaque base64url `next_cursor` value returned by the previous page. Keep the other filters unchanged when using it.",
             "schema": {
               "type": "string",
-              "maxLength": 128
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 128,
+              "examples": ["example-opaque-page-cursor"]
             }
           },
           {
@@ -1776,6 +1915,7 @@
             "name": "status",
             "in": "query",
             "required": false,
+            "description": "Filter by purchase status. Omit this parameter to include fulfilled and voided purchases.",
             "schema": {
               "type": "string",
               "enum": ["fulfilled", "voided"]
@@ -1863,8 +2003,8 @@
       "get": {
         "tags": ["Purchases"],
         "operationId": "getPurchase",
-        "summary": "Get a purchase",
-        "description": "Returns a purchase with its supplier, creator, line item snapshots, notes, status, and timestamps.\n\nEnabled owners can read all purchases for their merchant. Enabled staff need `view_transactions` permission and can read purchases only at their assigned locations.",
+        "summary": "Retrieve a purchase",
+        "description": "Retrieves a purchase with line items as recorded when stock was received. Enabled owners can view all purchases; staff need `view_transactions` and access to its location.",
         "security": [
           {
             "bearerAuth": []
@@ -1952,8 +2092,8 @@
       "post": {
         "tags": ["Sales"],
         "operationId": "createSale",
-        "summary": "Record a completed checkout",
-        "description": "Creates a sale at a location and returns its line items, payments, and transaction number.\n\nA fulfilled sale deducts stock for physical items. If any item has insufficient stock, the entire sale remains pending and no stock is deducted. Untracked stock counts as zero. Web sales require the location to allow backorders to accept a shortage. Android and iOS sales accept shortages as pending sales. Services do not affect stock.\n\nRequires an enabled owner or staff account. Staff need `checkout` permission and access to the location. Reducing a line price or applying a discount also requires `apply_discounts` permission. The combined discount on each line must stay within the employee's `maxDiscountRate`. Owners are exempt from this cap. Final prices must not fall below unit cost.\n\nPayments must exactly match the sale total. Tax is not applied. Discounted line totals and US-dollar payments converted at the location exchange rate are rounded to the nearest cent, with half cents rounded up, before summing. An exchange rate of zero gives US-dollar payments a local-currency value of zero.",
+        "summary": "Create a sale",
+        "description": "Creates a sale at a location. Available item stock is deducted; services do not affect inventory. Web sales with shortages require backorders and stay pending without stock deduction; Android and iOS may accept shortages without backorders.\n\nEnabled owners can check out. Staff need `checkout` and location access. Discounts require `apply_discounts` and are capped at `max_discount_rate` per line; owners are exempt. Prices must be at least `unit_cost`.\n\nPayments must equal the total exactly; no tax is applied. Discounted line totals and USD payments converted at the location rate round to cents, half up. A zero rate gives USD payments zero local value.",
         "security": [
           {
             "bearerAuth": []
@@ -1982,7 +2122,7 @@
             }
           },
           "400": {
-            "description": "Invalid fields, duplicate variants, inactive catalog entries, a final price below cost, or payment mismatch. Returns validation_error, price_below_unit_cost, or payment_insufficient.",
+            "description": "Invalid fields, duplicate variants, inactive catalog entries, prices below cost, or payment mismatch return `validation_error`, `price_below_unit_cost`, or `payment_insufficient`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2022,7 +2162,7 @@
             }
           },
           "409": {
-            "description": "Insufficient web stock with backorders disabled or exhausted location numbering. Returns stock_insufficient or conflict_error. Also returned for idempotency_key_mismatch or idempotency_request_in_progress when Idempotency-Key is supplied.",
+            "description": "`stock_insufficient` means a web sale lacked backorders; `conflict_error` means no sale number was available. With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2054,8 +2194,8 @@
       "get": {
         "tags": ["Sales"],
         "operationId": "listSales",
-        "summary": "List sales",
-        "description": "Returns a page of sales with line items and payments, newest first by `created_at`, then by `id`. Includes all statuses unless you supply a status filter. Pass `next_cursor` as `cursor` with the same filters to retrieve the next page.\n\nEnabled owners can read all sales for their merchant. Enabled staff need `view_transactions` permission and can read sales only at their assigned locations.",
+        "summary": "List all sales",
+        "description": "Lists sales newest first, all statuses by default. Filter with `status`; use `next_cursor` with unchanged filters to continue. Enabled owners see all sales; staff need `view_transactions` and access to the location.",
         "security": [
           {
             "bearerAuth": []
@@ -2078,10 +2218,12 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "The `next_cursor` value returned by the previous page.",
+            "description": "The opaque base64url `next_cursor` value returned by the previous page. Keep the other filters unchanged when using it.",
             "schema": {
               "type": "string",
-              "maxLength": 128
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 128,
+              "examples": ["example-opaque-page-cursor"]
             }
           },
           {
@@ -2106,6 +2248,7 @@
             "name": "status",
             "in": "query",
             "required": false,
+            "description": "Filter by sale status. Omit this parameter to include fulfilled, pending, and voided sales.",
             "schema": {
               "type": "string",
               "enum": ["fulfilled", "pending", "voided"]
@@ -2191,8 +2334,8 @@
       "post": {
         "tags": ["Sales"],
         "operationId": "voidSale",
-        "summary": "Void a fulfilled sale",
-        "description": "Voids a fulfilled sale and restores its physical item quantities at the original location. You cannot void a sale if any physical product was restocked at or after the sale was created. Original payments remain in the sale history. Voiding does not issue a refund.\n\nEnabled owners can void sales. Enabled staff need `void_sales` permission and access to the sale's location. Repeating the request returns the original void details without restoring stock again.",
+        "summary": "Void a sale",
+        "description": "Voids a fulfilled sale and restores items at the original location. Cannot void if an item was restocked on or after the sale. Payments remain; no refund. Owners can void; staff need `void_sales` and location access. Repeats return original details without restoring stock.",
         "security": [
           {
             "bearerAuth": []
@@ -2276,7 +2419,7 @@
             }
           },
           "409": {
-            "description": "Concurrent inventory changes prevented the void from completing. Returns concurrent_update_conflict. Also returned for idempotency_key_mismatch or idempotency_request_in_progress when Idempotency-Key is supplied.",
+            "description": "Concurrent inventory changes prevented the void (`concurrent_update_conflict`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2305,8 +2448,8 @@
       "get": {
         "tags": ["Sales"],
         "operationId": "getSale",
-        "summary": "Get a sale",
-        "description": "Returns a sale with its line items, payments, customer, creator, and void details.\n\nEnabled owners can read all sales for their merchant. Enabled staff need `view_transactions` permission and can read sales only at their assigned locations.",
+        "summary": "Retrieve a sale",
+        "description": "Retrieves the sale identified by `id`. Enabled owners can read all sales for their merchant; staff need `view_transactions` and can read only sales at their assigned locations.",
         "security": [
           {
             "bearerAuth": []
@@ -2395,13 +2538,13 @@
       "schema": {
         "$ref": "#/components/schemas/RealtimeChangeEvent"
       },
-      "description": "Published in staging and production after collection, customer, supplier, or product creation/update, purchase creation, sale creation, and sale voiding. Successful updates publish even when values are unchanged. Only the primary resource is published; publishing does not delay or fail the HTTP response."
+      "description": "In staging and production, publishes the primary resource for collection, customer, supplier, or product changes; purchase/sale creation; and sale void. Unchanged updates publish too; publication does not delay or fail HTTP responses."
     }
   },
   "components": {
     "responses": {
       "RateLimitExceeded": {
-        "description": "Too many requests. Wait for the duration in the Retry-After header before trying again. Returns `rate_limit_exceeded`.",
+        "description": "Wait the seconds in `Retry-After` before retrying. The response includes `rate_limit_exceeded` and the current rate-limit window headers.",
         "headers": {
           "RateLimit-Limit": {
             "description": "Maximum requests allowed during the current window.",
@@ -2427,7 +2570,7 @@
         }
       },
       "IdempotencyConflict": {
-        "description": "The key was used for a different request, returning `idempotency_key_mismatch`, or the original request has not returned a repeatable response, returning `idempotency_request_in_progress`. This retry does not execute the operation. Check whether the original operation succeeded before submitting a new request with a different key.",
+        "description": "Returned when a key is reused with different parameters or while its request is in progress. The new request is not run. Retry with the same key; otherwise verify the outcome before using another.",
         "content": {
           "application/json": {
             "schema": {
@@ -2437,7 +2580,7 @@
         }
       },
       "IdempotencyUnavailable": {
-        "description": "Idempotent requests are temporarily unavailable. This request does not execute the operation. Retry with the same key.",
+        "description": "The idempotency store is temporarily unavailable. The operation did not execute. Retry the same request with the same key.",
         "content": {
           "application/json": {
             "schema": {
@@ -2450,6 +2593,7 @@
     "schemas": {
       "AuthorizeRealtimeChannelRequest": {
         "type": "object",
+        "description": "The connection details your realtime client sends when requesting access to a private channel.",
         "required": ["socket_id", "channel_name"],
         "properties": {
           "socket_id": {
@@ -2464,21 +2608,34 @@
             "description": "Exactly private-{merchantId} for the current merchant.",
             "examples": ["private-merch_STRAWHATPIRATES0000"]
           }
-        }
+        },
+        "examples": [
+          {
+            "socket_id": "123.456",
+            "channel_name": "private-merch_STRAWHATPIRATES0000"
+          }
+        ]
       },
       "RealtimeChannelAuthorization": {
         "type": "object",
+        "description": "The authorization your realtime client needs to subscribe to a private channel.",
         "required": ["auth"],
         "properties": {
           "auth": {
             "type": "string",
             "pattern": "^.+:[a-f0-9]{64}$",
-            "description": "Pusher application key followed by the HMAC-SHA256 subscription signature."
+            "description": "The authorization value to pass to your realtime client.",
+            "examples": ["app-key:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]
           }
-        }
+        },
+        "examples": [
+          {
+            "auth": "app-key:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          }
+        ]
       },
       "RealtimeChangeEvent": {
-        "description": "The facilito.changes event on private-{merchantId}. Emitted after a successful mutation of the primary resource. Delivery is best effort and unordered. Snapshots use the public API representation with snake_case keys. A serialized event of 10240 bytes or more has a null snapshot; resource_id is always included.",
+        "description": "Sent on `private-{merchantId}` when a resource changes. Delivery is not guaranteed; events may arrive out of order. `snapshot` is the API's `snake_case` resource, or `null` for large resources. Fetch by `resource_id` if absent.",
         "type": "object",
         "required": ["id", "type", "resource_id", "snapshot"],
         "properties": {
@@ -2502,7 +2659,8 @@
               "purchase_order",
               "location",
               "supplier"
-            ]
+            ],
+            "description": "The resource type that changed. Use this value to select the snapshot shape."
           }
         },
         "oneOf": [
@@ -2616,7 +2774,7 @@
               "snapshot": {
                 "anyOf": [
                   {
-                    "$ref": "#/components/schemas/PurchaseOrder"
+                    "$ref": "#/components/schemas/Purchase"
                   },
                   {
                     "type": "null"
@@ -2659,10 +2817,18 @@
               }
             }
           }
+        ],
+        "examples": [
+          {
+            "id": "evt_01H9X3Z5R7KQ2M4N6P8S0T1V2",
+            "type": "product",
+            "resource_id": "prod_JNG8424CGQ92NO85MA4",
+            "snapshot": null
+          }
         ]
       },
       "AccountType": {
-        "description": "The role of an account within Facilito. Identifies a merchant owner, a staff member, or an internal account.",
+        "description": "The role of an account within Facilito, such as a merchant owner, staff member, or internal account.",
         "examples": ["staff"],
         "type": "string",
         "enum": ["owner", "staff", "internal"]
@@ -2744,7 +2910,7 @@
         },
         "required": ["code", "message", "details"],
         "additionalProperties": false,
-        "description": "An error with a stable `code`, a human-readable `message`, and individual issues in `details`. API error responses also include HTTP status and request information in `FacilitoError`.",
+        "description": "A business error returned by an API request. Use its stable `code` to handle the failure and `details` for additional issues.",
         "examples": [
           {
             "code": "stock_insufficient",
@@ -2849,7 +3015,7 @@
         },
         "required": ["id", "name", "email", "pictureUrl", "publicMetadata"],
         "additionalProperties": false,
-        "description": "A sign-in account with its profile and optional merchant, employee, and account-role metadata.",
+        "description": "A sign-in account associated with a Facilito user. It may be linked to a merchant, employee, and account role.",
         "examples": [
           {
             "id": "user_nami_example",
@@ -2899,7 +3065,7 @@
         },
         "required": ["id", "name", "slug", "created_at", "updated_at"],
         "additionalProperties": false,
-        "description": "A group of related products in a merchant catalog. Use collections to organize products into categories, such as provisions or clothing. A product includes the identifier and name of its associated collection.",
+        "description": "A collection groups related products in a merchant's catalog.",
         "examples": [
           {
             "id": "coll_3ETRA4BRB16795R74T1",
@@ -2911,7 +3077,7 @@
         ]
       },
       "CountryIsoCode": {
-        "description": "A supported country code in lowercase ISO 3166-1 alpha-2 format. The value `zz` represents an unspecified country.",
+        "description": "A country code in lowercase ISO 3166-1 alpha-2 format. The value `zz` means unspecified.",
         "examples": ["ni"],
         "type": "string",
         "enum": [
@@ -2941,7 +3107,7 @@
         ]
       },
       "CurrencyCode": {
-        "description": "A supported currency code in lowercase ISO 4217 format. The value `xxx` represents an unspecified currency.",
+        "description": "A currency code in lowercase ISO 4217 format. The value `xxx` means unspecified.",
         "examples": ["nio"],
         "type": "string",
         "enum": [
@@ -2999,7 +3165,7 @@
         },
         "required": ["id", "email", "merchantId", "employeeId", "accountType"],
         "additionalProperties": false,
-        "description": "The authenticated account and its business context. Links the account to a merchant and an employee profile, and identifies its account role.",
+        "description": "The account associated with the access token and its role within a merchant.",
         "examples": [
           {
             "id": "account_RJ9LZ5VTZ4W6P9RR",
@@ -3051,7 +3217,7 @@
         },
         "required": ["id", "name", "email", "phone", "created_at", "updated_at"],
         "additionalProperties": false,
-        "description": "A person or business that purchases from a merchant. Contains the customer name and contact details. Associate a customer with a sale to identify who made a purchase.",
+        "description": "A person or business that buys from a merchant. Associate a customer with a sale to record who made the purchase.",
         "examples": [
           {
             "id": "cust_MJZA01GLEB9SDPU8YQ6",
@@ -3066,7 +3232,7 @@
       "Decimal": {
         "type": "string",
         "pattern": "^\\d+(\\.\\d{1,2})?$",
-        "description": "A nonnegative decimal string with up to two fractional digits. Zero is allowed.",
+        "description": "A nonnegative decimal string with up to two digits after the decimal point. Zero is allowed.",
         "examples": ["125.50"]
       },
       "PositiveDecimal": {
@@ -3078,7 +3244,7 @@
             }
           }
         ],
-        "description": "A decimal value greater than zero, represented as a string with up to two fractional digits. Uses the same format as `Decimal`, but excludes zero.",
+        "description": "A decimal string greater than zero with up to two digits after the decimal point.",
         "examples": ["8.00"]
       },
       "Employee": {
@@ -3094,12 +3260,12 @@
             "description": "The display name of the employee.",
             "examples": ["Nami"]
           },
-          "isOwner": {
+          "is_owner": {
             "type": "boolean",
             "description": "Whether the employee is the owner of the merchant.",
             "examples": [false]
           },
-          "posAccessStatus": {
+          "status": {
             "type": "string",
             "enum": ["invited", "enabled", "disabled"],
             "description": "The access state of the employee at the point of sale: invited, enabled, or disabled.",
@@ -3108,8 +3274,7 @@
           "permissions": {
             "type": "array",
             "items": {
-              "type": "string",
-              "examples": ["checkout"]
+              "$ref": "#/components/schemas/PosPermission"
             },
             "uniqueItems": true,
             "description": "The distinct point-of-sale capabilities assigned to the employee.",
@@ -3153,19 +3318,19 @@
               }
             ]
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the employee was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the employee was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "maxDiscountRate": {
+          "max_discount_rate": {
             "type": "string",
             "pattern": "^\\d+(\\.\\d{1,2})?$",
             "description": "Maximum effective line discount as a fraction. 0.10 means 10%. Defaults to 0.00. Owners are exempt.",
@@ -3175,30 +3340,30 @@
         "required": [
           "id",
           "name",
-          "isOwner",
-          "posAccessStatus",
+          "is_owner",
+          "status",
           "permissions",
           "account",
-          "createdAt",
-          "updatedAt",
-          "maxDiscountRate"
+          "created_at",
+          "updated_at",
+          "max_discount_rate"
         ],
         "additionalProperties": false,
-        "description": "A staff member associated with a merchant. Describes their ownership status, point-of-sale access, permissions, and linked sign-in account. Sales, purchase orders, and stock records reference employees to identify who recorded an operation.",
+        "description": "A person associated with a merchant who can use point-of-sale features according to their account status and permissions.",
         "examples": [
           {
             "id": "empl_YJHP5ULEG3QP1M786T3",
             "name": "Nami",
-            "isOwner": false,
-            "posAccessStatus": "enabled",
+            "is_owner": false,
+            "status": "enabled",
             "permissions": ["checkout", "manage_inventory"],
             "account": {
               "id": "account_RJ9LZ5VTZ4W6P9RR",
               "email": "nami@strawhatpirates.example.com"
             },
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z",
-            "maxDiscountRate": "0.00"
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z",
+            "max_discount_rate": "0.00"
           }
         ]
       },
@@ -3294,7 +3459,7 @@
         },
         "required": ["code", "message", "details", "request_id", "status"],
         "additionalProperties": false,
-        "description": "An error associated with an API request. Contains the HTTP status, request identifier, and business error details. Use `code` to handle the failure in your application and `request_id` to identify the request when investigating it.",
+        "description": "The error returned for a failed API request. It includes the HTTP status, request ID, and business error details. Use `code` to handle the error and `request_id` to identify the request when investigating it.",
         "examples": [
           {
             "code": "stock_insufficient",
@@ -3312,7 +3477,7 @@
         ]
       },
       "InventoryChangeType": {
-        "description": "The kind of entry in stock history. A `movement` records a relative quantity change; a `physical_count` records an observed absolute quantity.",
+        "description": "Indicates whether a stock history entry records a quantity movement or an observed physical count.",
         "examples": ["movement"],
         "type": "string",
         "enum": ["movement", "physical_count"]
@@ -3454,7 +3619,7 @@
                 "type": "movement"
               }
             ],
-            "description": "A change to the stock of a product variant at a location. Records the quantity delta, inventory states, unit cost, and employee responsible for the entry. A reference identifier can link the movement to a related sale or purchase order."
+            "description": "Records a product variant's stock change at a location: quantity delta, inventory states, unit cost, responsible employee, and an optional reference to a related sale or purchase order."
           },
           {
             "type": "object",
@@ -3559,7 +3724,7 @@
             "description": "The quantity of a product variant observed during a stock count at a location. Records an absolute quantity together with the employee and time of the count."
           }
         ],
-        "description": "An entry in the stock history of a product variant at a location. Read `type` to determine whether the entry contains an inventory movement or a physical count. Movements describe quantity changes; physical counts describe observed quantities.",
+        "description": "An entry in the history of a product variant's stock at a location. It represents either a movement or a physical count.",
         "examples": [
           {
             "id": "invm_T3DU0MU3D6NW1486YJR",
@@ -3632,7 +3797,7 @@
         },
         "required": ["id", "variant_id", "location_id", "on_hand", "low_stock_threshold", "optimal_stock_level"],
         "additionalProperties": false,
-        "description": "The stock held for one product variant at one location. Connects the variant to the location and includes its current quantity, low-stock threshold, and replenishment target.",
+        "description": "The current stock of one product variant at one location.",
         "examples": [
           {
             "id": "inv_FARIGOQHWU0PEM5KSI4L",
@@ -3645,7 +3810,7 @@
         ]
       },
       "InventoryMovementReason": {
-        "description": "The reason for a stock movement. Identifies a sale, purchase, reversal, loss, damage, theft, or correction.",
+        "description": "The reason recorded for a stock movement, such as a sale, purchase, loss, damage, theft, or correction.",
         "examples": ["sale"],
         "type": "string",
         "enum": ["sale", "sale_void", "purchase", "purchase_void", "lost", "damaged", "theft", "correction"]
@@ -3757,7 +3922,7 @@
           "updatedAt"
         ],
         "additionalProperties": false,
-        "description": "A change to the stock of a product variant at a location. Records the quantity delta, inventory states, unit cost, and employee responsible for the entry. A reference identifier can link the movement to a related sale or purchase order.",
+        "description": "A record of stock changing at a location. It can link the change to the sale or purchase that caused it.",
         "examples": [
           {
             "id": "invm_T3DU0MU3D6NW1486YJR",
@@ -3847,7 +4012,7 @@
         },
         "required": ["id", "variantId", "locationId", "quantity", "createdBy", "occurredAt", "createdAt", "updatedAt"],
         "additionalProperties": false,
-        "description": "The quantity of a product variant observed during a stock count at a location. Records an absolute quantity together with the employee and time of the count.",
+        "description": "The quantity observed for one product variant at a location during a physical stock count.",
         "examples": [
           {
             "id": "inv_pct_JCVLX946VEMLDQAW",
@@ -3865,7 +4030,7 @@
         ]
       },
       "InventoryState": {
-        "description": "The classification of stock before or after a movement. Stock can be outside inventory, in stock, sold, or recorded as waste.",
+        "description": "The state assigned to stock before or after a movement. Values distinguish stock outside inventory, in stock, sold, or recorded as waste.",
         "examples": ["in_stock"],
         "type": "string",
         "enum": ["none", "in_stock", "sold", "waste"]
@@ -3880,13 +4045,13 @@
           },
           "email": {
             "type": "string",
-            "description": "The email address included in the token claims.",
+            "description": "The email address associated with your access token.",
             "examples": ["nami@strawhatpirates.example.com"]
           }
         },
         "required": ["sub", "email"],
         "additionalProperties": {},
-        "description": "Identity claims carried by a JSON Web Token. Includes the subject identifier and email address, and allows additional claims.",
+        "description": "The identity information in your access token, including the account ID and email address. Additional claims may be present.",
         "examples": [
           {
             "sub": "user_nami_example",
@@ -3907,7 +4072,7 @@
             "description": "The display name of the location.",
             "examples": ["Water 7"]
           },
-          "businessType": {
+          "business_type": {
             "$ref": "#/components/schemas/BusinessType",
             "description": "The kind of business operated at the location.",
             "examples": ["grocery_store"]
@@ -3922,12 +4087,12 @@
             "description": "The contact phone number for the location. Returns `null` if none is recorded.",
             "examples": [null]
           },
-          "taxId": {
+          "tax_id": {
             "type": ["string", "null"],
             "description": "The tax registration identifier associated with the location. Returns `null` if none is recorded.",
             "examples": [null]
           },
-          "taxRate": {
+          "tax_rate": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Decimal"
@@ -3939,49 +4104,49 @@
             "description": "The tax rate configured for the location, expressed as a decimal string. Returns `null` if no rate is configured.",
             "examples": [null]
           },
-          "nextSaleNumber": {
+          "next_sale_number": {
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991,
             "description": "The transaction number to assign to the next sale at the location.",
             "examples": [2]
           },
-          "nextPurchaseOrderNumber": {
+          "next_purchase_order_number": {
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991,
             "description": "The transaction number to assign to the next purchase order at the location.",
             "examples": [2]
           },
-          "allowBackorders": {
+          "allow_backorders": {
             "default": false,
             "type": "boolean",
             "description": "Whether the location allows sales with quantities that exceed available stock.",
             "examples": [false]
           },
-          "receiptHeaderText": {
+          "receipt_header_text": {
             "type": ["string", "null"],
             "description": "The text configured for the receipt header. Returns `null` if no header text is configured.",
             "examples": ["Straw Hat Pirates"]
           },
-          "receiptFooterText": {
+          "receipt_footer_text": {
             "type": ["string", "null"],
             "description": "The text configured for the receipt footer. Returns `null` if no footer text is configured.",
             "examples": ["Thank you for shopping with us."]
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the location was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the location was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "exchangeRate": {
+          "exchange_rate": {
             "type": "string",
             "pattern": "^\\d+(\\.\\d{1,2})?$",
             "description": "Local currency per US dollar, used for cash_dollar sale payments. Defaults to 0.00.",
@@ -3991,39 +4156,39 @@
         "required": [
           "id",
           "name",
-          "businessType",
+          "business_type",
           "address",
           "phone",
-          "taxId",
-          "taxRate",
-          "nextSaleNumber",
-          "nextPurchaseOrderNumber",
-          "allowBackorders",
-          "receiptHeaderText",
-          "receiptFooterText",
-          "createdAt",
-          "updatedAt",
-          "exchangeRate"
+          "tax_id",
+          "tax_rate",
+          "next_sale_number",
+          "next_purchase_order_number",
+          "allow_backorders",
+          "receipt_header_text",
+          "receipt_footer_text",
+          "created_at",
+          "updated_at",
+          "exchange_rate"
         ],
         "additionalProperties": false,
-        "description": "A place where a merchant sells products and holds stock. Each location has its own inventory levels, sale and purchase-order counters, tax settings, backorder policy, and receipt text.",
+        "description": "A place where a merchant sells products and holds stock.",
         "examples": [
           {
             "id": "loc_AGGD8EJA69JRL3UTU79K",
             "name": "Water 7",
-            "businessType": "grocery_store",
+            "business_type": "grocery_store",
             "address": "Water 7",
             "phone": null,
-            "taxId": null,
-            "taxRate": null,
-            "nextSaleNumber": 2,
-            "nextPurchaseOrderNumber": 2,
-            "allowBackorders": false,
-            "receiptHeaderText": "Straw Hat Pirates",
-            "receiptFooterText": "Thank you for shopping with us.",
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z",
-            "exchangeRate": "0.00"
+            "tax_id": null,
+            "tax_rate": null,
+            "next_sale_number": 2,
+            "next_purchase_order_number": 2,
+            "allow_backorders": false,
+            "receipt_header_text": "Straw Hat Pirates",
+            "receipt_footer_text": "Thank you for shopping with us.",
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z",
+            "exchange_rate": "0.00"
           }
         ]
       },
@@ -4060,7 +4225,7 @@
         },
         "required": ["id", "name", "country", "created_at", "updated_at"],
         "additionalProperties": false,
-        "description": "The business that uses Facilito. Products, customers, employees, locations, suppliers, and transactions belong to a merchant. This object contains the business name and country.",
+        "description": "The business account that owns a catalog, locations, and transactions in Facilito.",
         "examples": [
           {
             "id": "merch_40KUNF3IWJGFJGPSHC",
@@ -4074,7 +4239,7 @@
       "ObjectId": {
         "type": "string",
         "pattern": "^(?=.{24}$)(?:(?:merch|account|req|empl|loc|coll|prod|img|var|optgr|opt|prod_opt|var_opt|inv|invm|inv_pct|cust|sale|sal_ite|sal_pay|supp|purc|purc_ite|supp_prod|evt)_)?[0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ]+$",
-        "description": "An opaque resource identifier that is exactly 24 characters long, including any prefix and underscore. Use the complete value when storing or referencing a resource.",
+        "description": "An opaque resource identifier that is exactly 24 characters long, including any prefix and underscore.",
         "examples": ["merch_40KUNF3IWJGFJGPSHC"]
       },
       "OptionGroup": {
@@ -4106,8 +4271,8 @@
                   "name": "1 kg",
                   "slug": "1-kg",
                   "position": 0,
-                  "createdAt": "2026-09-23T09:00:00.000Z",
-                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                  "created_at": "2026-09-23T09:00:00.000Z",
+                  "updated_at": "2026-09-23T09:00:00.000Z"
                 }
               ]
             },
@@ -4119,28 +4284,28 @@
                   "name": "1 kg",
                   "slug": "1-kg",
                   "position": 0,
-                  "createdAt": "2026-09-23T09:00:00.000Z",
-                  "updatedAt": "2026-09-23T09:00:00.000Z"
+                  "created_at": "2026-09-23T09:00:00.000Z",
+                  "updated_at": "2026-09-23T09:00:00.000Z"
                 }
               ]
             ]
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the option group was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the option group was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           }
         },
-        "required": ["id", "name", "slug", "options", "createdAt", "updatedAt"],
+        "required": ["id", "name", "slug", "options", "created_at", "updated_at"],
         "additionalProperties": false,
-        "description": "A product attribute whose values distinguish variants, such as pack size or color. Contains the available options and a slug for the group.",
+        "description": "A product attribute, such as size or color, used to define variants. Its options are the values customers can choose.",
         "examples": [
           {
             "id": "optgr_06HPWQ6HPSR9UTXOES",
@@ -4152,12 +4317,12 @@
                 "name": "1 kg",
                 "slug": "1-kg",
                 "position": 0,
-                "createdAt": "2026-09-23T09:00:00.000Z",
-                "updatedAt": "2026-09-23T09:00:00.000Z"
+                "created_at": "2026-09-23T09:00:00.000Z",
+                "updated_at": "2026-09-23T09:00:00.000Z"
               }
             ],
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z"
           }
         ]
       },
@@ -4184,30 +4349,30 @@
             "description": "The display position of the option within its group.",
             "examples": [0]
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the option was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the option was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           }
         },
-        "required": ["id", "name", "slug", "position", "createdAt", "updatedAt"],
+        "required": ["id", "name", "slug", "position", "created_at", "updated_at"],
         "additionalProperties": false,
-        "description": "An available value within an option group, such as a pack size. Includes its display name, slug, and position within the group.",
+        "description": "A selectable value in a product option group, such as a size or color.",
         "examples": [
           {
             "id": "opt_PJNM1SLZALTDWKKB39TZ",
             "name": "1 kg",
             "slug": "1-kg",
             "position": 0,
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z"
           }
         ]
       },
@@ -4216,7 +4381,7 @@
         "properties": {
           "limit": {
             "default": 50,
-            "type": "number",
+            "type": "integer",
             "minimum": 1,
             "maximum": 100,
             "description": "The maximum number of records requested per page. Accepts values from 1 to 100 and defaults to 50.",
@@ -4224,12 +4389,13 @@
           },
           "cursor": {
             "type": "string",
-            "description": "The opaque cursor returned by the previous page. Omit this field to request the first page."
+            "description": "The opaque cursor returned by the previous page. Omit this field to request the first page.",
+            "examples": ["example-opaque-page-cursor"]
           }
         },
         "required": ["limit"],
         "additionalProperties": false,
-        "description": "Parameters for retrieving a page of records. Omit `cursor` for the first page, then use the previous response cursor to continue. The page limit defaults to 50 and accepts values from 1 to 100.",
+        "description": "Parameters for requesting a page of records. Omit `cursor` to start; use the cursor from the response to continue. The page limit defaults to 50 and accepts values from 1 to 100.",
         "examples": [
           {
             "limit": 50
@@ -4245,7 +4411,7 @@
         "properties": {
           "limit": {
             "default": 50,
-            "type": "number",
+            "type": "integer",
             "minimum": 1,
             "maximum": 100,
             "description": "The maximum number of records requested per page. Accepts values from 1 to 100 and defaults to 50.",
@@ -4253,7 +4419,8 @@
           },
           "cursor": {
             "type": "string",
-            "description": "The opaque cursor returned by the previous page. Omit this field to request the first page."
+            "description": "The opaque cursor returned by the previous page. Omit this field to request the first page.",
+            "examples": ["example-opaque-page-cursor"]
           },
           "merchantId": {
             "type": "string",
@@ -4263,7 +4430,7 @@
         },
         "required": ["limit", "merchantId"],
         "additionalProperties": false,
-        "description": "Parameters for retrieving a page of merchant records. Supply the merchant identifier, a page limit, and an optional cursor.",
+        "description": "Parameters for paging through records within a merchant, including a cursor for continuing to the next page.",
         "examples": [
           {
             "limit": 50,
@@ -4277,13 +4444,13 @@
         ]
       },
       "PaymentMethod": {
-        "description": "The method used to collect a sale payment. Supports cash, US-dollar cash, card payments processed outside Facilito, and wire transfers.",
+        "description": "The method used to collect a sale payment. Supported methods include cash, cash in U.S. dollars, card payments processed outside Facilito, and wire transfers.",
         "examples": ["cash"],
         "type": "string",
         "enum": ["cash", "cash_dollar", "non_integrated_card", "wire_transfer"]
       },
       "PosPermission": {
-        "description": "An individual point-of-sale capability assigned to an employee, such as checkout, catalog management, or access to sales reports.",
+        "description": "A permission that controls an employee's access to point-of-sale features such as checkout, catalog management, discounts, transaction access, or sale voiding.",
         "examples": ["checkout"],
         "type": "string",
         "enum": [
@@ -4295,17 +4462,18 @@
           "manage_inventory",
           "manage_suppliers",
           "apply_discounts",
+          "void_sales",
           "refund"
         ]
       },
       "ProductImageSource": {
-        "description": "The origin of a product image. A `managed` image is hosted by Facilito; a `remote` image is hosted externally.",
+        "description": "Indicates whether a product image is hosted by Facilito or by an external service.",
         "examples": ["remote"],
         "type": "string",
         "enum": ["managed", "remote"]
       },
       "ProductImageStatus": {
-        "description": "The availability of a product image. Indicates whether the image is still pending or available for use.",
+        "description": "Indicates whether a product image is pending or available for use.",
         "examples": ["available"],
         "type": "string",
         "enum": ["pending", "available"]
@@ -4314,17 +4482,17 @@
         "type": "string",
         "format": "uri",
         "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://",
-        "description": "An HTTP or HTTPS URL that identifies a product image.",
+        "description": "An HTTP or HTTPS URL for a product image.",
         "examples": ["https://strawhatpirates.example.com/images/tangerines.jpg"]
       },
       "ProductStatus": {
-        "description": "The catalog state of a product. Indicates whether the product is active, a draft, or archived.",
+        "description": "The state of a product in a merchant's catalog: active, draft, or archived.",
         "examples": ["active"],
         "type": "string",
         "enum": ["active", "draft", "archived"]
       },
       "ProductType": {
-        "description": "The kind of product offered by the merchant. Distinguishes a physical item from a service.",
+        "description": "Whether a product is a physical item or a service.",
         "examples": ["item"],
         "type": "string",
         "enum": ["item", "service"]
@@ -4478,7 +4646,7 @@
           "updated_at"
         ],
         "additionalProperties": false,
-        "description": "A version of a product distinguished by its selected options, such as pack size or color. Each variant has its own identifier, optional SKU and barcode, and stock levels by location. A variant can specify a selling price or use the product price.",
+        "description": "A sellable version of a product, defined by a combination of its option values. A variant can have its own SKU, barcode, price, and stock levels.",
         "examples": [
           {
             "id": "var_SPPWCBGNASKMHJSHXH38",
@@ -4841,7 +5009,7 @@
           "archived_at"
         ],
         "additionalProperties": false,
-        "description": "A good or service offered by a merchant. Contains its name, pricing, catalog status, image, and collection. Option groups describe the available choices, and variants represent the combinations that can be sold.",
+        "description": "A good or service offered in a merchant's catalog. Collections group related products, and variants represent the options available for sale.",
         "examples": [
           {
             "id": "prod_JNG8424CGQ92NO85MA4",
@@ -5137,7 +5305,7 @@
           "updatedAt"
         ],
         "additionalProperties": false,
-        "description": "A record of products received from a supplier at a location. Groups received variants by product and records quantities, unit costs, and selling prices. Includes the supplier and the employee who recorded the delivery.",
+        "description": "A record of products received from a supplier at a location. It preserves the quantities, costs, and selling prices recorded for each item.",
         "examples": [
           {
             "id": "purc_RAT344W9WX6R57EVUI6",
@@ -5529,7 +5697,7 @@
           "suppliers"
         ],
         "additionalProperties": false,
-        "description": "Merchant data returned by a synchronization request. A full sync contains the supported resource collections; an incremental sync contains changes since the previous token. Retain `syncToken` to continue synchronizing from this response.",
+        "description": "The result of a resource synchronization request. A full sync returns the supported resource collections; an incremental sync returns changes since the previous token. Save `syncToken` to continue.",
         "examples": [
           {
             "syncToken": "example-opaque-sync-token",
@@ -5684,7 +5852,7 @@
         ]
       },
       "SaleStatus": {
-        "description": "The fulfillment state of a sale. Indicates whether it is fulfilled, pending, or voided.",
+        "description": "The fulfillment state of a sale: pending, fulfilled, or voided.",
         "examples": ["fulfilled"],
         "type": "string",
         "enum": ["fulfilled", "pending", "voided"]
@@ -5699,7 +5867,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Optional details for voiding a sale. The reason may be omitted.",
+        "description": "Optional details for voiding a sale. You can omit the reason.",
         "examples": [
           {},
           {
@@ -6032,7 +6200,7 @@
           "business_date"
         ],
         "additionalProperties": false,
-        "description": "A record of a checkout at a location. Contains the purchased variants, quantities, captured prices and costs, discount rate, and payments. It also identifies the customer and the employees who recorded or voided the sale when those details are available.",
+        "description": "A record of a checkout at a location. It preserves the products, prices, costs, and payments recorded at the time of sale, and can be pending, fulfilled, or voided.",
         "examples": [
           {
             "id": "sale_5TZND2TVGAU9823UPMV",
@@ -6079,7 +6247,7 @@
         ]
       },
       "Source": {
-        "description": "The point-of-sale application that submitted a sale. Identifies the web, Android, or iOS client.",
+        "description": "The point-of-sale application that submitted a sale.",
         "examples": ["pos.web"],
         "type": "string",
         "enum": ["pos.web", "pos.android", "pos.ios"]
@@ -6125,7 +6293,7 @@
         },
         "required": ["id", "name", "email", "phone", "created_at", "updated_at"],
         "additionalProperties": false,
-        "description": "A person or organization that provides products to a merchant. Contains the supplier name and contact details. Purchase orders reference the supplier to identify the source of a delivery.",
+        "description": "A person or organization that supplies products to a merchant. Link purchases to suppliers to track where received stock came from.",
         "examples": [
           {
             "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
@@ -6138,14 +6306,14 @@
         ]
       },
       "WeightUnit": {
-        "description": "The unit used to express an item quantity or weight. Supports individual items, grams, kilograms, ounces, and pounds.",
+        "description": "A unit for measuring item quantity or weight, including each, grams, kilograms, ounces, and pounds.",
         "examples": ["kg"],
         "type": "string",
         "enum": ["each", "g", "kg", "oz", "lb"]
       },
       "PaginationResponse": {
         "type": "object",
-        "description": "A page of records and the information needed to request the next page. The operation determines the shape of each result. Continue with `nextCursor` while `hasMore` is true.",
+        "description": "A page of records with the information needed to request the next page.",
         "properties": {
           "results": {
             "type": "array",
@@ -6203,7 +6371,7 @@
       },
       "ProductPaginationResponse": {
         "type": "object",
-        "description": "A page of products and the information needed to request the next page. Continue with `next_cursor` while `has_more` is true.",
+        "description": "A page of products with the information needed to request the next page.",
         "properties": {
           "results": {
             "type": "array",
@@ -6222,6 +6390,13 @@
           }
         },
         "required": ["results", "next_cursor", "has_more"],
+        "examples": [
+          {
+            "results": [],
+            "next_cursor": null,
+            "has_more": false
+          }
+        ],
         "additionalProperties": false
       },
       "OnboardAccountRequest": {
@@ -6271,6 +6446,7 @@
       },
       "CreateProductRequest": {
         "type": "object",
+        "description": "The details for creating a product and its initial variant. Items require a positive `unit_cost`; services do not track inventory.",
         "properties": {
           "name": {
             "type": "string",
@@ -6382,7 +6558,7 @@
       },
       "UpdateProductRequest": {
         "type": "object",
-        "description": "Fields to update on an existing product. Omit a field to leave it unchanged. Set `collection_id` or `image_url` to `null` to clear it. For item products, set `sku` or `barcode` to `null` to clear that value.",
+        "description": "Fields to change on a product. Omit a field to leave it unchanged; set `collection_id`, `image_url`, `sku`, or `barcode` to `null` to clear it.",
         "properties": {
           "name": {
             "type": "string",
@@ -6463,7 +6639,7 @@
       },
       "CollectionPaginationResponse": {
         "type": "object",
-        "description": "A page of collections and the information needed to request the next page. Continue with `next_cursor` while `has_more` is true.",
+        "description": "A page of collections with the information needed to request the next page.",
         "properties": {
           "results": {
             "type": "array",
@@ -6482,10 +6658,18 @@
           }
         },
         "required": ["results", "next_cursor", "has_more"],
+        "examples": [
+          {
+            "results": [],
+            "next_cursor": null,
+            "has_more": false
+          }
+        ],
         "additionalProperties": false
       },
       "CreateCollectionRequest": {
         "type": "object",
+        "description": "The name of the collection to create. It must produce a URL-friendly slug not already used in your merchant's catalog.",
         "properties": {
           "name": {
             "type": "string",
@@ -6494,10 +6678,16 @@
             "description": "The collection name. Surrounding whitespace is removed. The generated URL-friendly slug must be nonempty, at most 128 characters, and unique within your merchant."
           }
         },
-        "required": ["name"]
+        "required": ["name"],
+        "examples": [
+          {
+            "name": "East Blue Provisions"
+          }
+        ]
       },
       "UpdateCollectionRequest": {
         "type": "object",
+        "description": "The name to assign to a collection. Omit `name` to keep it unchanged; an empty object is valid.",
         "properties": {
           "name": {
             "type": "string",
@@ -6505,11 +6695,17 @@
             "maxLength": 128,
             "description": "The collection name. Surrounding whitespace is removed. The generated URL-friendly slug must be nonempty, at most 128 characters, and unique within your merchant."
           }
-        }
+        },
+        "examples": [
+          {
+            "name": "New collection name"
+          },
+          {}
+        ]
       },
       "SupplierPaginationResponse": {
         "type": "object",
-        "description": "A page of suppliers and the information needed to request the next page. Continue with `next_cursor` while `has_more` is true.",
+        "description": "A page of suppliers with the information needed to request the next page.",
         "properties": {
           "results": {
             "type": "array",
@@ -6528,10 +6724,18 @@
           }
         },
         "required": ["results", "next_cursor", "has_more"],
+        "examples": [
+          {
+            "results": [],
+            "next_cursor": null,
+            "has_more": false
+          }
+        ],
         "additionalProperties": false
       },
       "CreateSupplierRequest": {
         "type": "object",
+        "description": "Supplier details for a new record. Only `name` is required; contact fields are optional and may be `null`.",
         "properties": {
           "name": {
             "type": "string",
@@ -6552,10 +6756,18 @@
             "description": "The contact phone. Surrounding whitespace is removed. Omit or set to `null` when unavailable."
           }
         },
-        "required": ["name"]
+        "required": ["name"],
+        "examples": [
+          {
+            "name": "Red Hair Pirates",
+            "email": "contact@redhairpirates.example.com",
+            "phone": null
+          }
+        ]
       },
       "UpdateSupplierRequest": {
         "type": "object",
+        "description": "Supplier fields to change. Omit a field to leave it unchanged; set `email` or `phone` to `null` to clear it.",
         "properties": {
           "name": {
             "type": "string",
@@ -6575,11 +6787,16 @@
             "maxLength": 32,
             "description": "The contact phone. Surrounding whitespace is removed. Set to `null` to clear it. Omit to leave it unchanged."
           }
-        }
+        },
+        "examples": [
+          {
+            "phone": null
+          }
+        ]
       },
       "CustomerPaginationResponse": {
         "type": "object",
-        "description": "A page of customers and the information needed to request the next page. Continue with `next_cursor` while `has_more` is true.",
+        "description": "A page of customers with the information needed to request the next page.",
         "properties": {
           "results": {
             "type": "array",
@@ -6598,10 +6815,18 @@
           }
         },
         "required": ["results", "next_cursor", "has_more"],
+        "examples": [
+          {
+            "results": [],
+            "next_cursor": null,
+            "has_more": false
+          }
+        ],
         "additionalProperties": false
       },
       "CreateCustomerRequest": {
         "type": "object",
+        "description": "Customer details for a new record. Only `name` is required; contact fields are optional and may be `null`.",
         "properties": {
           "name": {
             "type": "string",
@@ -6622,10 +6847,18 @@
             "description": "The contact phone. Surrounding whitespace is removed. Omit or set to `null` when unavailable."
           }
         },
-        "required": ["name"]
+        "required": ["name"],
+        "examples": [
+          {
+            "name": "Trafalgar Law",
+            "email": "law@heartpirates.example.com",
+            "phone": null
+          }
+        ]
       },
       "UpdateCustomerRequest": {
         "type": "object",
+        "description": "Customer fields to change. Omit a field to leave it unchanged; set `email` or `phone` to `null` to clear it.",
         "properties": {
           "name": {
             "type": "string",
@@ -6645,24 +6878,34 @@
             "maxLength": 32,
             "description": "The contact phone. Surrounding whitespace is removed. Set to `null` to clear it. Omit to leave it unchanged."
           }
-        }
+        },
+        "examples": [
+          {
+            "email": null
+          }
+        ]
       },
       "CreateSaleRequest": {
         "type": "object",
+        "description": "The information needed to record a checkout. Include a location, business timestamp, at least one line item, and payments that equal the final sale total.",
         "required": ["location_id", "business_date", "line_items", "payments"],
         "properties": {
           "source": {
             "$ref": "#/components/schemas/Source",
             "default": "pos.web",
-            "description": "The point-of-sale client submitting the sale. Defaults to `pos.web`. Web sales follow the location backorder policy; Android and iOS sales accept stock shortages as pending sales."
+            "description": "The point-of-sale client submitting the sale. Defaults to `pos.web`. Web sales follow the location backorder policy; Android and iOS sales accept stock shortages as pending sales.",
+            "examples": ["pos.web"]
           },
           "location_id": {
-            "$ref": "#/components/schemas/ObjectId"
+            "$ref": "#/components/schemas/ObjectId",
+            "description": "The location where the sale was recorded. The authenticated account must have access to this location.",
+            "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
           },
           "business_date": {
             "type": "string",
             "format": "date-time",
-            "description": "The original client checkout timestamp. Supply UTC or an explicit timezone offset. Returned in UTC."
+            "description": "The original client checkout timestamp. Supply UTC or an explicit timezone offset. Returned in UTC.",
+            "examples": ["2026-09-23T09:00:00-06:00"]
           },
           "customer_id": {
             "anyOf": [
@@ -6673,17 +6916,20 @@
                 "type": "null"
               }
             ],
-            "description": "Optional customer belonging to the authenticated merchant."
+            "description": "Optional customer belonging to the authenticated merchant.",
+            "examples": ["cust_MJZA01GLEB9SDPU8YQ6", null]
           },
           "notes": {
             "type": ["string", "null"],
             "maxLength": 256,
-            "description": "Optional notes. Leading and trailing whitespace is trimmed."
+            "description": "Optional notes. Leading and trailing whitespace is trimmed.",
+            "examples": ["Counter sale"]
           },
           "discount_rate": {
             "type": ["string", "null"],
             "pattern": "^(?:0+(?:\\.\\d{1,2})?|0*1(?:\\.0{1,2})?)$",
-            "description": "Optional fractional rate between 0.00 and 1.00. For example, 0.10 means 10%. Omitted or null means no discount."
+            "description": "Optional fractional rate between 0.00 and 1.00. For example, 0.10 means 10%. Omitted or null means no discount.",
+            "examples": ["0.10", null]
           },
           "line_items": {
             "type": "array",
@@ -6694,7 +6940,9 @@
               "required": ["variant_id", "price", "quantity"],
               "properties": {
                 "variant_id": {
-                  "$ref": "#/components/schemas/ObjectId"
+                  "$ref": "#/components/schemas/ObjectId",
+                  "description": "The variant being sold. Each variant may appear only once in the request.",
+                  "examples": ["var_SPPWCBGNASKMHJSHXH38"]
                 },
                 "price": {
                   "$ref": "#/components/schemas/Decimal",
@@ -6702,7 +6950,9 @@
                 },
                 "quantity": {
                   "type": "integer",
-                  "minimum": 1
+                  "minimum": 1,
+                  "description": "The number of units to sell. Must be a positive integer.",
+                  "examples": [2]
                 }
               }
             }
@@ -6715,16 +6965,96 @@
               "required": ["method", "amount"],
               "properties": {
                 "method": {
-                  "$ref": "#/components/schemas/PaymentMethod"
+                  "$ref": "#/components/schemas/PaymentMethod",
+                  "examples": ["cash"]
                 },
                 "amount": {
                   "$ref": "#/components/schemas/PositiveDecimal",
-                  "description": "Positive decimal string. USD for cash_dollar; local currency otherwise."
+                  "description": "Positive decimal string. USD for `cash_dollar`; local currency otherwise.",
+                  "examples": ["251.00"]
                 }
               }
             }
           }
-        }
+        },
+        "examples": [
+          {
+            "location_id": "loc_AGGD8EJA69JRL3UTU79K",
+            "business_date": "2026-09-23T09:00:00-06:00",
+            "line_items": [
+              {
+                "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+                "price": "125.50",
+                "quantity": 2
+              }
+            ],
+            "payments": [
+              {
+                "method": "cash",
+                "amount": "251.00"
+              }
+            ]
+          }
+        ]
+      },
+      "CreatePurchaseRequest": {
+        "type": "object",
+        "description": "The information needed to record stock received from a supplier. Include a supplier, location, and at least one variant line belonging to your merchant.",
+        "required": ["supplier_id", "location_id", "line_items"],
+        "properties": {
+          "supplier_id": {
+            "$ref": "#/components/schemas/ObjectId",
+            "description": "The supplier associated with the purchase. Must belong to the authenticated merchant."
+          },
+          "location_id": {
+            "$ref": "#/components/schemas/ObjectId",
+            "description": "The location receiving the inventory. Must belong to the authenticated merchant."
+          },
+          "notes": {
+            "type": ["string", "null"],
+            "maxLength": 256,
+            "description": "Optional purchase notes. Surrounding whitespace is removed. Omit or set to `null` when unavailable."
+          },
+          "line_items": {
+            "type": "array",
+            "minItems": 1,
+            "description": "The variants received in the purchase. Each variant may appear only once, quantities must be positive integers, and service products are not allowed.",
+            "items": {
+              "type": "object",
+              "required": ["variant_id", "quantity", "unit_cost"],
+              "properties": {
+                "variant_id": {
+                  "$ref": "#/components/schemas/ObjectId",
+                  "description": "The variant being received. Each variant may appear only once in the request."
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2147483647,
+                  "description": "The number of units received. Must be a positive integer."
+                },
+                "unit_cost": {
+                  "$ref": "#/components/schemas/PositiveDecimal",
+                  "description": "The acquisition cost per received unit, expressed as a positive decimal string with up to two fractional digits."
+                }
+              }
+            }
+          }
+        },
+        "examples": [
+          {
+            "supplier_id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
+            "location_id": "loc_AGGD8EJA69JRL3UTU79K",
+            "notes": "Provisions for the Water 7 shop.",
+            "line_items": [
+              {
+                "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+                "quantity": 20,
+                "unit_cost": "80.00"
+              }
+            ]
+          }
+        ]
       },
       "Purchase": {
         "type": "object",
@@ -6948,7 +7278,7 @@
           "updated_at"
         ],
         "additionalProperties": false,
-        "description": "A purchase recorded at a location, including supplier and employee details, item snapshots, status, notes, and timestamps.",
+        "description": "A record of products received from a supplier at a location. It preserves the quantities and costs recorded for each variant.",
         "examples": [
           {
             "id": "purc_RAT344W9WX6R57EVUI6",
@@ -6985,7 +7315,7 @@
       },
       "PurchasePaginationResponse": {
         "type": "object",
-        "description": "A page of purchases and the information needed to request the next page. Continue with `next_cursor` while `has_more` is true.",
+        "description": "A page of purchases with the information needed to request the next page.",
         "properties": {
           "results": {
             "type": "array",
@@ -7004,11 +7334,18 @@
           }
         },
         "required": ["results", "next_cursor", "has_more"],
+        "examples": [
+          {
+            "results": [],
+            "next_cursor": null,
+            "has_more": false
+          }
+        ],
         "additionalProperties": false
       },
       "SalePaginationResponse": {
         "type": "object",
-        "description": "A page of sales and the information needed to request the next page. Continue with `next_cursor` while `has_more` is true.",
+        "description": "A page of sales with the information needed to request the next page.",
         "properties": {
           "results": {
             "type": "array",
@@ -7027,6 +7364,13 @@
           }
         },
         "required": ["results", "next_cursor", "has_more"],
+        "examples": [
+          {
+            "results": [],
+            "next_cursor": null,
+            "has_more": false
+          }
+        ],
         "additionalProperties": false
       }
     },
@@ -7034,7 +7378,8 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "JWT"
+        "bearerFormat": "JWT",
+        "description": "A bearer access token issued by the configured identity provider. Send it as `Authorization: Bearer <token>`."
       }
     },
     "parameters": {
@@ -7042,7 +7387,7 @@
         "name": "Idempotency-Key",
         "in": "header",
         "required": false,
-        "description": "A unique key that lets you retry a POST request without repeating the operation. Use a UUID v4 or another opaque string of up to 255 characters. Keys belong to the authenticated user across all POST endpoints. Avoid sensitive information in keys.\n\nRetries still require valid authentication, sufficient permissions, and compliance with rate limits. Reuse the key with the same URL path, query values, and JSON body to receive the original status and response, including errors other than `validation_error`. Preserve JSON field order, array order, repeated query value order, and value types. JSON whitespace and query parameter name order can change. A different request returns `idempotency_key_mismatch`. You can correct a request that returns `validation_error` and retry with the same key.\n\nKeys expire 24 hours after the first valid request, even if you retry. An unfinished request can return `idempotency_request_in_progress` until expiry. Verify its outcome before using a new key. Reusing an expired key can execute the operation again.",
+        "description": "Use a UUID v4 or opaque key (max 255 characters) for POST retries. Keys are scoped to the authenticated user across POST endpoints; do not include sensitive data.\n\nReuse the key with the same path, query values, and JSON body. Match JSON field/array order, repeated query-value order, and types; whitespace and query-parameter order may differ. Original status and response are replayed except for `validation_error`, which can be corrected and retried with the same key. Different requests return `idempotency_key_mismatch`.\n\nKeys expire 24 hours after the first valid request. In-progress retries may return `idempotency_request_in_progress`; verify the outcome before using another key. Expired keys may execute again. Retries require authentication, permissions, and rate limits.",
         "schema": {
           "type": "string",
           "minLength": 1,
