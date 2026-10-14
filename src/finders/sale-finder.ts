@@ -1,13 +1,21 @@
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { Sale } from "../contracts/sale.ts";
 import type { PaginationResponse } from "../contracts/pagination-response.ts";
 import type { SalePaginationRequest } from "../contracts/sale-pagination-query.ts";
+import { Sale } from "../contracts/sale.ts";
 import type { Database } from "../db/index.ts";
 import { tables } from "../db/schema.ts";
 
-type Criteria = { merchantId: string; id: string; employeeId?: string };
-type PaginationCriteria = SalePaginationRequest & { merchantId: string; employeeId?: string };
+type Criteria = {
+  merchantId: string;
+  id: string;
+  employeeId?: string;
+};
+
+type PaginationCriteria = SalePaginationRequest & {
+  merchantId: string;
+  employeeId?: string;
+};
 
 function locationAccessCondition(criteria: { merchantId: string; employeeId?: string }) {
   if (criteria.employeeId === undefined) return undefined;
@@ -40,7 +48,9 @@ class SaleFinder {
         ),
       )
       .limit(1);
-    if (!record) return null;
+    if (!record) {
+      return null;
+    }
 
     const lineItems = await db
       .select()
@@ -70,7 +80,6 @@ class SaleFinder {
         customer: tables.customer,
         createdBy: tables.employee,
         voidedBy,
-        // Keep microseconds for cursor comparisons; JavaScript Date truncates them.
         cursorTimestamp: sql<string>`date_format(${tables.sale.createdAt}, '%Y-%m-%dT%H:%i:%s.%fZ')`,
       })
       .from(tables.sale)

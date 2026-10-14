@@ -65,7 +65,6 @@ describe("RealtimeEventPublisher", () => {
     { size: 10 * 1024, keepsSnapshot: false },
   ])("sends a $size-byte event with keepsSnapshot=$keepsSnapshot", async ({ size, keepsSnapshot }) => {
     const { publisher, trigger, snapshot } = setup();
-    // Event IDs have a fixed length; this independent wire shape sizes a multibyte payload.
     const envelope = {
       id: "evt_" + "X".repeat(ID_LENGTH - 4),
       resource_id: snapshot.id,

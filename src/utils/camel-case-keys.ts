@@ -8,7 +8,6 @@ function isEmojiKey(input: string): boolean {
 }
 
 function customCamelCase(input: string): string {
-  // If the value is a solitary emoji string, return the key as-is
   if (isEmojiKey(input)) {
     return input;
   }

@@ -46,7 +46,6 @@ function timestampMicroseconds(value: string): Big {
 }
 
 function databaseTimestamp(value: string, rounding: typeof Big.roundUp | typeof Big.roundDown): string {
-  // Round to database precision without widening the inclusive range.
   const fraction = value.match(/\.(\d+)/)?.[1] ?? "0";
   const microseconds = new Big(`0.${fraction}`).times(1000000).round(0, rounding);
   const date = new Date(value);

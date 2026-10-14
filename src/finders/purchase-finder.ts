@@ -97,7 +97,6 @@ class PurchaseFinder {
         purchaseOrder: tables.purchaseOrder,
         supplier: tables.supplier,
         createdBy: tables.employee,
-        // Keep microseconds for cursor comparisons; JavaScript Date truncates them.
         cursorTimestamp: sql<string>`date_format(${tables.purchaseOrder.createdAt}, '%Y-%m-%dT%H:%i:%s.%fZ')`,
       })
       .from(tables.purchaseOrder)

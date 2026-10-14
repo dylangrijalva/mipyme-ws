@@ -43,7 +43,6 @@ async function setup() {
   const service = ProvisionAccountService.create({
     logger: pino({ enabled: false }),
     db,
-    // The external provider has private fields; only its public boundary is needed here.
     identity: identity as unknown as IdentityProvider,
     merchantFinder: new MerchantFinder(),
     claims: { sub: IDENTITY_ACCOUNT.id, email: "old.luffy@strawhatpirates.example.com" },
@@ -276,7 +275,6 @@ describe("ProvisionAccountService", () => {
 
   it("creates only one business when the same account is provisioned concurrently", async () => {
     const { db, identity, service } = await setup();
-    // Both requests must pass the initial lookup before either can insert a merchant.
     await db.execute(sql`
       CREATE TRIGGER wait_for_competing_provision BEFORE INSERT ON merchants
       FOR EACH ROW BEGIN

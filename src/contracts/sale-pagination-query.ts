@@ -36,7 +36,6 @@ const SalePaginationRequest = PaginationRequest.extend({
   )
   .transform(({ from, to, ...request }) => ({
     ...request,
-    // businessDate stores milliseconds, so round the lower bound upward to preserve inclusivity.
     ...(from ? { from: new Date(new Date(from).getTime() + (timestampMilliseconds(from).mod(1).eq(0) ? 0 : 1)) } : {}),
     ...(to ? { to: new Date(to) } : {}),
   }));

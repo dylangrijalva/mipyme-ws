@@ -7,8 +7,6 @@ import { toFacilitoError } from "../utils/to-facilito-error.ts";
 const defaultMessage = z.locales.en().localeError;
 
 function formatZodIssueMessage(issue: z.core.$ZodIssue): string {
-  // Schema-specific messages describe business requirements that generic wording cannot infer.
-  // Zod omits rejected input from public issues, so type messages need a prefix check.
   const isDefaultTypeMessage =
     issue.code === "invalid_type" && issue.message.startsWith(`Invalid input: expected ${issue.expected}, received `);
   if (!isDefaultTypeMessage && issue.message !== defaultMessage({ ...issue, input: undefined })) {

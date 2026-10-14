@@ -41,7 +41,6 @@ redis.call("EXPIRE", KEYS[1], ARGV[3])
 return {"claimed", ARGV[1], ""}
 `;
 
-// A late completion must not recreate an expired claim or overwrite its replacement.
 const COMPLETE_SCRIPT = `
 local claimBelongsToAnotherRequest = redis.call("HGET", KEYS[1], "owner") ~= ARGV[1]
 if claimBelongsToAnotherRequest then
@@ -57,7 +56,6 @@ return 1
 
 async function requestFingerprint(ctx: Context<FacilitoEnv>): Promise<string> {
   const url = new URL(ctx.req.url);
-  // Sorting by name preserves the order of repeated values for the same parameter.
   url.searchParams.sort();
   const requestBodyWasConsumed = ctx.req.raw.bodyUsed;
   const text = requestBodyWasConsumed ? null : await ctx.req.raw.clone().text();

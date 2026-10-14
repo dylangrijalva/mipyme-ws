@@ -60,7 +60,6 @@ async function setup() {
       voidReason: index === 1 ? "Nami corrected the order" : null,
     })),
   );
-  // This row differs only below millisecond precision and must remain reachable.
   await db.execute(
     sql`update ${tables.sale} set ${tables.sale.createdAt} = '2026-10-10 18:30:00.123455' where ${tables.sale.id} = ${ids[2]}`,
   );
