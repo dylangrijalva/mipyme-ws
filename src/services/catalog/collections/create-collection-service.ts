@@ -6,6 +6,7 @@ import type { CurrentUser } from "../../../contracts/current-user.ts";
 import type { Database } from "../../../db/index.ts";
 import { tables } from "../../../db/schema.ts";
 import type { CollectionFinder } from "../../../finders/collection-finder.ts";
+import type { RealtimeEventPublisher } from "../../../integrations/realtime-event-publisher.ts";
 import { generateId } from "../../../utils/generate-id.ts";
 import { err, ok, type Result } from "../../../utils/result.ts";
 import { slugify } from "../../../utils/slugify.ts";
@@ -22,6 +23,7 @@ const CollectionName = z
   }, "Provide a name that produces a nonempty slug of at most 128 characters.");
 
 type InjectedDependencies = {
+  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
   collectionFinder: CollectionFinder;
@@ -33,12 +35,20 @@ const CreateCollectionRequest = z.object({ name: CollectionName });
 type CreateCollectionRequest = z.infer<typeof CreateCollectionRequest>;
 
 class CreateCollectionService extends BaseService<CreateCollectionRequest, Collection> {
+  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
   private readonly collectionFinder: CollectionFinder;
   private readonly user: CurrentUser;
 
-  constructor(logger: Logger, db: Database, collectionFinder: CollectionFinder, user: CurrentUser) {
+  constructor(
+    logger: Logger,
+    db: Database,
+    collectionFinder: CollectionFinder,
+    user: CurrentUser,
+    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+  ) {
     super(logger);
+    this.publisher = publisher;
     this.db = db;
     this.collectionFinder = collectionFinder;
     this.user = user;
@@ -50,10 +60,23 @@ class CreateCollectionService extends BaseService<CreateCollectionRequest, Colle
       dependencies.db,
       dependencies.collectionFinder,
       dependencies.user,
+      dependencies.publisher,
     );
   }
 
   async execute(request: CreateCollectionRequest): Promise<Result<Collection, BusinessError>> {
+    const result = await this.createCollection(request);
+    if (result.success) {
+      this.publisher.broadcast({
+        merchantId: this.user.merchantId,
+        resource: { type: "collection", snapshot: result.value },
+      });
+    }
+
+    return result;
+  }
+
+  private async createCollection(request: CreateCollectionRequest): Promise<Result<Collection, BusinessError>> {
     const slug = slugify(request.name);
 
     if (await this.collectionFinder.exists(this.db, { merchantId: this.user.merchantId, slug })) {

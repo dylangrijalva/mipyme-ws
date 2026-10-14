@@ -10,6 +10,7 @@ import {
 } from "../../../src/services/catalog/collections/create-collection-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
+import { createBroadcastMock } from "../../test-utils/realtime-publisher-mock.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -20,7 +21,9 @@ async function setup() {
     { id: otherMerchantId, name: "Heart Pirates", country: "ni" },
   ]);
   const collectionFinder = new CollectionFinder();
+  const broadcast = createBroadcastMock();
   const service = CreateCollectionService.create({
+    publisher: { broadcast },
     db,
     collectionFinder,
     logger: pino({ enabled: false }),
@@ -32,12 +35,12 @@ async function setup() {
       merchantId,
     },
   });
-  return { db, merchantId, otherMerchantId, service, collectionFinder };
+  return { broadcast, db, merchantId, otherMerchantId, service, collectionFinder };
 }
 
 describe("CreateCollectionService", () => {
   it("persists a trimmed name and generated slug while allowing another merchant's name", async () => {
-    const { db, merchantId, otherMerchantId, service } = await setup();
+    const { broadcast, db, merchantId, otherMerchantId, service } = await setup();
     const foreignId = generateId({ model: "collection" });
     await db
       .insert(tables.collection)
@@ -45,6 +48,11 @@ describe("CreateCollectionService", () => {
     const before = await db.select().from(tables.collection).where(eq(tables.collection.id, foreignId));
 
     const result = await service.execute(CreateCollectionRequest.parse({ name: "  Water 7  " }));
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "collection", snapshot: result.value },
+    });
 
     expect(result.success).toBe(true);
     expect(result.value).toMatchObject({

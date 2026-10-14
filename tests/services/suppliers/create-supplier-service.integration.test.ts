@@ -6,6 +6,7 @@ import { SupplierFinder } from "../../../src/finders/supplier-finder.ts";
 import { CreateSupplierService } from "../../../src/services/suppliers/create-supplier-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
+import { createBroadcastMock } from "../../test-utils/realtime-publisher-mock.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -15,7 +16,9 @@ async function setup() {
     { id: merchantId, name: "Straw Hat Pirates" },
     { id: otherMerchantId, name: "Heart Pirates" },
   ]);
+  const broadcast = createBroadcastMock();
   const service = CreateSupplierService.create({
+    publisher: { broadcast },
     db,
     logger: pino({ enabled: false }),
     supplierFinder: new SupplierFinder(),
@@ -27,16 +30,21 @@ async function setup() {
       merchantId,
     },
   });
-  return { db, merchantId, otherMerchantId, service };
+  return { broadcast, db, merchantId, otherMerchantId, service };
 }
 
 describe("CreateSupplierService", () => {
   it.each([{ name: "Sanji" }, { name: "Sanji", email: "sanji@strawhatpirates.example.com", phone: "50512345678" }])(
     "persists supplier contacts and current merchant ownership: %j",
     async (request) => {
-      const { db, merchantId, service } = await setup();
+      const { broadcast, db, merchantId, service } = await setup();
 
       const result = await service.execute(request);
+
+      expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+        merchantId,
+        resource: { type: "supplier", snapshot: result.value },
+      });
 
       expect(result.success).toBe(true);
       const [stored] = await db.select().from(tables.supplier);

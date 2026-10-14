@@ -6,6 +6,7 @@ import type { Customer } from "../../contracts/customer.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
 import type { CustomerFinder } from "../../finders/customer-finder.ts";
+import type { RealtimeEventPublisher } from "../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../utils/assert-found.ts";
 import { generateId } from "../../utils/generate-id.ts";
 import { ok, type Result } from "../../utils/result.ts";
@@ -20,6 +21,7 @@ const CreateCustomerRequest = z.object({
 type CreateCustomerRequest = z.infer<typeof CreateCustomerRequest>;
 
 type InjectedDependencies = {
+  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
   customerFinder: CustomerFinder;
@@ -27,22 +29,42 @@ type InjectedDependencies = {
 };
 
 class CreateCustomerService extends BaseService<CreateCustomerRequest, Customer> {
+  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
   private readonly customerFinder: CustomerFinder;
   private readonly user: CurrentUser;
 
-  constructor(logger: Logger, db: Database, customerFinder: CustomerFinder, user: CurrentUser) {
+  constructor(
+    logger: Logger,
+    db: Database,
+    customerFinder: CustomerFinder,
+    user: CurrentUser,
+    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+  ) {
     super(logger);
+    this.publisher = publisher;
     this.db = db;
     this.customerFinder = customerFinder;
     this.user = user;
   }
 
   static create(deps: InjectedDependencies): CreateCustomerService {
-    return new CreateCustomerService(deps.logger, deps.db, deps.customerFinder, deps.user);
+    return new CreateCustomerService(deps.logger, deps.db, deps.customerFinder, deps.user, deps.publisher);
   }
 
   async execute(request: CreateCustomerRequest): Promise<Result<Customer, BusinessError>> {
+    const result = await this.createCustomer(request);
+    if (result.success) {
+      this.publisher.broadcast({
+        merchantId: this.user.merchantId,
+        resource: { type: "customer", snapshot: result.value },
+      });
+    }
+
+    return result;
+  }
+
+  private async createCustomer(request: CreateCustomerRequest): Promise<Result<Customer, BusinessError>> {
     const id = generateId({ model: "customer" });
 
     await this.db.insert(tables.customer).values({

@@ -10,6 +10,7 @@ import {
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { ok } from "../../../src/utils/result.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
+import { createBroadcastMock } from "../../test-utils/realtime-publisher-mock.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -19,7 +20,9 @@ async function setup() {
     { id: merchantId, name: "Straw Hat Pirates", country: "ni" },
     { id: otherMerchantId, name: "Heart Pirates", country: "ni" },
   ]);
+  const broadcast = createBroadcastMock();
   const service = CreateCustomerService.create({
+    publisher: { broadcast },
     db,
     customerFinder: new CustomerFinder(),
     logger: pino({ enabled: false }),
@@ -31,12 +34,12 @@ async function setup() {
       merchantId,
     },
   });
-  return { db, service, merchantId, otherMerchantId };
+  return { broadcast, db, service, merchantId, otherMerchantId };
 }
 
 describe("CreateCustomerService", () => {
   it("persists trimmed contact information for the current merchant and returns the public customer", async () => {
-    const { db, service, merchantId, otherMerchantId } = await setup();
+    const { broadcast, db, service, merchantId, otherMerchantId } = await setup();
     const otherId = generateId({ model: "customer" });
     await db.insert(tables.customer).values({ id: otherId, merchantId: otherMerchantId, name: "Trafalgar Law" });
     const [otherBefore] = await db.select().from(tables.customer).where(eq(tables.customer.id, otherId));
@@ -47,6 +50,11 @@ describe("CreateCustomerService", () => {
     });
 
     const result = await service.execute(request);
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "customer", snapshot: result.value },
+    });
 
     expect(result).toEqual(
       ok({

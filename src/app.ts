@@ -15,6 +15,7 @@ import type { SupplierFinder } from "./finders/supplier-finder.ts";
 import { devGuard } from "./guards/dev-guard.ts";
 import type { EnvVars } from "./infra/config.env.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
+import type { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
 import { authorize } from "./middlewares/authorize.ts";
 import {
   createAuthScopedKey,
@@ -34,6 +35,8 @@ import { collectionsRouter } from "./routes/collections.router.ts";
 import { customersRouter } from "./routes/customers.router.ts";
 import { onboardingRouter } from "./routes/onboarding.router.ts";
 import { productsRouter } from "./routes/products.router.ts";
+import { purchasesRouter } from "./routes/purchases.router.ts";
+import { realtimeRouter } from "./routes/realtime.router.ts";
 import { salesRouter } from "./routes/sales.router.ts";
 import { suppliersRouter } from "./routes/suppliers.router.ts";
 import { FacilitoHono } from "./types.ts";
@@ -44,6 +47,7 @@ type InjectedDependencies = {
   db: Database;
   cache: Redis;
   identity: IdentityProvider;
+  publisher: RealtimeEventPublisher;
   merchantFinder: MerchantFinder;
   collectionFinder: CollectionFinder;
   customerFinder: CustomerFinder;
@@ -74,6 +78,8 @@ function createApp(dependencies: InjectedDependencies): FacilitoHono {
   app.route("/v1/customers", customersRouter());
   app.route("/v1/suppliers", suppliersRouter());
   app.route("/v1/sales", salesRouter());
+  app.route("/v1/purchases", purchasesRouter());
+  app.route("/v1/realtime", realtimeRouter());
 
   app.get("/_health", rateLimiter({ key: createPublicScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), async (ctx) => {
     const { db, cache } = ctx.var;

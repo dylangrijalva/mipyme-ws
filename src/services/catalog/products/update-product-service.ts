@@ -11,6 +11,7 @@ import type { Database } from "../../../db/index.ts";
 import { tables } from "../../../db/schema.ts";
 import type { CollectionFinder } from "../../../finders/collection-finder.ts";
 import type { ProductFinder } from "../../../finders/product-finder.ts";
+import type { RealtimeEventPublisher } from "../../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../../utils/assert-found.ts";
 import { isPositive, lessThan, subtract } from "../../../utils/decimal.ts";
 import { generateId } from "../../../utils/generate-id.ts";
@@ -36,6 +37,7 @@ const UpdateProductRequest = z.object({
 type UpdateProductRequest = z.infer<typeof UpdateProductRequest>;
 
 type InjectedDependencies = {
+  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
   collectionFinder: CollectionFinder;
@@ -44,6 +46,7 @@ type InjectedDependencies = {
 };
 
 class UpdateProductService extends BaseService<[string, UpdateProductRequest], Product> {
+  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
   private readonly user: CurrentUser;
   private readonly collectionFinder: CollectionFinder;
@@ -55,8 +58,10 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
     collectionFinder: CollectionFinder,
     productFinder: ProductFinder,
     user: CurrentUser,
+    publisher: Pick<RealtimeEventPublisher, "broadcast">,
   ) {
     super(logger);
+    this.publisher = publisher;
     this.db = db;
     this.user = user;
     this.collectionFinder = collectionFinder;
@@ -64,7 +69,14 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
   }
 
   static create(deps: InjectedDependencies): UpdateProductService {
-    return new UpdateProductService(deps.logger, deps.db, deps.collectionFinder, deps.productFinder, deps.user);
+    return new UpdateProductService(
+      deps.logger,
+      deps.db,
+      deps.collectionFinder,
+      deps.productFinder,
+      deps.user,
+      deps.publisher,
+    );
   }
 
   async execute([id, request]: [string, UpdateProductRequest]): Promise<Result<Product, BusinessError>> {
@@ -77,7 +89,17 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
       });
     }
 
-    return product.productType === "item" ? this.updateItem(product, request) : this.updateService(product, request);
+    const result = await (product.productType === "item"
+      ? this.updateItem(product, request)
+      : this.updateService(product, request));
+    if (result.success) {
+      this.publisher.broadcast({
+        merchantId: this.user.merchantId,
+        resource: { type: "product", snapshot: result.value },
+      });
+    }
+
+    return result;
   }
 
   private async updateService(

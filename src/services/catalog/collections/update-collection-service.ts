@@ -7,12 +7,14 @@ import type { CurrentUser } from "../../../contracts/current-user.ts";
 import type { Database } from "../../../db/index.ts";
 import { tables } from "../../../db/schema.ts";
 import type { CollectionFinder } from "../../../finders/collection-finder.ts";
+import type { RealtimeEventPublisher } from "../../../integrations/realtime-event-publisher.ts";
 import { hasDefinedValues } from "../../../utils/has-defined-values.ts";
 import { err, ok, type Result } from "../../../utils/result.ts";
 import { slugify } from "../../../utils/slugify.ts";
 import { BaseService } from "../../base-service.ts";
 
 type InjectedDependencies = {
+  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
   collectionFinder: CollectionFinder;
@@ -35,12 +37,20 @@ const UpdateCollectionRequest = z.object({
 type UpdateCollectionRequest = z.infer<typeof UpdateCollectionRequest>;
 
 class UpdateCollectionService extends BaseService<[string, UpdateCollectionRequest], Collection> {
+  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
   private readonly collectionFinder: CollectionFinder;
   private readonly user: CurrentUser;
 
-  constructor(logger: Logger, db: Database, collectionFinder: CollectionFinder, user: CurrentUser) {
+  constructor(
+    logger: Logger,
+    db: Database,
+    collectionFinder: CollectionFinder,
+    user: CurrentUser,
+    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+  ) {
     super(logger);
+    this.publisher = publisher;
     this.db = db;
     this.collectionFinder = collectionFinder;
     this.user = user;
@@ -52,10 +62,25 @@ class UpdateCollectionService extends BaseService<[string, UpdateCollectionReque
       dependencies.db,
       dependencies.collectionFinder,
       dependencies.user,
+      dependencies.publisher,
     );
   }
 
   async execute([id, request]: [string, UpdateCollectionRequest]): Promise<Result<Collection, BusinessError>> {
+    const result = await this.updateCollection([id, request]);
+    if (result.success) {
+      this.publisher.broadcast({
+        merchantId: this.user.merchantId,
+        resource: { type: "collection", snapshot: result.value },
+      });
+    }
+
+    return result;
+  }
+
+  private async updateCollection([id, request]: [string, UpdateCollectionRequest]): Promise<
+    Result<Collection, BusinessError>
+  > {
     const collection = await this.collectionFinder.find(this.db, { id, merchantId: this.user.merchantId });
 
     if (!collection) {

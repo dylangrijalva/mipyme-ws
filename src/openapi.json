@@ -3,9 +3,10 @@
   "info": {
     "title": "Facilito API",
     "version": "1.0.0",
-    "description": "The Facilito API lets you manage your business catalog, customers, staff, locations, inventory, and sales. It is organized around REST, accepts JSON request bodies, and returns JSON responses with standard HTTP methods and status codes.\n\nSend a bearer access token in the Authorization header with each request. Your authenticated account identifies the merchant whose data you can access and the permissions available to you."
+    "description": "The Facilito API lets you manage your business catalog, customers, staff, locations, inventory, and sales. It is organized around REST, accepts JSON request bodies, and returns JSON responses with standard HTTP methods and status codes.\n\nSend a bearer access token in the Authorization header with each request. Your authenticated account identifies the merchant whose data you can access and the permissions available to you.\n\nList operations return one page at a time. Omit `cursor` for the first page, then pass the response's `next_cursor` as `cursor` while `has_more` is true. Keep any filters unchanged between pages.\n\nError responses include a stable `code`, a human-readable `message`, and a `request_id`. Use `code` for error handling and retain `request_id` when investigating a failed request. POST operations accept an optional `Idempotency-Key` header for safe retries. See the header description for retry requirements and expiry."
   },
   "tags": [
+    { "name": "Realtime", "description": "Authorize private realtime subscriptions for your merchant." },
     {
       "name": "Authentication",
       "description": "Inspect the identity claims associated with the authenticated account."
@@ -32,9 +33,95 @@
     },
     {
       "name": "Sales"
+    },
+    {
+      "name": "Purchases"
     }
   ],
   "paths": {
+    "/v1/realtime/subscriptions": {
+      "post": {
+        "tags": ["Realtime"],
+        "operationId": "authorizeRealtimeChannel",
+        "summary": "Authorize a realtime subscription",
+        "description": "Signs a Pusher subscription to private-{merchantId} for the authenticated account. The merchant and enabled owner or staff membership are resolved from the database. Only an exact match with the current merchant channel is allowed. Send socket_id and channel_name as form fields. The response can be passed directly to Pusher.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorizeRealtimeChannelRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorizeRealtimeChannelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The subscription signature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeChannelAuthorization"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The socket ID or channel name is missing or invalid. Returns validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid bearer access token is required. Returns invalid_oauth_token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account is not provisioned, employee access is disabled, or the channel does not match the current merchant. Returns account_not_provisioned or forbidden_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented authorization. Returns internal_server_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "tags": ["Authentication"],
@@ -170,7 +257,7 @@
         "tags": ["Products"],
         "operationId": "listProducts",
         "summary": "List products",
-        "description": "Returns one page of products in the catalog of the merchant associated with the authenticated account's membership. Use `next_cursor` to retrieve the next page.",
+        "description": "Returns a page of products belonging to your merchant. Pass `next_cursor` as `cursor` to retrieve the next page.",
         "security": [
           {
             "bearerAuth": []
@@ -257,7 +344,7 @@
         "tags": ["Products"],
         "operationId": "createProduct",
         "summary": "Create a product",
-        "description": "Creates a draft item or an active service with one default variant, included in the response. Items require unit_cost greater than zero, and item price must be equal to or greater than unit_cost. Items start with zero stock at every merchant location. Services have no inventory records and store unit_cost as \"0.00\" and SKU and barcode as null, ignoring supplied values after request validation. Optional images are stored as external HTTP or HTTPS URLs. Names may repeat; slugs are unique within the merchant. SKU and barcode values remain reserved by archived products. All records are saved in one transaction. Requires an enabled owner or staff membership, resolved from the database using the authenticated account. Token membership metadata does not determine access.",
+        "description": "Creates a product with one default variant. Items start as drafts with zero stock at each location. Services start as active and do not track inventory.\n\nRequires an enabled owner or staff account. See the request fields for pricing, identifiers, and collection requirements.",
         "security": [
           {
             "bearerAuth": []
@@ -316,7 +403,7 @@
             }
           },
           "404": {
-            "description": "The collection does not exist or does not belong to the current merchant. Returns resource_not_found with message `Collection {collectionId} has not been found.`.",
+            "description": "The collection does not exist or does not belong to your merchant. Returns `resource_not_found`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -336,7 +423,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented creation. All product records are rolled back. Returns internal_server_error.",
+            "description": "An unexpected error prevented the product from being created. Returns `internal_server_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -361,7 +448,7 @@
         "tags": ["Products"],
         "operationId": "getProduct",
         "summary": "Get a product",
-        "description": "Returns a product belonging to the merchant associated with the authenticated account's membership.",
+        "description": "Returns a product belonging to your merchant.",
         "security": [
           {
             "bearerAuth": []
@@ -553,7 +640,7 @@
         "tags": ["Collections"],
         "operationId": "listCollections",
         "summary": "List collections",
-        "description": "Returns one page of collections belonging to the authenticated merchant. Use `next_cursor` to retrieve the next page.",
+        "description": "Returns a page of collections belonging to your merchant. Pass `next_cursor` as `cursor` to retrieve the next page.",
         "security": [
           {
             "bearerAuth": []
@@ -709,7 +796,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented creation. Returns `internal_server_error`. Database errors, including concurrent uniqueness violations, return this response.",
+            "description": "An unexpected error prevented the collection from being created. Returns `internal_server_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -909,7 +996,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the collection from being updated. Returns `internal_server_error`. Database errors, including concurrent uniqueness violations, return this response.",
+            "description": "An unexpected error prevented the collection from being updated. Returns `internal_server_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -926,7 +1013,7 @@
         "tags": ["Suppliers"],
         "operationId": "listSuppliers",
         "summary": "List suppliers",
-        "description": "Returns one page of suppliers belonging to the authenticated merchant. Use `next_cursor` to retrieve the next page.",
+        "description": "Returns a page of suppliers belonging to your merchant. Pass `next_cursor` as `cursor` to retrieve the next page.",
         "security": [
           {
             "bearerAuth": []
@@ -1282,7 +1369,7 @@
         "tags": ["Customers"],
         "operationId": "listCustomers",
         "summary": "List customers",
-        "description": "Returns one page of customers belonging to the authenticated merchant. Use `next_cursor` to retrieve the next page.",
+        "description": "Returns a page of customers belonging to your merchant. Pass `next_cursor` as `cursor` to retrieve the next page.",
         "security": [
           {
             "bearerAuth": []
@@ -1633,12 +1720,240 @@
         }
       }
     },
+    "/v1/purchases": {
+      "get": {
+        "tags": ["Purchases"],
+        "operationId": "listPurchases",
+        "summary": "List purchases",
+        "description": "Returns a page of purchases with line items, newest first by `created_at`, then by `id`. Includes all statuses unless you supply a status filter. Pass `next_cursor` as `cursor` with the same filters to retrieve the next page.\n\nEnabled owners can read all purchases for their merchant. Enabled staff need `view_transactions` permission and can read purchases only at their assigned locations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "The maximum number of purchases to return. Defaults to 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The `next_cursor` value returned by the previous page.",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "location_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter by location id. Unknown or inaccessible IDs return an empty page.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          },
+          {
+            "name": "supplier_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter by supplier id. Unknown or inaccessible IDs return an empty page.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["fulfilled", "voided"]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "Inclusive lower bound on created_at. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "Inclusive upper bound on created_at. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns a page of purchases and pagination information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchasePaginationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filters, limit, cursor, timestamps, or reversed date range. Returns validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership is not provisioned, employee access is not enabled, or staff lack view_transactions permission. Returns account_not_provisioned or forbidden_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the purchases from being listed. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/purchases/{id}": {
+      "get": {
+        "tags": ["Purchases"],
+        "operationId": "getPurchase",
+        "summary": "Get a purchase",
+        "description": "Returns a purchase with its supplier, creator, line item snapshots, notes, status, and timestamps.\n\nEnabled owners can read all purchases for their merchant. Enabled staff need `view_transactions` permission and can read purchases only at their assigned locations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The purchase identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns the purchase.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Purchase"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership is not provisioned, employee access is not enabled, or staff lack view_transactions permission. Returns account_not_provisioned or forbidden_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The purchase is missing, belongs to another merchant, or is at a location the staff member cannot access. Returns resource_not_found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the purchase from being retrieved. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sales": {
       "post": {
         "tags": ["Sales"],
         "operationId": "createSale",
         "summary": "Record a completed checkout",
-        "description": "Records the sale, lines, payments and location transaction number atomically. Sale IDs are generated by the server. Fulfilled physical lines deduct inventory and record movements at server time; services skip inventory. Any stock shortage defers all inventory operations for the whole sale, preserving current stock and recording only deficits on the lines. Web shortages are rejected when allowBackorders is false; Android and iOS always record these as pending. Missing inventory counts as zero. Requires enabled membership; staff also need checkout permission and location access. Staff price reductions and explicit discounts require apply_discounts, and each line’s compounded discount must stay within maxDiscountRate. Owners bypass the cap, but final prices must never be below unit cost. Tax is ignored. Discounted line totals and converted dollar payments round to cents, half up, before summing. Payments must exactly match the sale total. The location exchange rate is copied to dollar payments; a zero rate contributes zero to the paid total. Pending-sale reconciliation is handled separately.",
+        "description": "Creates a sale at a location and returns its line items, payments, and transaction number.\n\nA fulfilled sale deducts stock for physical items. If any item has insufficient stock, the entire sale remains pending and no stock is deducted. Untracked stock counts as zero. Web sales require the location to allow backorders to accept a shortage. Android and iOS sales accept shortages as pending sales. Services do not affect stock.\n\nRequires an enabled owner or staff account. Staff need `checkout` permission and access to the location. Reducing a line price or applying a discount also requires `apply_discounts` permission. The combined discount on each line must stay within the employee's `maxDiscountRate`. Owners are exempt from this cap. Final prices must not fall below unit cost.\n\nPayments must exactly match the sale total. Tax is not applied. Discounted line totals and US-dollar payments converted at the location exchange rate are rounded to the nearest cent, with half cents rounded up, before summing. An exchange rate of zero gives US-dollar payments a local-currency value of zero.",
         "security": [
           {
             "bearerAuth": []
@@ -1717,7 +2032,7 @@
             }
           },
           "500": {
-            "description": "Unexpected persistence error. All transaction effects are rolled back.",
+            "description": "An unexpected error prevented the sale from being created. No sale or stock changes are applied.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1740,7 +2055,7 @@
         "tags": ["Sales"],
         "operationId": "listSales",
         "summary": "List sales",
-        "description": "Returns full sales, including line items and payments, ordered by created_at descending and then id descending. All statuses are included unless filtered. Pass next_cursor as cursor with the same filters to continue. Enabled owners can read all sales for their merchant. Enabled staff need view_transactions permission and may read only assigned locations.",
+        "description": "Returns a page of sales with line items and payments, newest first by `created_at`, then by `id`. Includes all statuses unless you supply a status filter. Pass `next_cursor` as `cursor` with the same filters to retrieve the next page.\n\nEnabled owners can read all sales for their merchant. Enabled staff need `view_transactions` permission and can read sales only at their assigned locations.",
         "security": [
           {
             "bearerAuth": []
@@ -1877,7 +2192,7 @@
         "tags": ["Sales"],
         "operationId": "voidSale",
         "summary": "Void a fulfilled sale",
-        "description": "Voids a fulfilled sale atomically, restores its physical quantities to the original location, and records inverse inventory movements linked to the sale. A void is rejected when any physical product has been restocked since the sale was created. Original payments remain as sale history; no refund is issued. Enabled owners may void sales. Enabled staff need void_sales permission and access to the sale's location. Repeated requests return the original void metadata without restoring stock again.",
+        "description": "Voids a fulfilled sale and restores its physical item quantities at the original location. You cannot void a sale if any physical product was restocked at or after the sale was created. Original payments remain in the sale history. Voiding does not issue a refund.\n\nEnabled owners can void sales. Enabled staff need `void_sales` permission and access to the sale's location. Repeating the request returns the original void details without restoring stock again.",
         "security": [
           {
             "bearerAuth": []
@@ -1971,7 +2286,7 @@
             }
           },
           "500": {
-            "description": "Unexpected persistence error. All void effects are rolled back.",
+            "description": "An unexpected error prevented the sale from being voided. The sale and stock remain unchanged.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1991,7 +2306,7 @@
         "tags": ["Sales"],
         "operationId": "getSale",
         "summary": "Get a sale",
-        "description": "Returns the full sale, including line items, payments, customer, creator, and void metadata. Enabled owners can read all sales for their merchant. Enabled staff need view_transactions permission and may read only assigned locations.",
+        "description": "Returns a sale with its line items, payments, customer, creator, and void details.\n\nEnabled owners can read all sales for their merchant. Enabled staff need `view_transactions` permission and can read sales only at their assigned locations.",
         "security": [
           {
             "bearerAuth": []
@@ -2074,6 +2389,15 @@
       }
     }
   },
+  "x-realtime-events": {
+    "facilito.changes": {
+      "channel": "private-{merchantId}",
+      "schema": {
+        "$ref": "#/components/schemas/RealtimeChangeEvent"
+      },
+      "description": "Published in staging and production after collection, customer, supplier, or product creation/update, purchase creation, sale creation, and sale voiding. Successful updates publish even when values are unchanged. Only the primary resource is published; publishing does not delay or fail the HTTP response."
+    }
+  },
   "components": {
     "responses": {
       "RateLimitExceeded": {
@@ -2103,7 +2427,7 @@
         }
       },
       "IdempotencyConflict": {
-        "description": "The key belongs to a different request (idempotency_key_mismatch), or the matching request is unfinished (idempotency_request_in_progress). No operation is executed. An unfinished request may have completed its effects without saving its response; check its result before starting a new operation.",
+        "description": "The key was used for a different request, returning `idempotency_key_mismatch`, or the original request has not returned a repeatable response, returning `idempotency_request_in_progress`. This retry does not execute the operation. Check whether the original operation succeeded before submitting a new request with a different key.",
         "content": {
           "application/json": {
             "schema": {
@@ -2113,7 +2437,7 @@
         }
       },
       "IdempotencyUnavailable": {
-        "description": "Idempotency lookup or claim is unavailable, or the stored record is invalid. The operation is not executed. Retry with the same key. Redis failures in the preceding rate limiter reach the generic error handler and return 500. If saving a response fails after execution, the operation response is returned and the surviving claim stays blocked until expiry.",
+        "description": "Idempotent requests are temporarily unavailable. This request does not execute the operation. Retry with the same key.",
         "content": {
           "application/json": {
             "schema": {
@@ -2124,6 +2448,219 @@
       }
     },
     "schemas": {
+      "AuthorizeRealtimeChannelRequest": {
+        "type": "object",
+        "required": ["socket_id", "channel_name"],
+        "properties": {
+          "socket_id": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+$",
+            "description": "The socket ID returned by Pusher.",
+            "examples": ["123.456"]
+          },
+          "channel_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exactly private-{merchantId} for the current merchant.",
+            "examples": ["private-merch_STRAWHATPIRATES0000"]
+          }
+        }
+      },
+      "RealtimeChannelAuthorization": {
+        "type": "object",
+        "required": ["auth"],
+        "properties": {
+          "auth": {
+            "type": "string",
+            "pattern": "^.+:[a-f0-9]{64}$",
+            "description": "Pusher application key followed by the HMAC-SHA256 subscription signature."
+          }
+        }
+      },
+      "RealtimeChangeEvent": {
+        "description": "The facilito.changes event on private-{merchantId}. Emitted after a successful mutation of the primary resource. Delivery is best effort and unordered. Snapshots use the public API representation with snake_case keys. A serialized event of 10240 bytes or more has a null snapshot; resource_id is always included.",
+        "type": "object",
+        "required": ["id", "type", "resource_id", "snapshot"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique event identifier."
+          },
+          "resource_id": {
+            "type": "string",
+            "description": "Identifier of the resource that changed, including when snapshot is null."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "collection",
+              "customer",
+              "employee",
+              "merchant",
+              "sale",
+              "product",
+              "purchase_order",
+              "location",
+              "supplier"
+            ]
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "type": {
+                "const": "collection"
+              },
+              "snapshot": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Collection"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "type": {
+                "const": "customer"
+              },
+              "snapshot": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Customer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "type": {
+                "const": "employee"
+              },
+              "snapshot": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Employee"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "type": {
+                "const": "merchant"
+              },
+              "snapshot": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Merchant"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "type": {
+                "const": "sale"
+              },
+              "snapshot": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Sale"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "type": {
+                "const": "product"
+              },
+              "snapshot": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Product"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "type": {
+                "const": "purchase_order"
+              },
+              "snapshot": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PurchaseOrder"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "type": {
+                "const": "location"
+              },
+              "snapshot": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Location"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "type": {
+                "const": "supplier"
+              },
+              "snapshot": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Supplier"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
       "AccountType": {
         "description": "The role of an account within Facilito. Identifies a merchant owner, a staff member, or an internal account.",
         "examples": ["staff"],
@@ -2134,7 +2671,7 @@
         "type": "object",
         "properties": {
           "code": {
-            "description": "A stable code that identifies the failure. Use this value for programmatic error handling. Account lookup and updates report resource_not_found for missing accounts, validation_error for invalid account update payloads, rate_limit_exceeded for identity provider throttling, and conflict_error for conflicting account updates. Identity provider authentication and service failures report internal_server_error.",
+            "description": "A stable code that identifies the failure. Use this value for programmatic error handling. See the operation responses for possible errors.",
             "examples": ["stock_insufficient"],
             "type": "string",
             "enum": [
@@ -2207,7 +2744,7 @@
         },
         "required": ["code", "message", "details"],
         "additionalProperties": false,
-        "description": "A failure caused by a business rule or an unsuccessful operation. Use `code` to identify the failure and `details` to inspect individual issues. The `FacilitoError` contract adds request and HTTP status information.",
+        "description": "An error with a stable `code`, a human-readable `message`, and individual issues in `details`. API error responses also include HTTP status and request information in `FacilitoError`.",
         "examples": [
           {
             "code": "stock_insufficient",
@@ -2257,7 +2794,7 @@
           },
           "name": {
             "type": "string",
-            "description": "The display name of the identity-provider account.",
+            "description": "The display name of the account.",
             "examples": ["Nami"]
           },
           "email": {
@@ -2271,7 +2808,7 @@
                 "type": "null"
               }
             ],
-            "description": "The email address of the identity-provider account. Returns `null` if none is recorded.",
+            "description": "The email address of the account. Returns `null` if none is recorded.",
             "examples": ["nami@strawhatpirates.example.com"]
           },
           "pictureUrl": {
@@ -2286,12 +2823,12 @@
               "merchantId": {
                 "type": "string",
                 "description": "Merchant identifier.",
-                "examples": ["merch_000000000000000001"]
+                "examples": ["merch_40KUNF3IWJGFJGPSHC"]
               },
               "employeeId": {
                 "type": "string",
                 "description": "Employee profile identifier.",
-                "examples": ["empl_0000000000000000001"]
+                "examples": ["empl_YJHP5ULEG3QP1M786T3"]
               },
               "type": {
                 "$ref": "#/components/schemas/AccountType",
@@ -2300,11 +2837,11 @@
               }
             },
             "additionalProperties": false,
-            "description": "The merchant, employee, and account-role information attached to the identity-provider account. Each metadata field is optional.",
+            "description": "The merchant, employee, and account-role information associated with the account. Each field is optional.",
             "examples": [
               {
-                "merchantId": "merch_000000000000000001",
-                "employeeId": "empl_0000000000000000001",
+                "merchantId": "merch_40KUNF3IWJGFJGPSHC",
+                "employeeId": "empl_YJHP5ULEG3QP1M786T3",
                 "type": "staff"
               }
             ]
@@ -2312,7 +2849,7 @@
         },
         "required": ["id", "name", "email", "pictureUrl", "publicMetadata"],
         "additionalProperties": false,
-        "description": "An account managed by the identity provider. Contains the account profile and public metadata that links the account to a Facilito merchant and employee.",
+        "description": "A sign-in account with its profile and optional merchant, employee, and account-role metadata.",
         "examples": [
           {
             "id": "user_nami_example",
@@ -2320,8 +2857,8 @@
             "email": "nami@strawhatpirates.example.com",
             "pictureUrl": "https://strawhatpirates.example.com/avatars/nami.jpg",
             "publicMetadata": {
-              "merchantId": "merch_000000000000000001",
-              "employeeId": "empl_0000000000000000001",
+              "merchantId": "merch_40KUNF3IWJGFJGPSHC",
+              "employeeId": "empl_YJHP5ULEG3QP1M786T3",
               "type": "staff"
             }
           }
@@ -2333,7 +2870,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the collection.",
-            "examples": ["coll_0000000000000000001"]
+            "examples": ["coll_3ETRA4BRB16795R74T1"]
           },
           "name": {
             "type": "string",
@@ -2365,7 +2902,7 @@
         "description": "A group of related products in a merchant catalog. Use collections to organize products into categories, such as provisions or clothing. A product includes the identifier and name of its associated collection.",
         "examples": [
           {
-            "id": "coll_0000000000000000001",
+            "id": "coll_3ETRA4BRB16795R74T1",
             "name": "East Blue Provisions",
             "slug": "east-blue-provisions",
             "created_at": "2026-09-23T09:00:00.000Z",
@@ -2437,7 +2974,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the authenticated account.",
-            "examples": ["account_0000000000000001"]
+            "examples": ["account_RJ9LZ5VTZ4W6P9RR"]
           },
           "email": {
             "type": "string",
@@ -2447,12 +2984,12 @@
           "merchantId": {
             "type": "string",
             "description": "The identifier of the merchant associated with the authenticated account.",
-            "examples": ["merch_000000000000000001"]
+            "examples": ["merch_40KUNF3IWJGFJGPSHC"]
           },
           "employeeId": {
             "type": "string",
             "description": "The identifier of the employee profile associated with the authenticated account.",
-            "examples": ["empl_0000000000000000001"]
+            "examples": ["empl_YJHP5ULEG3QP1M786T3"]
           },
           "accountType": {
             "$ref": "#/components/schemas/AccountType",
@@ -2465,10 +3002,10 @@
         "description": "The authenticated account and its business context. Links the account to a merchant and an employee profile, and identifies its account role.",
         "examples": [
           {
-            "id": "account_0000000000000001",
+            "id": "account_RJ9LZ5VTZ4W6P9RR",
             "email": "nami@strawhatpirates.example.com",
-            "merchantId": "merch_000000000000000001",
-            "employeeId": "empl_0000000000000000001",
+            "merchantId": "merch_40KUNF3IWJGFJGPSHC",
+            "employeeId": "empl_YJHP5ULEG3QP1M786T3",
             "accountType": "staff"
           }
         ]
@@ -2479,7 +3016,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the customer.",
-            "examples": ["cust_0000000000000000001"]
+            "examples": ["cust_MJZA01GLEB9SDPU8YQ6"]
           },
           "name": {
             "type": "string",
@@ -2514,10 +3051,10 @@
         },
         "required": ["id", "name", "email", "phone", "created_at", "updated_at"],
         "additionalProperties": false,
-        "description": "A person or business that purchases from a merchant. Stores the customer name and contact details. Sales can reference the customer to identify who made a purchase.",
+        "description": "A person or business that purchases from a merchant. Contains the customer name and contact details. Associate a customer with a sale to identify who made a purchase.",
         "examples": [
           {
-            "id": "cust_0000000000000000001",
+            "id": "cust_MJZA01GLEB9SDPU8YQ6",
             "name": "Trafalgar Law",
             "email": "law@heartpirates.example.com",
             "phone": null,
@@ -2529,7 +3066,7 @@
       "Decimal": {
         "type": "string",
         "pattern": "^\\d+(\\.\\d{1,2})?$",
-        "description": "A non-negative decimal value represented as a string, with up to two fractional digits. Used for amounts and rates without relying on binary floating-point representation. Zero is allowed.",
+        "description": "A nonnegative decimal string with up to two fractional digits. Zero is allowed.",
         "examples": ["125.50"]
       },
       "PositiveDecimal": {
@@ -2550,7 +3087,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the employee.",
-            "examples": ["empl_0000000000000000001"]
+            "examples": ["empl_YJHP5ULEG3QP1M786T3"]
           },
           "name": {
             "type": "string",
@@ -2587,7 +3124,7 @@
                   "id": {
                     "type": "string",
                     "description": "The identifier of the linked account.",
-                    "examples": ["account_0000000000000001"]
+                    "examples": ["account_RJ9LZ5VTZ4W6P9RR"]
                   },
                   "email": {
                     "type": "string",
@@ -2599,7 +3136,7 @@
                 "additionalProperties": false,
                 "examples": [
                   {
-                    "id": "account_0000000000000001",
+                    "id": "account_RJ9LZ5VTZ4W6P9RR",
                     "email": "nami@strawhatpirates.example.com"
                   }
                 ]
@@ -2611,7 +3148,7 @@
             "description": "The sign-in account linked to the employee. Returns `null` if no account is linked.",
             "examples": [
               {
-                "id": "account_0000000000000001",
+                "id": "account_RJ9LZ5VTZ4W6P9RR",
                 "email": "nami@strawhatpirates.example.com"
               }
             ]
@@ -2650,13 +3187,13 @@
         "description": "A staff member associated with a merchant. Describes their ownership status, point-of-sale access, permissions, and linked sign-in account. Sales, purchase orders, and stock records reference employees to identify who recorded an operation.",
         "examples": [
           {
-            "id": "empl_0000000000000000001",
+            "id": "empl_YJHP5ULEG3QP1M786T3",
             "name": "Nami",
             "isOwner": false,
             "posAccessStatus": "enabled",
             "permissions": ["checkout", "manage_inventory"],
             "account": {
-              "id": "account_0000000000000001",
+              "id": "account_RJ9LZ5VTZ4W6P9RR",
               "email": "nami@strawhatpirates.example.com"
             },
             "createdAt": "2026-09-23T09:00:00.000Z",
@@ -2745,7 +3282,7 @@
           "request_id": {
             "type": "string",
             "description": "The identifier of the request associated with the error. Use this value when investigating a failed request.",
-            "examples": ["req_00000000000000000001"]
+            "examples": ["req_97YT6D4VIEDBZMPSELN8"]
           },
           "status": {
             "type": "integer",
@@ -2769,7 +3306,7 @@
                 "field": "lineItems.0.quantity"
               }
             ],
-            "request_id": "req_00000000000000000001",
+            "request_id": "req_97YT6D4VIEDBZMPSELN8",
             "status": 400
           }
         ]
@@ -2788,22 +3325,22 @@
               "id": {
                 "type": "string",
                 "description": "The identifier of the inventory movement.",
-                "examples": ["invm_0000000000000000001"]
+                "examples": ["invm_T3DU0MU3D6NW1486YJR"]
               },
               "variantId": {
                 "type": "string",
                 "description": "The identifier of the product variant associated with the stock entry.",
-                "examples": ["var_00000000000000000001"]
+                "examples": ["var_SPPWCBGNASKMHJSHXH38"]
               },
               "locationId": {
                 "type": "string",
                 "description": "The identifier of the location associated with the stock entry.",
-                "examples": ["loc_00000000000000000001"]
+                "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
               },
               "referenceId": {
                 "type": ["string", "null"],
                 "description": "The identifier of the related business record, such as a sale or purchase order. Returns `null` when no related record is associated.",
-                "examples": ["sale_0000000000000000001"]
+                "examples": ["sale_5TZND2TVGAU9823UPMV"]
               },
               "reason": {
                 "$ref": "#/components/schemas/InventoryMovementReason",
@@ -2836,7 +3373,7 @@
                   "id": {
                     "type": "string",
                     "description": "The identifier of the employee.",
-                    "examples": ["empl_0000000000000000001"]
+                    "examples": ["empl_YJHP5ULEG3QP1M786T3"]
                   },
                   "name": {
                     "type": "string",
@@ -2849,7 +3386,7 @@
                 "description": "The employee who recorded the stock entry.",
                 "examples": [
                   {
-                    "id": "empl_0000000000000000001",
+                    "id": "empl_YJHP5ULEG3QP1M786T3",
                     "name": "Nami"
                   }
                 ]
@@ -2898,17 +3435,17 @@
             "additionalProperties": false,
             "examples": [
               {
-                "id": "invm_0000000000000000001",
-                "variantId": "var_00000000000000000001",
-                "locationId": "loc_00000000000000000001",
-                "referenceId": "sale_0000000000000000001",
+                "id": "invm_T3DU0MU3D6NW1486YJR",
+                "variantId": "var_SPPWCBGNASKMHJSHXH38",
+                "locationId": "loc_AGGD8EJA69JRL3UTU79K",
+                "referenceId": "sale_5TZND2TVGAU9823UPMV",
                 "reason": "sale",
                 "fromState": "in_stock",
                 "toState": "sold",
                 "quantityDelta": -2,
                 "unitCost": "80.00",
                 "createdBy": {
-                  "id": "empl_0000000000000000001",
+                  "id": "empl_YJHP5ULEG3QP1M786T3",
                   "name": "Nami"
                 },
                 "occurredAt": "2026-09-23T09:00:00.000Z",
@@ -2925,17 +3462,17 @@
               "id": {
                 "type": "string",
                 "description": "The identifier of the physical count.",
-                "examples": ["inv_pct_0000000000000001"]
+                "examples": ["inv_pct_JCVLX946VEMLDQAW"]
               },
               "variantId": {
                 "type": "string",
                 "description": "The identifier of the product variant associated with the stock entry.",
-                "examples": ["var_00000000000000000001"]
+                "examples": ["var_SPPWCBGNASKMHJSHXH38"]
               },
               "locationId": {
                 "type": "string",
                 "description": "The identifier of the location associated with the stock entry.",
-                "examples": ["loc_00000000000000000001"]
+                "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
               },
               "quantity": {
                 "type": "number",
@@ -2948,7 +3485,7 @@
                   "id": {
                     "type": "string",
                     "description": "The identifier of the employee.",
-                    "examples": ["empl_0000000000000000001"]
+                    "examples": ["empl_YJHP5ULEG3QP1M786T3"]
                   },
                   "name": {
                     "type": "string",
@@ -2961,7 +3498,7 @@
                 "description": "The employee who recorded the stock entry.",
                 "examples": [
                   {
-                    "id": "empl_0000000000000000001",
+                    "id": "empl_YJHP5ULEG3QP1M786T3",
                     "name": "Nami"
                   }
                 ]
@@ -3005,12 +3542,12 @@
             "additionalProperties": false,
             "examples": [
               {
-                "id": "inv_pct_0000000000000001",
-                "variantId": "var_00000000000000000001",
-                "locationId": "loc_00000000000000000001",
+                "id": "inv_pct_JCVLX946VEMLDQAW",
+                "variantId": "var_SPPWCBGNASKMHJSHXH38",
+                "locationId": "loc_AGGD8EJA69JRL3UTU79K",
                 "quantity": 18,
                 "createdBy": {
-                  "id": "empl_0000000000000000001",
+                  "id": "empl_YJHP5ULEG3QP1M786T3",
                   "name": "Nami"
                 },
                 "occurredAt": "2026-09-23T09:00:00.000Z",
@@ -3025,17 +3562,17 @@
         "description": "An entry in the stock history of a product variant at a location. Read `type` to determine whether the entry contains an inventory movement or a physical count. Movements describe quantity changes; physical counts describe observed quantities.",
         "examples": [
           {
-            "id": "invm_0000000000000000001",
-            "variantId": "var_00000000000000000001",
-            "locationId": "loc_00000000000000000001",
-            "referenceId": "sale_0000000000000000001",
+            "id": "invm_T3DU0MU3D6NW1486YJR",
+            "variantId": "var_SPPWCBGNASKMHJSHXH38",
+            "locationId": "loc_AGGD8EJA69JRL3UTU79K",
+            "referenceId": "sale_5TZND2TVGAU9823UPMV",
             "reason": "sale",
             "fromState": "in_stock",
             "toState": "sold",
             "quantityDelta": -2,
             "unitCost": "80.00",
             "createdBy": {
-              "id": "empl_0000000000000000001",
+              "id": "empl_YJHP5ULEG3QP1M786T3",
               "name": "Nami"
             },
             "occurredAt": "2026-09-23T09:00:00.000Z",
@@ -3044,12 +3581,12 @@
             "type": "movement"
           },
           {
-            "id": "inv_pct_0000000000000001",
-            "variantId": "var_00000000000000000001",
-            "locationId": "loc_00000000000000000001",
+            "id": "inv_pct_JCVLX946VEMLDQAW",
+            "variantId": "var_SPPWCBGNASKMHJSHXH38",
+            "locationId": "loc_AGGD8EJA69JRL3UTU79K",
             "quantity": 18,
             "createdBy": {
-              "id": "empl_0000000000000000001",
+              "id": "empl_YJHP5ULEG3QP1M786T3",
               "name": "Nami"
             },
             "occurredAt": "2026-09-23T09:00:00.000Z",
@@ -3065,17 +3602,17 @@
           "id": {
             "type": "string",
             "description": "The identifier of the inventory level.",
-            "examples": ["inv_00000000000000000001"]
+            "examples": ["inv_FARIGOQHWU0PEM5KSI4L"]
           },
           "variant_id": {
             "type": "string",
             "description": "The identifier of the product variant whose stock is tracked.",
-            "examples": ["var_00000000000000000001"]
+            "examples": ["var_SPPWCBGNASKMHJSHXH38"]
           },
           "location_id": {
             "type": "string",
             "description": "The identifier of the location where the stock is held.",
-            "examples": ["loc_00000000000000000001"]
+            "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
           },
           "on_hand": {
             "type": "number",
@@ -3098,9 +3635,9 @@
         "description": "The stock held for one product variant at one location. Connects the variant to the location and includes its current quantity, low-stock threshold, and replenishment target.",
         "examples": [
           {
-            "id": "inv_00000000000000000001",
-            "variant_id": "var_00000000000000000001",
-            "location_id": "loc_00000000000000000001",
+            "id": "inv_FARIGOQHWU0PEM5KSI4L",
+            "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+            "location_id": "loc_AGGD8EJA69JRL3UTU79K",
             "on_hand": 18,
             "low_stock_threshold": 5,
             "optimal_stock_level": 24
@@ -3119,22 +3656,22 @@
           "id": {
             "type": "string",
             "description": "The identifier of the inventory movement.",
-            "examples": ["invm_0000000000000000001"]
+            "examples": ["invm_T3DU0MU3D6NW1486YJR"]
           },
           "variantId": {
             "type": "string",
             "description": "The identifier of the product variant associated with the stock entry.",
-            "examples": ["var_00000000000000000001"]
+            "examples": ["var_SPPWCBGNASKMHJSHXH38"]
           },
           "locationId": {
             "type": "string",
             "description": "The identifier of the location associated with the stock entry.",
-            "examples": ["loc_00000000000000000001"]
+            "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
           },
           "referenceId": {
             "type": ["string", "null"],
             "description": "The identifier of the related business record, such as a sale or purchase order. Returns `null` when no related record is associated.",
-            "examples": ["sale_0000000000000000001"]
+            "examples": ["sale_5TZND2TVGAU9823UPMV"]
           },
           "reason": {
             "$ref": "#/components/schemas/InventoryMovementReason",
@@ -3167,7 +3704,7 @@
               "id": {
                 "type": "string",
                 "description": "The identifier of the employee.",
-                "examples": ["empl_0000000000000000001"]
+                "examples": ["empl_YJHP5ULEG3QP1M786T3"]
               },
               "name": {
                 "type": "string",
@@ -3180,7 +3717,7 @@
             "description": "The employee who recorded the stock entry.",
             "examples": [
               {
-                "id": "empl_0000000000000000001",
+                "id": "empl_YJHP5ULEG3QP1M786T3",
                 "name": "Nami"
               }
             ]
@@ -3223,17 +3760,17 @@
         "description": "A change to the stock of a product variant at a location. Records the quantity delta, inventory states, unit cost, and employee responsible for the entry. A reference identifier can link the movement to a related sale or purchase order.",
         "examples": [
           {
-            "id": "invm_0000000000000000001",
-            "variantId": "var_00000000000000000001",
-            "locationId": "loc_00000000000000000001",
-            "referenceId": "sale_0000000000000000001",
+            "id": "invm_T3DU0MU3D6NW1486YJR",
+            "variantId": "var_SPPWCBGNASKMHJSHXH38",
+            "locationId": "loc_AGGD8EJA69JRL3UTU79K",
+            "referenceId": "sale_5TZND2TVGAU9823UPMV",
             "reason": "sale",
             "fromState": "in_stock",
             "toState": "sold",
             "quantityDelta": -2,
             "unitCost": "80.00",
             "createdBy": {
-              "id": "empl_0000000000000000001",
+              "id": "empl_YJHP5ULEG3QP1M786T3",
               "name": "Nami"
             },
             "occurredAt": "2026-09-23T09:00:00.000Z",
@@ -3248,17 +3785,17 @@
           "id": {
             "type": "string",
             "description": "The identifier of the physical count.",
-            "examples": ["inv_pct_0000000000000001"]
+            "examples": ["inv_pct_JCVLX946VEMLDQAW"]
           },
           "variantId": {
             "type": "string",
             "description": "The identifier of the product variant associated with the stock entry.",
-            "examples": ["var_00000000000000000001"]
+            "examples": ["var_SPPWCBGNASKMHJSHXH38"]
           },
           "locationId": {
             "type": "string",
             "description": "The identifier of the location associated with the stock entry.",
-            "examples": ["loc_00000000000000000001"]
+            "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
           },
           "quantity": {
             "type": "number",
@@ -3271,7 +3808,7 @@
               "id": {
                 "type": "string",
                 "description": "The identifier of the employee.",
-                "examples": ["empl_0000000000000000001"]
+                "examples": ["empl_YJHP5ULEG3QP1M786T3"]
               },
               "name": {
                 "type": "string",
@@ -3284,7 +3821,7 @@
             "description": "The employee who recorded the stock entry.",
             "examples": [
               {
-                "id": "empl_0000000000000000001",
+                "id": "empl_YJHP5ULEG3QP1M786T3",
                 "name": "Nami"
               }
             ]
@@ -3313,12 +3850,12 @@
         "description": "The quantity of a product variant observed during a stock count at a location. Records an absolute quantity together with the employee and time of the count.",
         "examples": [
           {
-            "id": "inv_pct_0000000000000001",
-            "variantId": "var_00000000000000000001",
-            "locationId": "loc_00000000000000000001",
+            "id": "inv_pct_JCVLX946VEMLDQAW",
+            "variantId": "var_SPPWCBGNASKMHJSHXH38",
+            "locationId": "loc_AGGD8EJA69JRL3UTU79K",
             "quantity": 18,
             "createdBy": {
-              "id": "empl_0000000000000000001",
+              "id": "empl_YJHP5ULEG3QP1M786T3",
               "name": "Nami"
             },
             "occurredAt": "2026-09-23T09:00:00.000Z",
@@ -3363,7 +3900,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the location.",
-            "examples": ["loc_00000000000000000001"]
+            "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
           },
           "name": {
             "type": "string",
@@ -3472,7 +4009,7 @@
         "description": "A place where a merchant sells products and holds stock. Each location has its own inventory levels, sale and purchase-order counters, tax settings, backorder policy, and receipt text.",
         "examples": [
           {
-            "id": "loc_00000000000000000001",
+            "id": "loc_AGGD8EJA69JRL3UTU79K",
             "name": "Water 7",
             "businessType": "grocery_store",
             "address": "Water 7",
@@ -3496,7 +4033,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the merchant.",
-            "examples": ["merch_000000000000000001"]
+            "examples": ["merch_40KUNF3IWJGFJGPSHC"]
           },
           "name": {
             "type": "string",
@@ -3526,7 +4063,7 @@
         "description": "The business that uses Facilito. Products, customers, employees, locations, suppliers, and transactions belong to a merchant. This object contains the business name and country.",
         "examples": [
           {
-            "id": "merch_000000000000000001",
+            "id": "merch_40KUNF3IWJGFJGPSHC",
             "name": "Straw Hat Pirates",
             "country": "ni",
             "created_at": "2026-09-23T09:00:00.000Z",
@@ -3538,7 +4075,7 @@
         "type": "string",
         "pattern": "^(?=.{24}$)(?:(?:merch|account|req|empl|loc|coll|prod|img|var|optgr|opt|prod_opt|var_opt|inv|invm|inv_pct|cust|sale|sal_ite|sal_pay|supp|purc|purc_ite|supp_prod|evt)_)?[0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ]+$",
         "description": "An opaque resource identifier that is exactly 24 characters long, including any prefix and underscore. Use the complete value when storing or referencing a resource.",
-        "examples": ["merch_000000000000000001"]
+        "examples": ["merch_40KUNF3IWJGFJGPSHC"]
       },
       "OptionGroup": {
         "type": "object",
@@ -3546,7 +4083,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the option group.",
-            "examples": ["optgr_000000000000000001"]
+            "examples": ["optgr_06HPWQ6HPSR9UTXOES"]
           },
           "name": {
             "type": "string",
@@ -3565,7 +4102,7 @@
               "$ref": "#/components/schemas/Option",
               "examples": [
                 {
-                  "id": "opt_00000000000000000001",
+                  "id": "opt_PJNM1SLZALTDWKKB39TZ",
                   "name": "1 kg",
                   "slug": "1-kg",
                   "position": 0,
@@ -3578,7 +4115,7 @@
             "examples": [
               [
                 {
-                  "id": "opt_00000000000000000001",
+                  "id": "opt_PJNM1SLZALTDWKKB39TZ",
                   "name": "1 kg",
                   "slug": "1-kg",
                   "position": 0,
@@ -3606,12 +4143,12 @@
         "description": "A product attribute whose values distinguish variants, such as pack size or color. Contains the available options and a slug for the group.",
         "examples": [
           {
-            "id": "optgr_000000000000000001",
+            "id": "optgr_06HPWQ6HPSR9UTXOES",
             "name": "Pack size",
             "slug": "pack-size",
             "options": [
               {
-                "id": "opt_00000000000000000001",
+                "id": "opt_PJNM1SLZALTDWKKB39TZ",
                 "name": "1 kg",
                 "slug": "1-kg",
                 "position": 0,
@@ -3630,7 +4167,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the option.",
-            "examples": ["opt_00000000000000000001"]
+            "examples": ["opt_PJNM1SLZALTDWKKB39TZ"]
           },
           "name": {
             "type": "string",
@@ -3665,7 +4202,7 @@
         "description": "An available value within an option group, such as a pack size. Includes its display name, slug, and position within the group.",
         "examples": [
           {
-            "id": "opt_00000000000000000001",
+            "id": "opt_PJNM1SLZALTDWKKB39TZ",
             "name": "1 kg",
             "slug": "1-kg",
             "position": 0,
@@ -3692,7 +4229,7 @@
         },
         "required": ["limit"],
         "additionalProperties": false,
-        "description": "The parsed parameters for retrieving a page of records. Omit `cursor` for the first page, then use the previous response cursor to continue. The page limit defaults to 50 and accepts values from 1 to 100.",
+        "description": "Parameters for retrieving a page of records. Omit `cursor` for the first page, then use the previous response cursor to continue. The page limit defaults to 50 and accepts values from 1 to 100.",
         "examples": [
           {
             "limit": 50
@@ -3721,21 +4258,21 @@
           "merchantId": {
             "type": "string",
             "description": "The identifier of the merchant whose records are requested.",
-            "examples": ["merch_000000000000000001"]
+            "examples": ["merch_40KUNF3IWJGFJGPSHC"]
           }
         },
         "required": ["limit", "merchantId"],
         "additionalProperties": false,
-        "description": "The parsed parameters for retrieving a page of records belonging to a merchant. Combines the merchant identifier with a page limit and an optional cursor.",
+        "description": "Parameters for retrieving a page of merchant records. Supply the merchant identifier, a page limit, and an optional cursor.",
         "examples": [
           {
             "limit": 50,
-            "merchantId": "merch_000000000000000001"
+            "merchantId": "merch_40KUNF3IWJGFJGPSHC"
           },
           {
             "limit": 50,
             "cursor": "example-opaque-page-cursor",
-            "merchantId": "merch_000000000000000001"
+            "merchantId": "merch_40KUNF3IWJGFJGPSHC"
           }
         ]
       },
@@ -3762,7 +4299,7 @@
         ]
       },
       "ProductImageSource": {
-        "description": "The origin of a product image. A `managed` image uses managed storage; a `remote` image uses an external source.",
+        "description": "The origin of a product image. A `managed` image is hosted by Facilito; a `remote` image is hosted externally.",
         "examples": ["remote"],
         "type": "string",
         "enum": ["managed", "remote"]
@@ -3798,7 +4335,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the product variant.",
-            "examples": ["var_00000000000000000001"]
+            "examples": ["var_SPPWCBGNASKMHJSHXH38"]
           },
           "name": {
             "type": "string",
@@ -3836,7 +4373,7 @@
                 "id": {
                   "type": "string",
                   "description": "The identifier of the option.",
-                  "examples": ["opt_00000000000000000001"]
+                  "examples": ["opt_PJNM1SLZALTDWKKB39TZ"]
                 },
                 "name": {
                   "type": "string",
@@ -3865,7 +4402,7 @@
               "additionalProperties": false,
               "examples": [
                 {
-                  "id": "opt_00000000000000000001",
+                  "id": "opt_PJNM1SLZALTDWKKB39TZ",
                   "name": "1 kg",
                   "position": 0,
                   "created_at": "2026-09-23T09:00:00.000Z",
@@ -3877,7 +4414,7 @@
             "examples": [
               [
                 {
-                  "id": "opt_00000000000000000001",
+                  "id": "opt_PJNM1SLZALTDWKKB39TZ",
                   "name": "1 kg",
                   "position": 0,
                   "created_at": "2026-09-23T09:00:00.000Z",
@@ -3893,9 +4430,9 @@
               "$ref": "#/components/schemas/InventoryLevel",
               "examples": [
                 {
-                  "id": "inv_00000000000000000001",
-                  "variant_id": "var_00000000000000000001",
-                  "location_id": "loc_00000000000000000001",
+                  "id": "inv_FARIGOQHWU0PEM5KSI4L",
+                  "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+                  "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                   "on_hand": 18,
                   "low_stock_threshold": 5,
                   "optimal_stock_level": 24
@@ -3906,9 +4443,9 @@
             "examples": [
               [
                 {
-                  "id": "inv_00000000000000000001",
-                  "variant_id": "var_00000000000000000001",
-                  "location_id": "loc_00000000000000000001",
+                  "id": "inv_FARIGOQHWU0PEM5KSI4L",
+                  "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+                  "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                   "on_hand": 18,
                   "low_stock_threshold": 5,
                   "optimal_stock_level": 24
@@ -3944,14 +4481,14 @@
         "description": "A version of a product distinguished by its selected options, such as pack size or color. Each variant has its own identifier, optional SKU and barcode, and stock levels by location. A variant can specify a selling price or use the product price.",
         "examples": [
           {
-            "id": "var_00000000000000000001",
+            "id": "var_SPPWCBGNASKMHJSHXH38",
             "name": "1 kg",
             "sku": "EASTBLUE-TANGERINE-1KG",
             "barcode": null,
             "price": "125.50",
             "options": [
               {
-                "id": "opt_00000000000000000001",
+                "id": "opt_PJNM1SLZALTDWKKB39TZ",
                 "name": "1 kg",
                 "position": 0,
                 "created_at": "2026-09-23T09:00:00.000Z",
@@ -3960,9 +4497,9 @@
             ],
             "inventory_levels": [
               {
-                "id": "inv_00000000000000000001",
-                "variant_id": "var_00000000000000000001",
-                "location_id": "loc_00000000000000000001",
+                "id": "inv_FARIGOQHWU0PEM5KSI4L",
+                "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+                "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                 "on_hand": 18,
                 "low_stock_threshold": 5,
                 "optimal_stock_level": 24
@@ -3979,7 +4516,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the product.",
-            "examples": ["prod_0000000000000000001"]
+            "examples": ["prod_JNG8424CGQ92NO85MA4"]
           },
           "name": {
             "type": "string",
@@ -3988,7 +4525,7 @@
           },
           "slug": {
             "type": "string",
-            "description": "The URL-friendly name of the product.",
+            "description": "The URL-friendly name of the product. Unique within your merchant.",
             "examples": ["east-blue-tangerines"]
           },
           "unit_cost": {
@@ -4033,7 +4570,7 @@
                   "id": {
                     "type": "string",
                     "description": "The identifier of the collection.",
-                    "examples": ["coll_0000000000000000001"]
+                    "examples": ["coll_3ETRA4BRB16795R74T1"]
                   },
                   "name": {
                     "type": "string",
@@ -4045,7 +4582,7 @@
                 "additionalProperties": false,
                 "examples": [
                   {
-                    "id": "coll_0000000000000000001",
+                    "id": "coll_3ETRA4BRB16795R74T1",
                     "name": "East Blue Provisions"
                   }
                 ]
@@ -4057,7 +4594,7 @@
             "description": "The collection associated with the product. Returns `null` if the product has no collection.",
             "examples": [
               {
-                "id": "coll_0000000000000000001",
+                "id": "coll_3ETRA4BRB16795R74T1",
                 "name": "East Blue Provisions"
               }
             ]
@@ -4071,7 +4608,7 @@
                 "id": {
                   "type": "string",
                   "description": "The identifier of the option group.",
-                  "examples": ["optgr_000000000000000001"]
+                  "examples": ["optgr_06HPWQ6HPSR9UTXOES"]
                 },
                 "name": {
                   "type": "string",
@@ -4087,7 +4624,7 @@
                       "id": {
                         "type": "string",
                         "description": "The identifier of the option.",
-                        "examples": ["opt_00000000000000000001"]
+                        "examples": ["opt_PJNM1SLZALTDWKKB39TZ"]
                       },
                       "name": {
                         "type": "string",
@@ -4116,7 +4653,7 @@
                     "additionalProperties": false,
                     "examples": [
                       {
-                        "id": "opt_00000000000000000001",
+                        "id": "opt_PJNM1SLZALTDWKKB39TZ",
                         "name": "1 kg",
                         "position": 0,
                         "created_at": "2026-09-23T09:00:00.000Z",
@@ -4128,7 +4665,7 @@
                   "examples": [
                     [
                       {
-                        "id": "opt_00000000000000000001",
+                        "id": "opt_PJNM1SLZALTDWKKB39TZ",
                         "name": "1 kg",
                         "position": 0,
                         "created_at": "2026-09-23T09:00:00.000Z",
@@ -4154,11 +4691,11 @@
               "additionalProperties": false,
               "examples": [
                 {
-                  "id": "optgr_000000000000000001",
+                  "id": "optgr_06HPWQ6HPSR9UTXOES",
                   "name": "Pack size",
                   "options": [
                     {
-                      "id": "opt_00000000000000000001",
+                      "id": "opt_PJNM1SLZALTDWKKB39TZ",
                       "name": "1 kg",
                       "position": 0,
                       "created_at": "2026-09-23T09:00:00.000Z",
@@ -4174,11 +4711,11 @@
             "examples": [
               [
                 {
-                  "id": "optgr_000000000000000001",
+                  "id": "optgr_06HPWQ6HPSR9UTXOES",
                   "name": "Pack size",
                   "options": [
                     {
-                      "id": "opt_00000000000000000001",
+                      "id": "opt_PJNM1SLZALTDWKKB39TZ",
                       "name": "1 kg",
                       "position": 0,
                       "created_at": "2026-09-23T09:00:00.000Z",
@@ -4198,14 +4735,14 @@
               "$ref": "#/components/schemas/ProductVariant",
               "examples": [
                 {
-                  "id": "var_00000000000000000001",
+                  "id": "var_SPPWCBGNASKMHJSHXH38",
                   "name": "1 kg",
                   "sku": "EASTBLUE-TANGERINE-1KG",
                   "barcode": null,
                   "price": "125.50",
                   "options": [
                     {
-                      "id": "opt_00000000000000000001",
+                      "id": "opt_PJNM1SLZALTDWKKB39TZ",
                       "name": "1 kg",
                       "position": 0,
                       "created_at": "2026-09-23T09:00:00.000Z",
@@ -4214,9 +4751,9 @@
                   ],
                   "inventory_levels": [
                     {
-                      "id": "inv_00000000000000000001",
-                      "variant_id": "var_00000000000000000001",
-                      "location_id": "loc_00000000000000000001",
+                      "id": "inv_FARIGOQHWU0PEM5KSI4L",
+                      "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+                      "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                       "on_hand": 18,
                       "low_stock_threshold": 5,
                       "optimal_stock_level": 24
@@ -4227,18 +4764,18 @@
                 }
               ]
             },
-            "description": "The sellable variants. Creation currently returns exactly one default variant with the product name and price.",
+            "description": "The sellable variants. Creating a product returns one default variant with the product name and price.",
             "examples": [
               [
                 {
-                  "id": "var_00000000000000000001",
+                  "id": "var_SPPWCBGNASKMHJSHXH38",
                   "name": "1 kg",
                   "sku": "EASTBLUE-TANGERINE-1KG",
                   "barcode": null,
                   "price": "125.50",
                   "options": [
                     {
-                      "id": "opt_00000000000000000001",
+                      "id": "opt_PJNM1SLZALTDWKKB39TZ",
                       "name": "1 kg",
                       "position": 0,
                       "created_at": "2026-09-23T09:00:00.000Z",
@@ -4247,9 +4784,9 @@
                   ],
                   "inventory_levels": [
                     {
-                      "id": "inv_00000000000000000001",
-                      "variant_id": "var_00000000000000000001",
-                      "location_id": "loc_00000000000000000001",
+                      "id": "inv_FARIGOQHWU0PEM5KSI4L",
+                      "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+                      "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                       "on_hand": 18,
                       "low_stock_threshold": 5,
                       "optimal_stock_level": 24
@@ -4307,7 +4844,7 @@
         "description": "A good or service offered by a merchant. Contains its name, pricing, catalog status, image, and collection. Option groups describe the available choices, and variants represent the combinations that can be sold.",
         "examples": [
           {
-            "id": "prod_0000000000000000001",
+            "id": "prod_JNG8424CGQ92NO85MA4",
             "name": "East Blue Tangerines",
             "slug": "east-blue-tangerines",
             "unit_cost": "80.00",
@@ -4316,16 +4853,16 @@
             "status": "active",
             "image_url": "https://strawhatpirates.example.com/images/tangerines.jpg",
             "collection": {
-              "id": "coll_0000000000000000001",
+              "id": "coll_3ETRA4BRB16795R74T1",
               "name": "East Blue Provisions"
             },
             "option_groups": [
               {
-                "id": "optgr_000000000000000001",
+                "id": "optgr_06HPWQ6HPSR9UTXOES",
                 "name": "Pack size",
                 "options": [
                   {
-                    "id": "opt_00000000000000000001",
+                    "id": "opt_PJNM1SLZALTDWKKB39TZ",
                     "name": "1 kg",
                     "position": 0,
                     "created_at": "2026-09-23T09:00:00.000Z",
@@ -4338,14 +4875,14 @@
             ],
             "variants": [
               {
-                "id": "var_00000000000000000001",
+                "id": "var_SPPWCBGNASKMHJSHXH38",
                 "name": "1 kg",
                 "sku": "EASTBLUE-TANGERINE-1KG",
                 "barcode": null,
                 "price": "125.50",
                 "options": [
                   {
-                    "id": "opt_00000000000000000001",
+                    "id": "opt_PJNM1SLZALTDWKKB39TZ",
                     "name": "1 kg",
                     "position": 0,
                     "created_at": "2026-09-23T09:00:00.000Z",
@@ -4354,9 +4891,9 @@
                 ],
                 "inventory_levels": [
                   {
-                    "id": "inv_00000000000000000001",
-                    "variant_id": "var_00000000000000000001",
-                    "location_id": "loc_00000000000000000001",
+                    "id": "inv_FARIGOQHWU0PEM5KSI4L",
+                    "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+                    "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                     "on_hand": 18,
                     "low_stock_threshold": 5,
                     "optimal_stock_level": 24
@@ -4378,7 +4915,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the purchase order.",
-            "examples": ["purc_0000000000000000001"]
+            "examples": ["purc_RAT344W9WX6R57EVUI6"]
           },
           "transactionNumber": {
             "type": "number",
@@ -4393,7 +4930,7 @@
           "locationId": {
             "type": "string",
             "description": "The identifier of the location that received the products.",
-            "examples": ["loc_00000000000000000001"]
+            "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
           },
           "supplier": {
             "type": "object",
@@ -4401,7 +4938,7 @@
               "id": {
                 "type": "string",
                 "description": "The identifier of the supplier.",
-                "examples": ["supp_0000000000000000001"]
+                "examples": ["supp_AM6MZ6Z74KJFAAB1Y0Y"]
               },
               "name": {
                 "type": "string",
@@ -4414,7 +4951,7 @@
             "description": "The identifier and name of the supplier associated with the delivery.",
             "examples": [
               {
-                "id": "supp_0000000000000000001",
+                "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
                 "name": "Red Hair Pirates"
               }
             ]
@@ -4427,7 +4964,7 @@
                 "productId": {
                   "type": "string",
                   "description": "The identifier of the product received.",
-                  "examples": ["prod_0000000000000000001"]
+                  "examples": ["prod_JNG8424CGQ92NO85MA4"]
                 },
                 "productName": {
                   "type": "string",
@@ -4459,7 +4996,7 @@
                       "id": {
                         "type": "string",
                         "description": "The identifier of the product variant.",
-                        "examples": ["var_00000000000000000001"]
+                        "examples": ["var_SPPWCBGNASKMHJSHXH38"]
                       },
                       "name": {
                         "type": "string",
@@ -4476,7 +5013,7 @@
                     "additionalProperties": false,
                     "examples": [
                       {
-                        "id": "var_00000000000000000001",
+                        "id": "var_SPPWCBGNASKMHJSHXH38",
                         "name": "1 kg",
                         "quantity": 20
                       }
@@ -4486,7 +5023,7 @@
                   "examples": [
                     [
                       {
-                        "id": "var_00000000000000000001",
+                        "id": "var_SPPWCBGNASKMHJSHXH38",
                         "name": "1 kg",
                         "quantity": 20
                       }
@@ -4498,13 +5035,13 @@
               "additionalProperties": false,
               "examples": [
                 {
-                  "productId": "prod_0000000000000000001",
+                  "productId": "prod_JNG8424CGQ92NO85MA4",
                   "productName": "East Blue Tangerines",
                   "unitCost": "80.00",
                   "price": "125.50",
                   "variants": [
                     {
-                      "id": "var_00000000000000000001",
+                      "id": "var_SPPWCBGNASKMHJSHXH38",
                       "name": "1 kg",
                       "quantity": 20
                     }
@@ -4516,13 +5053,13 @@
             "examples": [
               [
                 {
-                  "productId": "prod_0000000000000000001",
+                  "productId": "prod_JNG8424CGQ92NO85MA4",
                   "productName": "East Blue Tangerines",
                   "unitCost": "80.00",
                   "price": "125.50",
                   "variants": [
                     {
-                      "id": "var_00000000000000000001",
+                      "id": "var_SPPWCBGNASKMHJSHXH38",
                       "name": "1 kg",
                       "quantity": 20
                     }
@@ -4545,7 +5082,7 @@
                   "id": {
                     "type": "string",
                     "description": "The identifier of the employee.",
-                    "examples": ["empl_0000000000000000001"]
+                    "examples": ["empl_YJHP5ULEG3QP1M786T3"]
                   },
                   "name": {
                     "type": "string",
@@ -4557,7 +5094,7 @@
                 "additionalProperties": false,
                 "examples": [
                   {
-                    "id": "empl_0000000000000000001",
+                    "id": "empl_YJHP5ULEG3QP1M786T3",
                     "name": "Nami"
                   }
                 ]
@@ -4569,7 +5106,7 @@
             "description": "The employee who recorded the delivery. Returns `null` if no employee is associated.",
             "examples": [
               {
-                "id": "empl_0000000000000000001",
+                "id": "empl_YJHP5ULEG3QP1M786T3",
                 "name": "Nami"
               }
             ]
@@ -4603,23 +5140,23 @@
         "description": "A record of products received from a supplier at a location. Groups received variants by product and records quantities, unit costs, and selling prices. Includes the supplier and the employee who recorded the delivery.",
         "examples": [
           {
-            "id": "purc_0000000000000000001",
+            "id": "purc_RAT344W9WX6R57EVUI6",
             "transactionNumber": 1,
             "status": "received",
-            "locationId": "loc_00000000000000000001",
+            "locationId": "loc_AGGD8EJA69JRL3UTU79K",
             "supplier": {
-              "id": "supp_0000000000000000001",
+              "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
               "name": "Red Hair Pirates"
             },
             "lineItems": [
               {
-                "productId": "prod_0000000000000000001",
+                "productId": "prod_JNG8424CGQ92NO85MA4",
                 "productName": "East Blue Tangerines",
                 "unitCost": "80.00",
                 "price": "125.50",
                 "variants": [
                   {
-                    "id": "var_00000000000000000001",
+                    "id": "var_SPPWCBGNASKMHJSHXH38",
                     "name": "1 kg",
                     "quantity": 20
                   }
@@ -4628,7 +5165,7 @@
             ],
             "notes": "Provisions for the Water 7 shop.",
             "createdBy": {
-              "id": "empl_0000000000000000001",
+              "id": "empl_YJHP5ULEG3QP1M786T3",
               "name": "Nami"
             },
             "createdAt": "2026-09-23T09:00:00.000Z",
@@ -4661,7 +5198,7 @@
             "description": "The merchant data included in the synchronization result. Can be `null` when no merchant update is included.",
             "examples": [
               {
-                "id": "merch_000000000000000001",
+                "id": "merch_40KUNF3IWJGFJGPSHC",
                 "name": "Straw Hat Pirates",
                 "country": "ni",
                 "createdAt": "2026-09-23T09:00:00.000Z",
@@ -4675,7 +5212,7 @@
               "$ref": "#/components/schemas/Product",
               "examples": [
                 {
-                  "id": "prod_0000000000000000001",
+                  "id": "prod_JNG8424CGQ92NO85MA4",
                   "name": "East Blue Tangerines",
                   "slug": "east-blue-tangerines",
                   "unitCost": "80.00",
@@ -4684,16 +5221,16 @@
                   "status": "active",
                   "imageUrl": "https://strawhatpirates.example.com/images/tangerines.jpg",
                   "collection": {
-                    "id": "coll_0000000000000000001",
+                    "id": "coll_3ETRA4BRB16795R74T1",
                     "name": "East Blue Provisions"
                   },
                   "optionGroups": [
                     {
-                      "id": "optgr_000000000000000001",
+                      "id": "optgr_06HPWQ6HPSR9UTXOES",
                       "name": "Pack size",
                       "options": [
                         {
-                          "id": "opt_00000000000000000001",
+                          "id": "opt_PJNM1SLZALTDWKKB39TZ",
                           "name": "1 kg",
                           "position": 0,
                           "createdAt": "2026-09-23T09:00:00.000Z",
@@ -4706,14 +5243,14 @@
                   ],
                   "variants": [
                     {
-                      "id": "var_00000000000000000001",
+                      "id": "var_SPPWCBGNASKMHJSHXH38",
                       "name": "1 kg",
                       "sku": "EASTBLUE-TANGERINE-1KG",
                       "barcode": null,
                       "price": "125.50",
                       "options": [
                         {
-                          "id": "opt_00000000000000000001",
+                          "id": "opt_PJNM1SLZALTDWKKB39TZ",
                           "name": "1 kg",
                           "position": 0,
                           "createdAt": "2026-09-23T09:00:00.000Z",
@@ -4722,9 +5259,9 @@
                       ],
                       "inventoryLevels": [
                         {
-                          "id": "inv_00000000000000000001",
-                          "variantId": "var_00000000000000000001",
-                          "locationId": "loc_00000000000000000001",
+                          "id": "inv_FARIGOQHWU0PEM5KSI4L",
+                          "variantId": "var_SPPWCBGNASKMHJSHXH38",
+                          "locationId": "loc_AGGD8EJA69JRL3UTU79K",
                           "onHand": 18,
                           "lowStockThreshold": 5,
                           "optimalStockLevel": 24
@@ -4744,7 +5281,7 @@
             "examples": [
               [
                 {
-                  "id": "prod_0000000000000000001",
+                  "id": "prod_JNG8424CGQ92NO85MA4",
                   "name": "East Blue Tangerines",
                   "slug": "east-blue-tangerines",
                   "unitCost": "80.00",
@@ -4753,16 +5290,16 @@
                   "status": "active",
                   "imageUrl": "https://strawhatpirates.example.com/images/tangerines.jpg",
                   "collection": {
-                    "id": "coll_0000000000000000001",
+                    "id": "coll_3ETRA4BRB16795R74T1",
                     "name": "East Blue Provisions"
                   },
                   "optionGroups": [
                     {
-                      "id": "optgr_000000000000000001",
+                      "id": "optgr_06HPWQ6HPSR9UTXOES",
                       "name": "Pack size",
                       "options": [
                         {
-                          "id": "opt_00000000000000000001",
+                          "id": "opt_PJNM1SLZALTDWKKB39TZ",
                           "name": "1 kg",
                           "position": 0,
                           "createdAt": "2026-09-23T09:00:00.000Z",
@@ -4775,14 +5312,14 @@
                   ],
                   "variants": [
                     {
-                      "id": "var_00000000000000000001",
+                      "id": "var_SPPWCBGNASKMHJSHXH38",
                       "name": "1 kg",
                       "sku": "EASTBLUE-TANGERINE-1KG",
                       "barcode": null,
                       "price": "125.50",
                       "options": [
                         {
-                          "id": "opt_00000000000000000001",
+                          "id": "opt_PJNM1SLZALTDWKKB39TZ",
                           "name": "1 kg",
                           "position": 0,
                           "createdAt": "2026-09-23T09:00:00.000Z",
@@ -4791,9 +5328,9 @@
                       ],
                       "inventoryLevels": [
                         {
-                          "id": "inv_00000000000000000001",
-                          "variantId": "var_00000000000000000001",
-                          "locationId": "loc_00000000000000000001",
+                          "id": "inv_FARIGOQHWU0PEM5KSI4L",
+                          "variantId": "var_SPPWCBGNASKMHJSHXH38",
+                          "locationId": "loc_AGGD8EJA69JRL3UTU79K",
                           "onHand": 18,
                           "lowStockThreshold": 5,
                           "optimalStockLevel": 24
@@ -4816,7 +5353,7 @@
               "$ref": "#/components/schemas/Collection",
               "examples": [
                 {
-                  "id": "coll_0000000000000000001",
+                  "id": "coll_3ETRA4BRB16795R74T1",
                   "name": "East Blue Provisions",
                   "slug": "east-blue-provisions",
                   "createdAt": "2026-09-23T09:00:00.000Z",
@@ -4828,7 +5365,7 @@
             "examples": [
               [
                 {
-                  "id": "coll_0000000000000000001",
+                  "id": "coll_3ETRA4BRB16795R74T1",
                   "name": "East Blue Provisions",
                   "slug": "east-blue-provisions",
                   "createdAt": "2026-09-23T09:00:00.000Z",
@@ -4843,7 +5380,7 @@
               "$ref": "#/components/schemas/Customer",
               "examples": [
                 {
-                  "id": "cust_0000000000000000001",
+                  "id": "cust_MJZA01GLEB9SDPU8YQ6",
                   "name": "Trafalgar Law",
                   "email": "law@heartpirates.example.com",
                   "phone": null,
@@ -4856,7 +5393,7 @@
             "examples": [
               [
                 {
-                  "id": "cust_0000000000000000001",
+                  "id": "cust_MJZA01GLEB9SDPU8YQ6",
                   "name": "Trafalgar Law",
                   "email": "law@heartpirates.example.com",
                   "phone": null,
@@ -4872,13 +5409,13 @@
               "$ref": "#/components/schemas/Employee",
               "examples": [
                 {
-                  "id": "empl_0000000000000000001",
+                  "id": "empl_YJHP5ULEG3QP1M786T3",
                   "name": "Nami",
                   "isOwner": false,
                   "posAccessStatus": "enabled",
                   "permissions": ["checkout", "manage_inventory"],
                   "account": {
-                    "id": "account_0000000000000001",
+                    "id": "account_RJ9LZ5VTZ4W6P9RR",
                     "email": "nami@strawhatpirates.example.com"
                   },
                   "createdAt": "2026-09-23T09:00:00.000Z",
@@ -4890,13 +5427,13 @@
             "examples": [
               [
                 {
-                  "id": "empl_0000000000000000001",
+                  "id": "empl_YJHP5ULEG3QP1M786T3",
                   "name": "Nami",
                   "isOwner": false,
                   "posAccessStatus": "enabled",
                   "permissions": ["checkout", "manage_inventory"],
                   "account": {
-                    "id": "account_0000000000000001",
+                    "id": "account_RJ9LZ5VTZ4W6P9RR",
                     "email": "nami@strawhatpirates.example.com"
                   },
                   "createdAt": "2026-09-23T09:00:00.000Z",
@@ -4911,7 +5448,7 @@
               "$ref": "#/components/schemas/Location",
               "examples": [
                 {
-                  "id": "loc_00000000000000000001",
+                  "id": "loc_AGGD8EJA69JRL3UTU79K",
                   "name": "Water 7",
                   "businessType": "grocery_store",
                   "address": "Water 7",
@@ -4932,7 +5469,7 @@
             "examples": [
               [
                 {
-                  "id": "loc_00000000000000000001",
+                  "id": "loc_AGGD8EJA69JRL3UTU79K",
                   "name": "Water 7",
                   "businessType": "grocery_store",
                   "address": "Water 7",
@@ -4956,7 +5493,7 @@
               "$ref": "#/components/schemas/Supplier",
               "examples": [
                 {
-                  "id": "supp_0000000000000000001",
+                  "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
                   "name": "Red Hair Pirates",
                   "email": "shanks@redhairpirates.example.com",
                   "phone": null,
@@ -4969,7 +5506,7 @@
             "examples": [
               [
                 {
-                  "id": "supp_0000000000000000001",
+                  "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
                   "name": "Red Hair Pirates",
                   "email": "shanks@redhairpirates.example.com",
                   "phone": null,
@@ -4998,7 +5535,7 @@
             "syncToken": "example-opaque-sync-token",
             "fullSync": true,
             "merchant": {
-              "id": "merch_000000000000000001",
+              "id": "merch_40KUNF3IWJGFJGPSHC",
               "name": "Straw Hat Pirates",
               "country": "ni",
               "createdAt": "2026-09-23T09:00:00.000Z",
@@ -5006,7 +5543,7 @@
             },
             "products": [
               {
-                "id": "prod_0000000000000000001",
+                "id": "prod_JNG8424CGQ92NO85MA4",
                 "name": "East Blue Tangerines",
                 "slug": "east-blue-tangerines",
                 "unitCost": "80.00",
@@ -5015,16 +5552,16 @@
                 "status": "active",
                 "imageUrl": "https://strawhatpirates.example.com/images/tangerines.jpg",
                 "collection": {
-                  "id": "coll_0000000000000000001",
+                  "id": "coll_3ETRA4BRB16795R74T1",
                   "name": "East Blue Provisions"
                 },
                 "optionGroups": [
                   {
-                    "id": "optgr_000000000000000001",
+                    "id": "optgr_06HPWQ6HPSR9UTXOES",
                     "name": "Pack size",
                     "options": [
                       {
-                        "id": "opt_00000000000000000001",
+                        "id": "opt_PJNM1SLZALTDWKKB39TZ",
                         "name": "1 kg",
                         "position": 0,
                         "createdAt": "2026-09-23T09:00:00.000Z",
@@ -5037,14 +5574,14 @@
                 ],
                 "variants": [
                   {
-                    "id": "var_00000000000000000001",
+                    "id": "var_SPPWCBGNASKMHJSHXH38",
                     "name": "1 kg",
                     "sku": "EASTBLUE-TANGERINE-1KG",
                     "barcode": null,
                     "price": "125.50",
                     "options": [
                       {
-                        "id": "opt_00000000000000000001",
+                        "id": "opt_PJNM1SLZALTDWKKB39TZ",
                         "name": "1 kg",
                         "position": 0,
                         "createdAt": "2026-09-23T09:00:00.000Z",
@@ -5053,9 +5590,9 @@
                     ],
                     "inventoryLevels": [
                       {
-                        "id": "inv_00000000000000000001",
-                        "variantId": "var_00000000000000000001",
-                        "locationId": "loc_00000000000000000001",
+                        "id": "inv_FARIGOQHWU0PEM5KSI4L",
+                        "variantId": "var_SPPWCBGNASKMHJSHXH38",
+                        "locationId": "loc_AGGD8EJA69JRL3UTU79K",
                         "onHand": 18,
                         "lowStockThreshold": 5,
                         "optimalStockLevel": 24
@@ -5072,7 +5609,7 @@
             ],
             "collections": [
               {
-                "id": "coll_0000000000000000001",
+                "id": "coll_3ETRA4BRB16795R74T1",
                 "name": "East Blue Provisions",
                 "slug": "east-blue-provisions",
                 "createdAt": "2026-09-23T09:00:00.000Z",
@@ -5081,7 +5618,7 @@
             ],
             "customers": [
               {
-                "id": "cust_0000000000000000001",
+                "id": "cust_MJZA01GLEB9SDPU8YQ6",
                 "name": "Trafalgar Law",
                 "email": "law@heartpirates.example.com",
                 "phone": null,
@@ -5091,13 +5628,13 @@
             ],
             "employees": [
               {
-                "id": "empl_0000000000000000001",
+                "id": "empl_YJHP5ULEG3QP1M786T3",
                 "name": "Nami",
                 "isOwner": false,
                 "posAccessStatus": "enabled",
                 "permissions": ["checkout", "manage_inventory"],
                 "account": {
-                  "id": "account_0000000000000001",
+                  "id": "account_RJ9LZ5VTZ4W6P9RR",
                   "email": "nami@strawhatpirates.example.com"
                 },
                 "createdAt": "2026-09-23T09:00:00.000Z",
@@ -5106,7 +5643,7 @@
             ],
             "locations": [
               {
-                "id": "loc_00000000000000000001",
+                "id": "loc_AGGD8EJA69JRL3UTU79K",
                 "name": "Water 7",
                 "businessType": "grocery_store",
                 "address": "Water 7",
@@ -5124,7 +5661,7 @@
             ],
             "suppliers": [
               {
-                "id": "supp_0000000000000000001",
+                "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
                 "name": "Red Hair Pirates",
                 "email": "shanks@redhairpirates.example.com",
                 "phone": null,
@@ -5157,7 +5694,7 @@
         "properties": {
           "reason": {
             "type": ["string", "null"],
-            "description": "Optional reason for voiding. Surrounding whitespace is trimmed; blank or null values are stored as null. The trimmed value can contain up to 256 characters.",
+            "description": "An optional reason for voiding the sale, up to 256 characters after surrounding whitespace is removed. Omitted, blank, or `null` values return as `null`.",
             "examples": ["Damaged package", null]
           }
         },
@@ -5176,7 +5713,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the sale.",
-            "examples": ["sale_0000000000000000001"]
+            "examples": ["sale_5TZND2TVGAU9823UPMV"]
           },
           "source": {
             "$ref": "#/components/schemas/Source",
@@ -5185,7 +5722,7 @@
           },
           "status": {
             "$ref": "#/components/schemas/SaleStatus",
-            "description": "Pending means the paid sale awaits all inventory deductions; fulfilled means applicable inventory deductions were committed.",
+            "description": "The sale status. A `pending` sale is paid but has not deducted stock. A `fulfilled` sale has deducted stock for physical items. A `voided` sale has been canceled.",
             "examples": ["fulfilled"]
           },
           "transaction_number": {
@@ -5202,13 +5739,13 @@
                 "type": "null"
               }
             ],
-            "description": "Sale-wide discount as a fractional decimal string: 0.10 means 10%. Null means no discount. Applied after submitted line prices.",
+            "description": "The sale-wide discount as a fractional decimal string. For example, `0.10` means 10%. Applied to the submitted line prices. Returns `null` when no discount applies.",
             "examples": [null]
           },
           "location_id": {
             "type": "string",
             "description": "The identifier of the location where the sale was recorded.",
-            "examples": ["loc_00000000000000000001"]
+            "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
           },
           "notes": {
             "type": ["string", "null"],
@@ -5224,7 +5761,7 @@
                   "id": {
                     "type": "string",
                     "description": "The identifier of the customer.",
-                    "examples": ["cust_0000000000000000001"]
+                    "examples": ["cust_MJZA01GLEB9SDPU8YQ6"]
                   },
                   "name": {
                     "type": "string",
@@ -5236,7 +5773,7 @@
                 "additionalProperties": false,
                 "examples": [
                   {
-                    "id": "cust_0000000000000000001",
+                    "id": "cust_MJZA01GLEB9SDPU8YQ6",
                     "name": "Trafalgar Law"
                   }
                 ]
@@ -5248,7 +5785,7 @@
             "description": "The identifier and name of the customer associated with the sale. Returns `null` if no customer is associated.",
             "examples": [
               {
-                "id": "cust_0000000000000000001",
+                "id": "cust_MJZA01GLEB9SDPU8YQ6",
                 "name": "Trafalgar Law"
               }
             ]
@@ -5261,7 +5798,7 @@
                 "id": {
                   "type": "string",
                   "description": "The identifier of the line item.",
-                  "examples": ["sal_ite_0000000000000001"]
+                  "examples": ["sal_ite_9NIUAVIOQXIVITGX"]
                 },
                 "name": {
                   "type": "string",
@@ -5271,13 +5808,13 @@
                 "variant_id": {
                   "type": "string",
                   "description": "The identifier of the product variant sold.",
-                  "examples": ["var_00000000000000000001"]
+                  "examples": ["var_SPPWCBGNASKMHJSHXH38"]
                 },
                 "shortage_quantity": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991,
-                  "description": "Stock deficit at checkout, not the quantity awaiting deduction. All inventory remains unchanged for a pending sale.",
+                  "description": "The stock shortfall for this line at checkout. A pending sale leaves stock unchanged for every line, including lines with no shortfall.",
                   "examples": [0]
                 },
                 "price": {
@@ -5300,9 +5837,9 @@
               "additionalProperties": false,
               "examples": [
                 {
-                  "id": "sal_ite_0000000000000001",
+                  "id": "sal_ite_9NIUAVIOQXIVITGX",
                   "name": "East Blue Tangerines / 1 kg",
-                  "variant_id": "var_00000000000000000001",
+                  "variant_id": "var_SPPWCBGNASKMHJSHXH38",
                   "shortage_quantity": 0,
                   "price": "125.50",
                   "unit_cost": "80.00",
@@ -5314,9 +5851,9 @@
             "examples": [
               [
                 {
-                  "id": "sal_ite_0000000000000001",
+                  "id": "sal_ite_9NIUAVIOQXIVITGX",
                   "name": "East Blue Tangerines / 1 kg",
-                  "variant_id": "var_00000000000000000001",
+                  "variant_id": "var_SPPWCBGNASKMHJSHXH38",
                   "shortage_quantity": 0,
                   "price": "125.50",
                   "unit_cost": "80.00",
@@ -5333,7 +5870,7 @@
                 "id": {
                   "type": "string",
                   "description": "The identifier of the payment.",
-                  "examples": ["sal_pay_0000000000000001"]
+                  "examples": ["sal_pay_JYRWTIW20PRSB0L7"]
                 },
                 "method": {
                   "$ref": "#/components/schemas/PaymentMethod",
@@ -5363,7 +5900,7 @@
               "additionalProperties": false,
               "examples": [
                 {
-                  "id": "sal_pay_0000000000000001",
+                  "id": "sal_pay_JYRWTIW20PRSB0L7",
                   "method": "cash",
                   "amount": "251.00",
                   "exchange_rate": null
@@ -5374,7 +5911,7 @@
             "examples": [
               [
                 {
-                  "id": "sal_pay_0000000000000001",
+                  "id": "sal_pay_JYRWTIW20PRSB0L7",
                   "method": "cash",
                   "amount": "251.00",
                   "exchange_rate": null
@@ -5391,7 +5928,7 @@
                   "id": {
                     "type": "string",
                     "description": "The identifier of the employee.",
-                    "examples": ["empl_0000000000000000001"]
+                    "examples": ["empl_YJHP5ULEG3QP1M786T3"]
                   },
                   "name": {
                     "type": "string",
@@ -5403,7 +5940,7 @@
                 "additionalProperties": false,
                 "examples": [
                   {
-                    "id": "empl_0000000000000000001",
+                    "id": "empl_YJHP5ULEG3QP1M786T3",
                     "name": "Nami"
                   }
                 ]
@@ -5415,7 +5952,7 @@
             "description": "The employee who recorded the checkout. Returns `null` if no employee is associated.",
             "examples": [
               {
-                "id": "empl_0000000000000000001",
+                "id": "empl_YJHP5ULEG3QP1M786T3",
                 "name": "Nami"
               }
             ]
@@ -5447,7 +5984,7 @@
           },
           "void_reason": {
             "type": ["string", "null"],
-            "description": "The trimmed reason recorded when the sale was voided. Returns `null` when no reason was supplied.",
+            "description": "The reason recorded when the sale was voided, with surrounding whitespace removed. Returns `null` when no reason was supplied.",
             "examples": [null]
           },
           "voided_at": {
@@ -5471,7 +6008,7 @@
           "business_date": {
             "type": "string",
             "format": "date-time",
-            "description": "Client checkout time, normalized and stored in UTC. Independent of server creation and inventory deduction timestamps.",
+            "description": "The original client checkout time, returned in UTC. May differ from `created_at`.",
             "examples": ["2026-10-10T18:30:00.000Z"]
           }
         },
@@ -5498,22 +6035,22 @@
         "description": "A record of a checkout at a location. Contains the purchased variants, quantities, captured prices and costs, discount rate, and payments. It also identifies the customer and the employees who recorded or voided the sale when those details are available.",
         "examples": [
           {
-            "id": "sale_0000000000000000001",
+            "id": "sale_5TZND2TVGAU9823UPMV",
             "source": "pos.web",
             "status": "fulfilled",
             "transaction_number": 1,
             "discount_rate": null,
-            "location_id": "loc_00000000000000000001",
+            "location_id": "loc_AGGD8EJA69JRL3UTU79K",
             "notes": null,
             "customer": {
-              "id": "cust_0000000000000000001",
+              "id": "cust_MJZA01GLEB9SDPU8YQ6",
               "name": "Trafalgar Law"
             },
             "line_items": [
               {
-                "id": "sal_ite_0000000000000001",
+                "id": "sal_ite_9NIUAVIOQXIVITGX",
                 "name": "East Blue Tangerines / 1 kg",
-                "variant_id": "var_00000000000000000001",
+                "variant_id": "var_SPPWCBGNASKMHJSHXH38",
                 "shortage_quantity": 0,
                 "price": "125.50",
                 "unit_cost": "80.00",
@@ -5522,14 +6059,14 @@
             ],
             "payments": [
               {
-                "id": "sal_pay_0000000000000001",
+                "id": "sal_pay_JYRWTIW20PRSB0L7",
                 "method": "cash",
                 "amount": "251.00",
                 "exchange_rate": null
               }
             ],
             "created_by": {
-              "id": "empl_0000000000000000001",
+              "id": "empl_YJHP5ULEG3QP1M786T3",
               "name": "Nami"
             },
             "voided_by": null,
@@ -5553,7 +6090,7 @@
           "id": {
             "type": "string",
             "description": "The identifier of the supplier.",
-            "examples": ["supp_0000000000000000001"]
+            "examples": ["supp_AM6MZ6Z74KJFAAB1Y0Y"]
           },
           "name": {
             "type": "string",
@@ -5588,10 +6125,10 @@
         },
         "required": ["id", "name", "email", "phone", "created_at", "updated_at"],
         "additionalProperties": false,
-        "description": "A person or organization that provides products to a merchant. Stores the supplier name and contact details. Purchase orders reference the supplier to identify the source of a delivery.",
+        "description": "A person or organization that provides products to a merchant. Contains the supplier name and contact details. Purchase orders reference the supplier to identify the source of a delivery.",
         "examples": [
           {
-            "id": "supp_0000000000000000001",
+            "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
             "name": "Red Hair Pirates",
             "email": "shanks@redhairpirates.example.com",
             "phone": null,
@@ -5615,7 +6152,7 @@
             "items": {
               "examples": [
                 {
-                  "id": "coll_0000000000000000001",
+                  "id": "coll_3ETRA4BRB16795R74T1",
                   "name": "East Blue Provisions",
                   "slug": "east-blue-provisions",
                   "createdAt": "2026-09-23T09:00:00.000Z",
@@ -5627,7 +6164,7 @@
             "examples": [
               [
                 {
-                  "id": "coll_0000000000000000001",
+                  "id": "coll_3ETRA4BRB16795R74T1",
                   "name": "East Blue Provisions",
                   "slug": "east-blue-provisions",
                   "createdAt": "2026-09-23T09:00:00.000Z",
@@ -5652,7 +6189,7 @@
           {
             "results": [
               {
-                "id": "coll_0000000000000000001",
+                "id": "coll_3ETRA4BRB16795R74T1",
                 "name": "East Blue Provisions",
                 "slug": "east-blue-provisions",
                 "createdAt": "2026-09-23T09:00:00.000Z",
@@ -5739,7 +6276,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "description": "Product name, trimmed before validation. Duplicate names are allowed."
+            "description": "Product name. Surrounding whitespace is removed. Duplicate names are allowed."
           },
           "barcode": {
             "anyOf": [
@@ -5752,7 +6289,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional barcode, trimmed before validation. Unique within the merchant for items, including archived products. Stored as null for services."
+            "description": "An optional barcode for items. Surrounding whitespace is removed. Must be unique within your merchant, including archived products. Services return `null` for this field."
           },
           "sku": {
             "anyOf": [
@@ -5765,7 +6302,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional SKU, trimmed before validation. Unique within the merchant for items, including archived products. Stored as null for services."
+            "description": "An optional stock keeping unit for items. Surrounding whitespace is removed. Must be unique within your merchant, including archived products. Services return `null` for this field."
           },
           "price": {
             "$ref": "#/components/schemas/PositiveDecimal",
@@ -5773,7 +6310,7 @@
           },
           "unit_cost": {
             "$ref": "#/components/schemas/Decimal",
-            "description": "Item cost per unit. Required and greater than zero for items, including when product_type is omitted. Optional for services, which accept zero. Services always store \"0.00\", regardless of the supplied valid value."
+            "description": "The cost per unit. Required and greater than zero for items, including when `product_type` is omitted. Optional for services, which accept zero and always return `\"0.00\"` for unit cost."
           },
           "collection_id": {
             "anyOf": [
@@ -5804,7 +6341,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional external image URL, trimmed before validation. Must use HTTP or HTTPS. No image is downloaded."
+            "description": "An optional HTTP or HTTPS URL for an externally hosted product image. Surrounding whitespace is removed."
           }
         },
         "required": ["name", "price"],
@@ -5851,7 +6388,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "description": "Product name, trimmed before validation."
+            "description": "Product name. Surrounding whitespace is removed."
           },
           "barcode": {
             "anyOf": [
@@ -5954,7 +6491,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "description": "Collection name, trimmed before validation. Must produce a nonempty slug of at most 128 characters with the existing slugify rules; the slug must be unique within the merchant."
+            "description": "The collection name. Surrounding whitespace is removed. The generated URL-friendly slug must be nonempty, at most 128 characters, and unique within your merchant."
           }
         },
         "required": ["name"]
@@ -5966,7 +6503,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "description": "Collection name, trimmed before validation. Must produce a nonempty slug of at most 128 characters with the existing slugify rules; the slug must be unique within the merchant."
+            "description": "The collection name. Surrounding whitespace is removed. The generated URL-friendly slug must be nonempty, at most 128 characters, and unique within your merchant."
           }
         }
       },
@@ -6000,19 +6537,19 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "description": "Supplier name, trimmed before validation."
+            "description": "Supplier name. Surrounding whitespace is removed."
           },
           "email": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 320,
-            "description": "Trimmed contact email. Use null to clear it."
+            "description": "The contact email. Surrounding whitespace is removed. Omit or set to `null` when unavailable."
           },
           "phone": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 32,
-            "description": "Trimmed contact phone. Use null to clear it."
+            "description": "The contact phone. Surrounding whitespace is removed. Omit or set to `null` when unavailable."
           }
         },
         "required": ["name"]
@@ -6024,19 +6561,19 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "description": "Supplier name, trimmed before validation."
+            "description": "Supplier name. Surrounding whitespace is removed."
           },
           "email": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 320,
-            "description": "Trimmed contact email. Use null to clear it."
+            "description": "The contact email. Surrounding whitespace is removed. Set to `null` to clear it. Omit to leave it unchanged."
           },
           "phone": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 32,
-            "description": "Trimmed contact phone. Use null to clear it."
+            "description": "The contact phone. Surrounding whitespace is removed. Set to `null` to clear it. Omit to leave it unchanged."
           }
         }
       },
@@ -6070,19 +6607,19 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "description": "Customer name, trimmed before validation."
+            "description": "Customer name. Surrounding whitespace is removed."
           },
           "email": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 320,
-            "description": "Trimmed contact email. Use null to clear it."
+            "description": "The contact email. Surrounding whitespace is removed. Omit or set to `null` when unavailable."
           },
           "phone": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 32,
-            "description": "Trimmed contact phone. Use null to clear it."
+            "description": "The contact phone. Surrounding whitespace is removed. Omit or set to `null` when unavailable."
           }
         },
         "required": ["name"]
@@ -6094,19 +6631,19 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "description": "Customer name, trimmed before validation."
+            "description": "Customer name. Surrounding whitespace is removed."
           },
           "email": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 320,
-            "description": "Trimmed contact email. Use null to clear it."
+            "description": "The contact email. Surrounding whitespace is removed. Set to `null` to clear it. Omit to leave it unchanged."
           },
           "phone": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 32,
-            "description": "Trimmed contact phone. Use null to clear it."
+            "description": "The contact phone. Surrounding whitespace is removed. Set to `null` to clear it. Omit to leave it unchanged."
           }
         }
       },
@@ -6117,7 +6654,7 @@
           "source": {
             "$ref": "#/components/schemas/Source",
             "default": "pos.web",
-            "description": "Android and iOS sales bypass allowBackorders. Web sales respect the location setting. Defaults to pos.web."
+            "description": "The point-of-sale client submitting the sale. Defaults to `pos.web`. Web sales follow the location backorder policy; Android and iOS sales accept stock shortages as pending sales."
           },
           "location_id": {
             "$ref": "#/components/schemas/ObjectId"
@@ -6125,7 +6662,7 @@
           "business_date": {
             "type": "string",
             "format": "date-time",
-            "description": "Original client checkout timestamp, with UTC or an explicit offset. Stored in UTC."
+            "description": "The original client checkout timestamp. Supply UTC or an explicit timezone offset. Returned in UTC."
           },
           "customer_id": {
             "anyOf": [
@@ -6172,7 +6709,7 @@
           },
           "payments": {
             "type": "array",
-            "description": "Amounts applied to the sale, excluding change. Repeated methods are allowed. An empty list is allowed for a zero total. Client exchange rates are not used.",
+            "description": "The amounts applied to the sale, excluding change. Payments must exactly match the sale total. Repeated methods are allowed. Use an empty list for a zero total. US-dollar payments use the location exchange rate.",
             "items": {
               "type": "object",
               "required": ["method", "amount"],
@@ -6188,6 +6725,286 @@
             }
           }
         }
+      },
+      "Purchase": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the purchase order.",
+            "examples": ["purc_RAT344W9WX6R57EVUI6"]
+          },
+          "transaction_number": {
+            "type": "number",
+            "description": "The purchase-order number assigned within the receiving location.",
+            "examples": [1]
+          },
+          "status": {
+            "type": "string",
+            "description": "The status recorded for the purchase order.",
+            "examples": ["fulfilled"],
+            "enum": ["fulfilled", "voided"]
+          },
+          "location_id": {
+            "type": "string",
+            "description": "The identifier of the location that received the products.",
+            "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
+          },
+          "supplier": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "The identifier of the supplier.",
+                "examples": ["supp_AM6MZ6Z74KJFAAB1Y0Y"]
+              },
+              "name": {
+                "type": "string",
+                "description": "The display name of the supplier.",
+                "examples": ["Red Hair Pirates"]
+              }
+            },
+            "required": ["id", "name"],
+            "additionalProperties": false,
+            "description": "The identifier and name of the supplier associated with the delivery.",
+            "examples": [
+              {
+                "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
+                "name": "Red Hair Pirates"
+              }
+            ]
+          },
+          "line_items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "unit_cost": {
+                  "$ref": "#/components/schemas/Decimal",
+                  "description": "The acquisition cost per unit recorded on the line, expressed as a decimal string.",
+                  "examples": ["80.00"]
+                },
+                "price": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Decimal"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The selling price recorded on the line, expressed as a decimal string. Returns `null` if no price is recorded.",
+                  "examples": ["125.50"]
+                },
+                "variants": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "The identifier of the product variant.",
+                        "examples": ["var_SPPWCBGNASKMHJSHXH38"]
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "The display name of the product variant.",
+                        "examples": ["1 kg"]
+                      },
+                      "quantity": {
+                        "type": "number",
+                        "description": "The number of units of the variant received in the delivery.",
+                        "examples": [20]
+                      }
+                    },
+                    "required": ["id", "name", "quantity"],
+                    "additionalProperties": false,
+                    "examples": [
+                      {
+                        "id": "var_SPPWCBGNASKMHJSHXH38",
+                        "name": "1 kg",
+                        "quantity": 20
+                      }
+                    ]
+                  },
+                  "description": "The received variants and the quantity of each variant.",
+                  "examples": [
+                    [
+                      {
+                        "id": "var_SPPWCBGNASKMHJSHXH38",
+                        "name": "1 kg",
+                        "quantity": 20
+                      }
+                    ]
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "description": "The identifier of the recorded purchase line item.",
+                  "examples": ["purc_ite_000000000000001"]
+                }
+              },
+              "required": ["id", "unit_cost", "price", "variants"],
+              "additionalProperties": false,
+              "examples": [
+                {
+                  "id": "purc_ite_000000000000001",
+                  "unit_cost": "80.00",
+                  "price": "125.50",
+                  "variants": [
+                    {
+                      "id": "var_SPPWCBGNASKMHJSHXH38",
+                      "name": "1 kg",
+                      "quantity": 20
+                    }
+                  ]
+                }
+              ]
+            },
+            "description": "The products received in the delivery, with costs, prices, and quantities grouped by variant.",
+            "examples": [
+              [
+                {
+                  "id": "purc_ite_000000000000001",
+                  "unit_cost": "80.00",
+                  "price": "125.50",
+                  "variants": [
+                    {
+                      "id": "var_SPPWCBGNASKMHJSHXH38",
+                      "name": "1 kg",
+                      "quantity": 20
+                    }
+                  ]
+                }
+              ]
+            ]
+          },
+          "notes": {
+            "type": ["string", "null"],
+            "description": "The staff notes associated with the delivery. Returns `null` if no notes are recorded.",
+            "examples": ["Provisions for the Water 7 shop."]
+          },
+          "created_by": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the employee.",
+                    "examples": ["empl_YJHP5ULEG3QP1M786T3"]
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The display name of the employee.",
+                    "examples": ["Nami"]
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false,
+                "examples": [
+                  {
+                    "id": "empl_YJHP5ULEG3QP1M786T3",
+                    "name": "Nami"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee who recorded the delivery. Returns `null` if no employee is associated.",
+            "examples": [
+              {
+                "id": "empl_YJHP5ULEG3QP1M786T3",
+                "name": "Nami"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the purchase order was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the purchase order was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          }
+        },
+        "required": [
+          "id",
+          "transaction_number",
+          "status",
+          "location_id",
+          "supplier",
+          "line_items",
+          "notes",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false,
+        "description": "A purchase recorded at a location, including supplier and employee details, item snapshots, status, notes, and timestamps.",
+        "examples": [
+          {
+            "id": "purc_RAT344W9WX6R57EVUI6",
+            "transaction_number": 1,
+            "status": "fulfilled",
+            "location_id": "loc_AGGD8EJA69JRL3UTU79K",
+            "supplier": {
+              "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
+              "name": "Red Hair Pirates"
+            },
+            "line_items": [
+              {
+                "id": "purc_ite_000000000000001",
+                "unit_cost": "80.00",
+                "price": "125.50",
+                "variants": [
+                  {
+                    "id": "var_SPPWCBGNASKMHJSHXH38",
+                    "name": "1 kg",
+                    "quantity": 20
+                  }
+                ]
+              }
+            ],
+            "notes": "Provisions for the Water 7 shop.",
+            "created_by": {
+              "id": "empl_YJHP5ULEG3QP1M786T3",
+              "name": "Nami"
+            },
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z"
+          }
+        ]
+      },
+      "PurchasePaginationResponse": {
+        "type": "object",
+        "description": "A page of purchases and the information needed to request the next page. Continue with `next_cursor` while `has_more` is true.",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Purchase"
+            },
+            "description": "The purchases returned in this page."
+          },
+          "next_cursor": {
+            "type": ["string", "null"],
+            "description": "The opaque cursor to pass when requesting the next page. Returns `null` on the final page."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether more purchases are available after this page."
+          }
+        },
+        "required": ["results", "next_cursor", "has_more"],
+        "additionalProperties": false
       },
       "SalePaginationResponse": {
         "type": "object",
@@ -6225,7 +7042,7 @@
         "name": "Idempotency-Key",
         "in": "header",
         "required": false,
-        "description": "Optional client-generated key, scoped to the authenticated user across all POST endpoints. Use a UUID v4 or another unique opaque string. Matching retries replay the original status and body, including handler errors except validation_error responses. Validation errors are not saved, including those returned by the handler; their claim is released so a corrected request can reuse the key. The actual URL path, query values, and parsed JSON must match. JSON whitespace and query parameter name order do not matter. JSON object field order, array order, repeated query value order, and JSON value types must match. Authentication, rate limits, membership checks, and request validation run before lookup. Validation failures do not claim a key. Keys expire 24 hours after the first valid request claims them; retries and completion do not extend expiry. Unfinished requests remain blocked until expiry. After expiry, reuse can execute again. Avoid sensitive information in keys.",
+        "description": "A unique key that lets you retry a POST request without repeating the operation. Use a UUID v4 or another opaque string of up to 255 characters. Keys belong to the authenticated user across all POST endpoints. Avoid sensitive information in keys.\n\nRetries still require valid authentication, sufficient permissions, and compliance with rate limits. Reuse the key with the same URL path, query values, and JSON body to receive the original status and response, including errors other than `validation_error`. Preserve JSON field order, array order, repeated query value order, and value types. JSON whitespace and query parameter name order can change. A different request returns `idempotency_key_mismatch`. You can correct a request that returns `validation_error` and retry with the same key.\n\nKeys expire 24 hours after the first valid request, even if you retry. An unfinished request can return `idempotency_request_in_progress` until expiry. Verify its outcome before using a new key. Reusing an expired key can execute the operation again.",
         "schema": {
           "type": "string",
           "minLength": 1,

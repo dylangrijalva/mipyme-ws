@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import pino from "pino";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { codes } from "../../../src/contracts/business-error.ts";
 import type { Database } from "../../../src/db/index.ts";
 import { tables } from "../../../src/db/schema.ts";
@@ -9,6 +9,7 @@ import { ProductFinder } from "../../../src/finders/product-finder.ts";
 import { UpdateProductService } from "../../../src/services/catalog/products/update-product-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
+import { createBroadcastMock, trackCommittedBroadcasts } from "../../test-utils/realtime-publisher-mock.ts";
 import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
 
 async function readState(db: Database) {
@@ -105,7 +106,9 @@ async function setup(productType: "item" | "service" = "service") {
       updatedAt: timestamp,
     });
   }
+  const broadcast = createBroadcastMock();
   const service = UpdateProductService.create({
+    publisher: { broadcast },
     db,
     collectionFinder: new CollectionFinder(),
     productFinder: new ProductFinder(),
@@ -119,6 +122,7 @@ async function setup(productType: "item" | "service" = "service") {
     },
   });
   return {
+    broadcast,
     db,
     service,
     merchantId,
@@ -130,10 +134,14 @@ async function setup(productType: "item" | "service" = "service") {
   };
 }
 
+afterEach(() => vi.restoreAllMocks());
+
 describe("UpdateProductService services", () => {
   it("saves supplied fields, synchronizes the variant, and archives the replaced image without changing other products", async () => {
-    const { db, service, productId, replacementCollectionId } = await setup();
+    const { broadcast, merchantId, db, service, productId, replacementCollectionId } = await setup();
     const before = await readState(db);
+
+    const committedAtPublish = trackCommittedBroadcasts(db, broadcast);
 
     const result = await service.execute([
       productId,
@@ -147,6 +155,12 @@ describe("UpdateProductService services", () => {
         unitCost: "20.00",
       },
     ]);
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "product", snapshot: result.value },
+    });
+    expect(committedAtPublish).toEqual([true]);
 
     expect(result.success).toBe(true);
     expect(result.value).toMatchObject({
@@ -382,8 +396,10 @@ describe("UpdateProductService services", () => {
 
 describe("UpdateProductService items", () => {
   it("updates a draft item and its variant while preserving inventory, status, slug, and unrelated records", async () => {
-    const { db, service, productId, replacementCollectionId } = await setup("item");
+    const { broadcast, merchantId, db, service, productId, replacementCollectionId } = await setup("item");
     const before = await readState(db);
+
+    const committedAtPublish = trackCommittedBroadcasts(db, broadcast);
 
     const result = await service.execute([
       productId,
@@ -397,6 +413,12 @@ describe("UpdateProductService items", () => {
         imageUrl: "https://strawhatpirates.example.com/medicine.webp",
       },
     ]);
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "product", snapshot: result.value },
+    });
+    expect(committedAtPublish).toEqual([true]);
 
     expect(result.success).toBe(true);
     expect(result.value).toMatchObject({
@@ -664,11 +686,16 @@ describe("UpdateProductService items", () => {
   );
 
   it("returns an item unchanged for an empty request", async () => {
-    const { db, service, productId, merchantId } = await setup("item");
+    const { broadcast, db, service, productId, merchantId } = await setup("item");
     const before = await readState(db);
     const product = await new ProductFinder().find(db, { merchantId, id: productId });
 
     const result = await service.execute([productId, {}]);
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "product", snapshot: result.value },
+    });
 
     expect(result).toEqual({ success: true, value: product });
     expect(await readState(db)).toEqual(before);

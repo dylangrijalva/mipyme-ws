@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import pino from "pino";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { codes } from "../../../src/contracts/business-error.ts";
 import type { Database } from "../../../src/db/index.ts";
 import { tables } from "../../../src/db/schema.ts";
@@ -11,6 +11,7 @@ import {
 } from "../../../src/services/purchases/create-purchase-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
+import { createBroadcastMock, trackCommittedBroadcasts } from "../../test-utils/realtime-publisher-mock.ts";
 import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
 
 async function setup() {
@@ -74,7 +75,9 @@ async function setup() {
     },
   ]);
 
+  const broadcast = createBroadcastMock();
   const service = CreatePurchaseService.create({
+    publisher: { broadcast },
     db,
     purchaseFinder: new PurchaseFinder(),
     logger: pino({ enabled: false }),
@@ -88,6 +91,7 @@ async function setup() {
   });
 
   return {
+    broadcast,
     db,
     service,
     merchantId,
@@ -196,9 +200,12 @@ async function waitForProductRowLockWaits(db: Database, expectedWaits: number): 
     .toBe(expectedWaits);
 }
 
+afterEach(() => vi.restoreAllMocks());
+
 describe("CreatePurchaseService", () => {
   it("creates a fulfilled purchase, receives stock at one location, and recalculates the product-wide unit cost", async () => {
     const {
+      broadcast,
       db,
       service,
       merchantId,
@@ -211,6 +218,8 @@ describe("CreatePurchaseService", () => {
       seafoodVariantId,
     } = await setup();
 
+    const committedAtPublish = trackCommittedBroadcasts(db, broadcast);
+
     const result = await service.execute(
       CreatePurchaseRequest.parse({
         supplierId,
@@ -222,6 +231,12 @@ describe("CreatePurchaseService", () => {
         ],
       }),
     );
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "purchase_order", snapshot: result.value },
+    });
+    expect(committedAtPublish).toEqual([true]);
 
     expect(result.success).toBe(true);
     if (!result.success) {

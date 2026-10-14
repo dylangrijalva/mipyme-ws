@@ -1,0 +1,175 @@
+version: "1.1"
+name: Realtime subscriptions
+components:
+  schemas:
+    RealtimeChannelAuthorization:
+      $ref: ./src/openapi.json#/components/schemas/RealtimeChannelAuthorization
+    FacilitoError:
+      $ref: ./src/openapi.json#/components/schemas/FacilitoError
+config:
+  concurrency: 1
+before:
+  name: provisions an enabled merchant owner
+  steps:
+    - name: creates or retrieves the current merchant
+      http:
+        url: ${{env.baseUrl}}/v1/onboarding
+        method: POST
+        auth:
+          bearer:
+            token: ${{env.token}}
+        json:
+          name: Monkey D. Luffy
+          country: ni
+          location:
+            name: Thousand Sunny
+            business_type: electronics_store
+        check:
+          status: 200
+        captures:
+          merchantId:
+            jsonpath: $.id
+tests:
+  subscription:
+    name: signs a form subscription to the current merchant channel
+    steps:
+      - name: authorizes the private channel
+        http:
+          url: ${{env.baseUrl}}/v1/realtime/subscriptions
+          method: POST
+          headers:
+            Content-Type: application/x-www-form-urlencoded
+          auth:
+            bearer:
+              token: ${{env.token}}
+          form:
+            socket_id: "123.456"
+            channel_name: private-${{captures.merchantId}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/RealtimeChannelAuthorization"
+            jsonpath:
+              $.auth:
+                - match: ^.+:[a-f0-9]{64}$
+  forbidden:
+    name: rejects subscriptions outside the current merchant channel
+    steps:
+      - name: rejects another merchant
+        http:
+          url: ${{env.baseUrl}}/v1/realtime/subscriptions
+          method: POST
+          headers:
+            Content-Type: application/x-www-form-urlencoded
+          auth:
+            bearer:
+              token: ${{env.token}}
+          form:
+            socket_id: "123.456"
+            channel_name: private-merch_000000000000000000
+          check:
+            status: 403
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: forbidden_error
+      - name: rejects a channel sharing the merchant prefix
+        http:
+          url: ${{env.baseUrl}}/v1/realtime/subscriptions
+          method: POST
+          headers:
+            Content-Type: application/x-www-form-urlencoded
+          auth:
+            bearer:
+              token: ${{env.token}}
+          form:
+            socket_id: "123.456"
+            channel_name: private-${{captures.merchantId}}-sales
+          check:
+            status: 403
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: forbidden_error
+  validation:
+    name: rejects malformed or missing form fields
+    steps:
+      - name: rejects a malformed socket ID before signing
+        http:
+          url: ${{env.baseUrl}}/v1/realtime/subscriptions
+          method: POST
+          headers:
+            Content-Type: application/x-www-form-urlencoded
+          auth:
+            bearer:
+              token: ${{env.token}}
+          form:
+            socket_id: invalid
+            channel_name: private-${{captures.merchantId}}
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.details[?(@.field == "socketId")].code:
+                - eq:
+                    - invalid_format
+      - name: rejects a missing socket ID
+        http:
+          url: ${{env.baseUrl}}/v1/realtime/subscriptions
+          method: POST
+          headers:
+            Content-Type: application/x-www-form-urlencoded
+          auth:
+            bearer:
+              token: ${{env.token}}
+          form:
+            channel_name: private-${{captures.merchantId}}
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+      - name: rejects a missing channel name
+        http:
+          url: ${{env.baseUrl}}/v1/realtime/subscriptions
+          method: POST
+          headers:
+            Content-Type: application/x-www-form-urlencoded
+          auth:
+            bearer:
+              token: ${{env.token}}
+          form:
+            socket_id: "123.456"
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+  authentication:
+    name: requires a bearer token before subscribing
+    steps:
+      - name: rejects an unauthenticated subscription
+        http:
+          url: ${{env.baseUrl}}/v1/realtime/subscriptions
+          method: POST
+          headers:
+            Content-Type: application/x-www-form-urlencoded
+          form:
+            socket_id: "123.456"
+            channel_name: private-${{captures.merchantId}}
+          check:
+            status: 401
+            schema:
+              $ref: "#/components/schemas/FacilitoError"
+            jsonpath:
+              $.code:
+                - eq: invalid_oauth_token

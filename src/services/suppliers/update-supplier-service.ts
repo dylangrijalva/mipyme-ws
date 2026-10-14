@@ -7,6 +7,7 @@ import type { Supplier } from "../../contracts/supplier.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
 import type { SupplierFinder } from "../../finders/supplier-finder.ts";
+import type { RealtimeEventPublisher } from "../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../utils/assert-found.ts";
 import { hasDefinedValues } from "../../utils/has-defined-values.ts";
 import { now } from "../../utils/now.ts";
@@ -14,6 +15,7 @@ import { err, ok, type Result } from "../../utils/result.ts";
 import { BaseService } from "../base-service.ts";
 
 type InjectedDependencies = {
+  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
   supplierFinder: SupplierFinder;
@@ -29,22 +31,42 @@ const UpdateSupplierRequest = z.object({
 type UpdateSupplierRequest = z.infer<typeof UpdateSupplierRequest>;
 
 class UpdateSupplierService extends BaseService<[string, UpdateSupplierRequest], Supplier> {
+  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
   private readonly supplierFinder: SupplierFinder;
   private readonly user: CurrentUser;
 
-  constructor(logger: Logger, db: Database, supplierFinder: SupplierFinder, user: CurrentUser) {
+  constructor(
+    logger: Logger,
+    db: Database,
+    supplierFinder: SupplierFinder,
+    user: CurrentUser,
+    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+  ) {
     super(logger);
+    this.publisher = publisher;
     this.db = db;
     this.supplierFinder = supplierFinder;
     this.user = user;
   }
 
   static create(deps: InjectedDependencies): UpdateSupplierService {
-    return new UpdateSupplierService(deps.logger, deps.db, deps.supplierFinder, deps.user);
+    return new UpdateSupplierService(deps.logger, deps.db, deps.supplierFinder, deps.user, deps.publisher);
   }
 
   async execute(request: [string, UpdateSupplierRequest]): Promise<Result<Supplier, BusinessError>> {
+    const result = await this.updateSupplier(request);
+    if (result.success) {
+      this.publisher.broadcast({
+        merchantId: this.user.merchantId,
+        resource: { type: "supplier", snapshot: result.value },
+      });
+    }
+
+    return result;
+  }
+
+  private async updateSupplier(request: [string, UpdateSupplierRequest]): Promise<Result<Supplier, BusinessError>> {
     const [id, changes] = request;
 
     const supplier = await this.supplierFinder.find(this.db, { id, merchantId: this.user.merchantId });

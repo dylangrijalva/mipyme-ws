@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import pino from "pino";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { codes } from "../../../src/contracts/business-error.ts";
 import type { CurrentUser } from "../../../src/contracts/current-user.ts";
 import type { Database } from "../../../src/db/index.ts";
@@ -11,6 +11,7 @@ import { CreatePurchaseService } from "../../../src/services/purchases/create-pu
 import { CreateSaleRequest, CreateSaleService } from "../../../src/services/sales/create-sale-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
+import { createBroadcastMock, trackCommittedBroadcasts } from "../../test-utils/realtime-publisher-mock.ts";
 import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
 
 async function setup() {
@@ -70,7 +71,9 @@ async function setup() {
     email: "nami@strawhatpirates.example.com",
     accountType: "owner",
   };
+  const broadcast = createBroadcastMock();
   const service = CreateSaleService.create({
+    publisher: { broadcast },
     db,
     user,
     logger: pino({ enabled: false }),
@@ -84,6 +87,7 @@ async function setup() {
     payments: [{ method: "cash", amount: "200.00" }],
   };
   return {
+    broadcast,
     db,
     service,
     user,
@@ -135,9 +139,11 @@ async function enableStaff(
   });
 }
 
+afterEach(() => vi.restoreAllMocks());
+
 describe("CreateSaleService", () => {
   it("deducts both variants of one product and advances its inventory version once", async () => {
-    const { db, service, request, merchantId, productId, locationId, variantId } = await setup();
+    const { broadcast, db, service, request, merchantId, productId, locationId, variantId } = await setup();
     const secondVariantId = generateId({ model: "variant" });
     const secondLevelId = generateId({ model: "inventoryLevel" });
     await db.insert(tables.variant).values({
@@ -156,11 +162,19 @@ describe("CreateSaleService", () => {
     });
     const before = await inventoryState(db);
 
+    const committedAtPublish = trackCommittedBroadcasts(db, broadcast);
+
     const result = await service.execute({
       ...request,
       lineItems: [...request.lineItems, { variantId: secondVariantId, price: "75.00", quantity: 3 }],
       payments: [{ method: "cash", amount: "425.00" }],
     });
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "sale", snapshot: result.value },
+    });
+    expect(committedAtPublish).toEqual([true]);
 
     expect(result).toMatchObject({ success: true, value: { status: "fulfilled", transactionNumber: 42 } });
     const state = await checkoutState(db);
@@ -517,7 +531,7 @@ describe("CreateSaleService", () => {
   });
 
   it("recomputes shortages after a location conflict and fulfills a replenished pending checkout", async () => {
-    const { db, service, request, locationId, variantId, productId } = await setup();
+    const { broadcast, merchantId, db, service, request, locationId, variantId, productId } = await setup();
     await db.update(tables.location).set({ allowBackorders: true }).where(eq(tables.location.id, locationId));
     const transact = db.transaction.bind(db);
     const transactionSpy = vi.spyOn(db, "transaction").mockImplementationOnce(async (callback, config) => {
@@ -534,6 +548,11 @@ describe("CreateSaleService", () => {
         ...request,
         lineItems: [{ ...request.lineItems[0]!, quantity: 7 }],
         payments: [{ method: "cash", amount: "700.00" }],
+      });
+
+      expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+        merchantId,
+        resource: { type: "sale", snapshot: result.value },
       });
 
       expect(result).toMatchObject({ success: true, value: { status: "fulfilled", transactionNumber: 43 } });
@@ -553,7 +572,7 @@ describe("CreateSaleService", () => {
   });
 
   it("rolls back pending checkout when sale numbering conflicts exhaust retries", async () => {
-    const { db, service, request, locationId } = await setup();
+    const { broadcast, db, service, request, locationId } = await setup();
     await db.update(tables.location).set({ allowBackorders: true }).where(eq(tables.location.id, locationId));
     const before = await inventoryState(db);
     const transact = db.transaction.bind(db);
@@ -573,6 +592,8 @@ describe("CreateSaleService", () => {
         lineItems: [{ ...request.lineItems[0]!, quantity: 7 }],
         payments: [{ method: "cash", amount: "700.00" }],
       });
+
+      expect(broadcast).not.toHaveBeenCalled();
 
       expect(result).toMatchObject({ success: false, error: { code: codes.concurrentUpdateConflict } });
       expect(competingStates.length).toBeGreaterThan(1);
@@ -892,6 +913,7 @@ describe("CreateSaleService", () => {
     const context = await setup();
     const missingEmployeeId = generateId({ model: "employee" });
     const service = CreateSaleService.create({
+      publisher: { broadcast: async () => {} },
       db: context.db,
       user: { ...context.user, id: missingEmployeeId, employeeId: missingEmployeeId },
       logger: pino({ enabled: false }),
@@ -1070,6 +1092,7 @@ describe("CreateSaleService", () => {
     const supplierId = generateId({ model: "supplier" });
     await db.insert(tables.supplier).values({ id: supplierId, merchantId, name: "Baratie" });
     const purchaseService = CreatePurchaseService.create({
+      publisher: { broadcast: async () => {} },
       db,
       user,
       logger: pino({ enabled: false }),

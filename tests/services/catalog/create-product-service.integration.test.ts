@@ -1,5 +1,6 @@
+import { sql } from "drizzle-orm";
 import pino from "pino";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { codes } from "../../../src/contracts/business-error.ts";
 import { tables } from "../../../src/db/schema.ts";
 import { CollectionFinder } from "../../../src/finders/collection-finder.ts";
@@ -11,6 +12,7 @@ import {
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { err } from "../../../src/utils/result.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
+import { createBroadcastMock, trackCommittedBroadcasts } from "../../test-utils/realtime-publisher-mock.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -21,7 +23,9 @@ async function setup() {
     merchantId,
     name: "Thousand Sunny",
   });
+  const broadcast = createBroadcastMock();
   const service = CreateProductService.create({
+    publisher: { broadcast },
     db,
     collectionFinder: new CollectionFinder(),
     productFinder: new ProductFinder(),
@@ -34,8 +38,10 @@ async function setup() {
       merchantId,
     },
   });
-  return { db, service };
+  return { broadcast, db, service, merchantId };
 }
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("CreateProductService", () => {
   it.each([
@@ -104,9 +110,17 @@ describe("CreateProductService", () => {
     { scenario: "equal to", price: "10", unitCost: "10.00", storedPrice: "10.00", storedCost: "10.00" },
     { scenario: "above", price: "10.00", unitCost: "9.99", storedPrice: "10.00", storedCost: "9.99" },
   ])("persists an item priced $scenario unit cost", async ({ price, unitCost, storedPrice, storedCost }) => {
-    const { db, service } = await setup();
+    const { broadcast, merchantId, db, service } = await setup();
+
+    const committedAtPublish = trackCommittedBroadcasts(db, broadcast);
 
     const result = await service.execute({ name: "Sanji's provisions", productType: "item", price, unitCost });
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "product", snapshot: result.value },
+    });
+    expect(committedAtPublish).toEqual([true]);
 
     expect(result.success).toBe(true);
     const [product] = await db.select().from(tables.product);
@@ -116,7 +130,7 @@ describe("CreateProductService", () => {
   it.each(["10.00", "0.00", undefined])(
     "creates a service with unit cost %s and persists zero unit cost",
     async (unitCost) => {
-      const { db, service } = await setup();
+      const { broadcast, merchantId, db, service } = await setup();
 
       const request = CreateProductRequest.parse({
         name: "Chopper's consultation",
@@ -125,11 +139,40 @@ describe("CreateProductService", () => {
         unitCost,
       });
 
+      const committedAtPublish = trackCommittedBroadcasts(db, broadcast);
+
       const result = await service.execute(request);
+
+      expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+        merchantId,
+        resource: { type: "product", snapshot: result.value },
+      });
+      expect(committedAtPublish).toEqual([true]);
 
       expect(result.success).toBe(true);
       const [product] = await db.select().from(tables.product);
       expect(product).toMatchObject({ id: result.value?.id, price: "9.99", unitCost: "0.00", type: "service" });
     },
   );
+
+  it("does not publish or persist a service product when variant storage fails", async () => {
+    const { db, service, broadcast } = await setup();
+    await db.execute(
+      sql`CREATE TRIGGER reject_realtime_product_variant BEFORE INSERT ON variants FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Variant storage unavailable'`,
+    );
+
+    try {
+      const operation = service.execute({
+        name: "Chopper's consultation",
+        productType: "service",
+        price: "100.00",
+      });
+
+      await expect(operation).rejects.toMatchObject({ cause: { sqlState: "45000" } });
+      expect(broadcast).not.toHaveBeenCalled();
+      expect(await db.select().from(tables.product)).toEqual([]);
+    } finally {
+      await db.execute(sql`DROP TRIGGER reject_realtime_product_variant`);
+    }
+  });
 });

@@ -1,20 +1,27 @@
-import { runFromFile, type WorkflowResult } from "@stepci/runner";
+import { run as runWorkflow, runFromFile, runFromYAML, type Workflow, type WorkflowResult } from "@stepci/runner";
 import { MySqlContainer } from "@testcontainers/mysql";
 import { RedisContainer } from "@testcontainers/redis";
 import chalk from "chalk";
+import { eq, inArray } from "drizzle-orm";
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import { decodeJwt } from "jose";
 import { createConnection } from "mysql2/promise";
-import { readdir } from "node:fs/promises";
+import assert from "node:assert/strict";
+import { once } from "node:events";
+import { readFile, readdir } from "node:fs/promises";
+import { createServer } from "node:net";
 import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import pino, { type Logger } from "pino";
 import pretty from "pino-pretty";
-import { createDrizzle } from "../../src/db/index.ts";
+import { parse } from "yaml";
+import { createDrizzle, type Database } from "../../src/db/index.ts";
+import { tables } from "../../src/db/schema.ts";
 import { run } from "../../src/index.ts";
 import { loadEnvironmentVariables, type Environment } from "../../src/infra/config.env.ts";
+import { generateId } from "../../src/utils/generate-id.ts";
 
-import { preparePendingSaleFixture } from "./fixtures/pending-sales.ts";
+import { seedPurchaseReads } from "../test-utils/purchase-read-fixture.ts";
 
 class HttpTestRunner {
   private readonly environment: Environment;
@@ -138,9 +145,13 @@ class HttpTestRunner {
 
     for (const workflowEntry of workflowEntries) {
       const workflow = basename(workflowEntry);
-      const database = workflow === "pending-sales.spec.yaml" ? createDrizzle(process.env["DB_URL"]!) : undefined;
+      if (workflow === "sales.spec.yaml") {
+        await this.runSalesWorkflow(workflowEntry, baseUrl, token, testUserId);
+        continue;
+      }
+      const database = workflow === "purchases.spec.yaml" ? createDrizzle(process.env["DB_URL"]!) : undefined;
       try {
-        const fixture = database ? await preparePendingSaleFixture(database, testUserId) : undefined;
+        const fixture = database ? await this.preparePurchaseReadWorkflow(database, testUserId) : undefined;
         try {
           const { result } = await runFromFile(workflowEntry, {
             env: { baseUrl: baseUrl.origin, token, testUserId, ...fixture?.environment },
@@ -158,6 +169,281 @@ class HttpTestRunner {
         await database?.$client.promise().end();
       }
     }
+  }
+
+  private async runSalesWorkflow(workflowEntry: string, baseUrl: URL, token: string, testUserId: string) {
+    const workflow = parse(await readFile(workflowEntry, "utf8"), { merge: true }) as Workflow;
+    const { pendingCheckout, ...tests } = workflow.tests;
+    const environment = { baseUrl: baseUrl.origin, token, testUserId };
+    const sales = await runFromYAML(JSON.stringify({ ...workflow, tests }), {
+      path: workflowEntry,
+      env: environment,
+    });
+    if (!sales.result.passed) {
+      this.reportWorkflowResult(basename(workflowEntry), sales.result);
+      throw new Error(`HTTP workflow failed: ${basename(workflowEntry)}`);
+    }
+
+    const database = createDrizzle(process.env["DB_URL"]!);
+    try {
+      const fixture = await this.preparePendingSaleWorkflow(database, testUserId);
+      try {
+        const pendingSales = await runWorkflow(
+          { ...sales.workflow, before: undefined, tests: { pendingCheckout } },
+          { path: workflowEntry, env: { ...environment, ...fixture.environment } },
+        );
+        const result = {
+          ...sales.result,
+          tests: [...sales.result.tests, ...pendingSales.result.tests],
+          passed: pendingSales.result.passed,
+          duration: sales.result.duration + pendingSales.result.duration,
+          bytesSent: sales.result.bytesSent + pendingSales.result.bytesSent,
+          bytesReceived: sales.result.bytesReceived + pendingSales.result.bytesReceived,
+          co2: sales.result.co2 + pendingSales.result.co2,
+        };
+        this.reportWorkflowResult(basename(workflowEntry), result);
+        if (!result.passed) {
+          throw new Error(`HTTP workflow failed: ${basename(workflowEntry)}`);
+        }
+        await fixture.verify();
+      } finally {
+        await fixture.cleanup();
+      }
+    } finally {
+      await database.$client.promise().end();
+    }
+  }
+
+  private async preparePurchaseReadWorkflow(db: Database, testUserId: string) {
+    const [account] = await db.select().from(tables.account).where(eq(tables.account.externalId, testUserId));
+    const [employee] = account
+      ? await db.select().from(tables.employee).where(eq(tables.employee.accountId, account.id))
+      : [];
+    const context = await seedPurchaseReads(
+      db,
+      employee ? { merchantId: employee.merchantId, employeeId: employee.id } : undefined,
+    );
+    const accountId = account?.id ?? generateId({ model: "account" });
+    if (!account) {
+      await db.insert(tables.account).values({
+        id: accountId,
+        merchantId: context.merchantId,
+        externalId: testUserId,
+        email: "nami@strawhatpirates.example.com",
+      });
+      await db.update(tables.employee).set({ accountId }).where(eq(tables.employee.id, context.employeeId));
+    }
+    const purchasesBefore = await db
+      .select()
+      .from(tables.purchaseOrder)
+      .where(inArray(tables.purchaseOrder.id, context.ids))
+      .orderBy(tables.purchaseOrder.id);
+    const itemsBefore = await db
+      .select()
+      .from(tables.purchaseOrderItem)
+      .where(eq(tables.purchaseOrderItem.id, context.itemId));
+    return {
+      environment: {
+        purchaseId: context.ids[1],
+        newestPurchaseId: context.ids[3],
+        secondPurchaseId: context.ids[0],
+        oldestPurchaseId: context.ids[2],
+        foreignPurchaseId: context.ids[4],
+        purchaseLocationId: context.locationId,
+        purchaseSupplierId: context.supplierId,
+        purchaseVariantId: context.variantId,
+      },
+      async verify() {
+        assert.deepEqual(
+          await db
+            .select()
+            .from(tables.purchaseOrder)
+            .where(inArray(tables.purchaseOrder.id, context.ids))
+            .orderBy(tables.purchaseOrder.id),
+          purchasesBefore,
+        );
+        assert.deepEqual(
+          await db.select().from(tables.purchaseOrderItem).where(eq(tables.purchaseOrderItem.id, context.itemId)),
+          itemsBefore,
+        );
+      },
+      async cleanup() {
+        await db.transaction(async (transaction) => {
+          await transaction.delete(tables.purchaseOrderItem).where(eq(tables.purchaseOrderItem.id, context.itemId));
+          await transaction.delete(tables.purchaseOrder).where(inArray(tables.purchaseOrder.id, context.ids));
+          await transaction.delete(tables.variant).where(eq(tables.variant.id, context.variantId));
+          await transaction.delete(tables.product).where(eq(tables.product.id, context.productId));
+          await transaction
+            .delete(tables.supplier)
+            .where(
+              inArray(tables.supplier.id, [context.supplierId, context.otherSupplierId, context.foreignSupplierId]),
+            );
+          await transaction
+            .delete(tables.location)
+            .where(
+              inArray(tables.location.id, [
+                context.locationId,
+                context.inaccessibleLocationId,
+                context.foreignLocationId,
+              ]),
+            );
+          await transaction.delete(tables.employee).where(eq(tables.employee.merchantId, context.otherMerchantId));
+          await transaction.delete(tables.merchant).where(eq(tables.merchant.id, context.otherMerchantId));
+          if (!account) {
+            await transaction.delete(tables.employee).where(eq(tables.employee.id, context.employeeId));
+            await transaction.delete(tables.account).where(eq(tables.account.id, accountId));
+            await transaction.delete(tables.merchant).where(eq(tables.merchant.id, context.merchantId));
+          }
+        });
+      },
+    };
+  }
+
+  private async preparePendingSaleWorkflow(db: Database, testUserId: string) {
+    const [account] = await db.select().from(tables.account).where(eq(tables.account.externalId, testUserId));
+    const merchantId = account?.merchantId ?? generateId({ model: "merchant" });
+    const accountId = account?.id ?? generateId({ model: "account" });
+    if (!account) {
+      await db.insert(tables.merchant).values({ id: merchantId, name: "Straw Hat Pirates" });
+      await db.insert(tables.account).values({
+        id: accountId,
+        merchantId,
+        externalId: testUserId,
+        email: "nami@strawhatpirates.example.com",
+      });
+      await db.insert(tables.employee).values({
+        id: generateId({ model: "employee" }),
+        merchantId,
+        accountId,
+        name: "Nami",
+        isOwner: true,
+        status: "enabled",
+      });
+    }
+
+    const webLocationId = generateId({ model: "location" });
+    const mobileLocationId = generateId({ model: "location" });
+    const locationIds = [webLocationId, mobileLocationId];
+    const productId = generateId({ model: "product" });
+    const variantId = generateId({ model: "variant" });
+    await db.insert(tables.location).values([
+      { id: webLocationId, merchantId, name: "Water 7", allowBackorders: true, nextSaleNumber: 42 },
+      { id: mobileLocationId, merchantId, name: "Dressrosa", allowBackorders: false, nextSaleNumber: 42 },
+    ]);
+    await db.insert(tables.product).values({
+      id: productId,
+      merchantId,
+      name: "Nami's mandarins",
+      slug: productId,
+      type: "item",
+      status: "active",
+      price: "100.00",
+      unitCost: "50.00",
+    });
+    await db
+      .insert(tables.variant)
+      .values({ id: variantId, merchantId, productId, name: "Mandarin crate", price: "100.00" });
+    await db.insert(tables.inventoryLevel).values(
+      locationIds.map((locationId) => ({
+        id: generateId({ model: "inventoryLevel" }),
+        merchantId,
+        locationId,
+        variantId,
+        onHand: 2,
+      })),
+    );
+    const inventoryBefore = await db
+      .select()
+      .from(tables.inventoryLevel)
+      .where(eq(tables.inventoryLevel.variantId, variantId))
+      .orderBy(tables.inventoryLevel.id);
+    const productsBefore = await db.select().from(tables.product).where(eq(tables.product.id, productId));
+
+    return {
+      environment: { webLocationId, mobileLocationId, pendingVariantId: variantId },
+      async cleanup() {
+        await db.transaction(async (transaction) => {
+          const sales = await transaction
+            .select({ id: tables.sale.id })
+            .from(tables.sale)
+            .where(inArray(tables.sale.locationId, locationIds));
+          const saleIds = sales.map((sale) => sale.id);
+          if (saleIds.length > 0) {
+            await transaction
+              .delete(tables.inventoryMovement)
+              .where(inArray(tables.inventoryMovement.referenceId, saleIds));
+            await transaction.delete(tables.salePayment).where(inArray(tables.salePayment.saleId, saleIds));
+            await transaction.delete(tables.saleItem).where(inArray(tables.saleItem.saleId, saleIds));
+            await transaction.delete(tables.sale).where(inArray(tables.sale.id, saleIds));
+          }
+          await transaction.delete(tables.inventoryLevel).where(eq(tables.inventoryLevel.variantId, variantId));
+          await transaction.delete(tables.variant).where(eq(tables.variant.id, variantId));
+          await transaction.delete(tables.product).where(eq(tables.product.id, productId));
+          await transaction.delete(tables.location).where(inArray(tables.location.id, locationIds));
+          if (!account) {
+            await transaction.delete(tables.employee).where(eq(tables.employee.accountId, accountId));
+            await transaction.delete(tables.account).where(eq(tables.account.id, accountId));
+            await transaction.delete(tables.merchant).where(eq(tables.merchant.id, merchantId));
+          }
+        });
+      },
+      async verify() {
+        assert.deepEqual(
+          await db
+            .select()
+            .from(tables.inventoryLevel)
+            .where(eq(tables.inventoryLevel.variantId, variantId))
+            .orderBy(tables.inventoryLevel.id),
+          inventoryBefore,
+        );
+        assert.deepEqual(
+          await db.select().from(tables.product).where(eq(tables.product.id, productId)),
+          productsBefore,
+        );
+        const sales = await db.select().from(tables.sale).where(inArray(tables.sale.locationId, locationIds));
+        assert.equal(sales.length, 3);
+        assert.deepEqual(
+          sales.filter((sale) => sale.locationId === webLocationId).map((sale) => sale.transactionNumber),
+          [42],
+        );
+        assert.deepEqual(
+          sales
+            .filter((sale) => sale.locationId === mobileLocationId)
+            .map((sale) => sale.transactionNumber)
+            .sort(),
+          [42, 43],
+        );
+        for (const sale of sales) {
+          assert.equal(sale.status, "pending");
+          const items = await db.select().from(tables.saleItem).where(eq(tables.saleItem.saleId, sale.id));
+          assert.equal(items.length, 1);
+          assert.equal(items[0]!.variantId, variantId);
+          assert.equal(items[0]!.quantity, 5);
+          assert.equal(items[0]!.shortageQuantity, 3);
+          const payments = await db.select().from(tables.salePayment).where(eq(tables.salePayment.saleId, sale.id));
+          assert.equal(payments.length, 1);
+          assert.equal(payments[0]!.amount, "500.00");
+          assert.equal(payments[0]!.method, "cash");
+        }
+        assert.equal(
+          (
+            await db
+              .select()
+              .from(tables.inventoryMovement)
+              .where(
+                inArray(
+                  tables.inventoryMovement.referenceId,
+                  sales.map((sale) => sale.id),
+                ),
+              )
+          ).length,
+          0,
+        );
+        const locations = await db.select().from(tables.location).where(inArray(tables.location.id, locationIds));
+        assert.equal(locations.find((location) => location.id === webLocationId)?.nextSaleNumber, 43);
+        assert.equal(locations.find((location) => location.id === mobileLocationId)?.nextSaleNumber, 44);
+      },
+    };
   }
 
   private reportWorkflowResult(workflow: string, result: WorkflowResult["result"]) {
@@ -259,7 +545,6 @@ class HttpTestRunner {
     const DB_PASSWORD = mySqlContainer.getRootPassword();
     const databaseUrl = `mysql://root:${DB_PASSWORD}@${mySqlContainer.getHost()}:${DB_PORT}/test`;
 
-    process.env["PORT"] = "5000".toString();
     process.env["NODE_ENV"] = "test";
     process.env["DB_URL"] = databaseUrl;
     process.env["DB_HOST"] = mySqlContainer.getHost();
@@ -270,9 +555,24 @@ class HttpTestRunner {
     process.env["REDIS_URL"] = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`;
 
     await this.migrateDatabase(databaseUrl);
+    const port = await this.findAvailablePort();
+    process.env["PORT"] = port.toString();
     await run();
 
-    return process.env["PORT"].toString();
+    return port;
+  }
+
+  private async findAvailablePort() {
+    const server = createServer();
+    const listening = once(server, "listening");
+    server.listen(0);
+    await listening;
+    const address = server.address();
+    assert(address && typeof address !== "string");
+    const closed = once(server, "close");
+    server.close();
+    await closed;
+    return address.port;
   }
 
   private async migrateDatabase(url: string) {

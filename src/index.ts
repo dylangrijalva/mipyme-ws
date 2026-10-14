@@ -13,6 +13,7 @@ import { SupplierFinder } from "./finders/supplier-finder.ts";
 import { Environment, loadEnvironmentVariables } from "./infra/config.env.ts";
 import { createLogger, noopLogger } from "./infra/config.logger.ts";
 import { IdentityProvider } from "./integrations/identity-provider.ts";
+import { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
 
 async function run() {
   console.clear();
@@ -31,6 +32,7 @@ async function run() {
   logger.debug(chalk.blue("✔ Redis connection established successfully"));
 
   const identity = new IdentityProvider(logger, env);
+  const publisher = new RealtimeEventPublisher({ logger, env });
 
   const merchantFinder = new MerchantFinder();
   const collectionFinder = new CollectionFinder();
@@ -46,6 +48,7 @@ async function run() {
     db,
     cache,
     identity,
+    publisher,
     merchantFinder,
     collectionFinder,
     customerFinder,

@@ -11,6 +11,7 @@ import {
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { err } from "../../../src/utils/result.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
+import { createBroadcastMock } from "../../test-utils/realtime-publisher-mock.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -20,7 +21,9 @@ async function setup() {
     { id: merchantId, name: "Straw Hat Pirates", country: "ni" },
     { id: otherMerchantId, name: "Heart Pirates", country: "ni" },
   ]);
+  const broadcast = createBroadcastMock();
   const service = UpdateCustomerService.create({
+    publisher: { broadcast },
     db,
     customerFinder: new CustomerFinder(),
     logger: pino({ enabled: false }),
@@ -32,12 +35,12 @@ async function setup() {
       merchantId,
     },
   });
-  return { db, service, merchantId, otherMerchantId };
+  return { broadcast, db, service, merchantId, otherMerchantId };
 }
 
 describe("UpdateCustomerService", () => {
   it("persists supplied fields while preserving omitted fields, ownership, and unrelated customers", async () => {
-    const { db, service, merchantId, otherMerchantId } = await setup();
+    const { broadcast, db, service, merchantId, otherMerchantId } = await setup();
     const id = generateId({ model: "customer" });
     const otherId = generateId({ model: "customer" });
     const foreignId = generateId({ model: "customer" });
@@ -62,6 +65,11 @@ describe("UpdateCustomerService", () => {
     const request = UpdateCustomerRequest.parse({ name: "  Robin  ", phone: "  50599999999  " });
 
     const result = await service.execute([id, request]);
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "customer", snapshot: result.value },
+    });
 
     expect(result.success).toBe(true);
     expect(result.value).toMatchObject({
@@ -96,12 +104,17 @@ describe("UpdateCustomerService", () => {
   });
 
   it("returns an unchanged customer for an empty patch without changing timestamps", async () => {
-    const { db, service, merchantId } = await setup();
+    const { broadcast, db, service, merchantId } = await setup();
     const id = generateId({ model: "customer" });
     await db.insert(tables.customer).values({ id, merchantId, name: "Tony Tony Chopper" });
     const before = await db.select().from(tables.customer);
 
     const result = await service.execute([id, UpdateCustomerRequest.parse({})]);
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "customer", snapshot: result.value },
+    });
 
     expect(result.success).toBe(true);
     expect(result.value).toMatchObject({ id, name: "Tony Tony Chopper", updatedAt: before[0].updatedAt });
@@ -109,7 +122,7 @@ describe("UpdateCustomerService", () => {
   });
 
   it.each(["missing", "foreign"])("rejects a %s customer without changing persistence", async (scenario) => {
-    const { db, service, merchantId, otherMerchantId } = await setup();
+    const { broadcast, db, service, merchantId, otherMerchantId } = await setup();
     const id = generateId({ model: "customer" });
     await db.insert(tables.customer).values({ id: generateId({ model: "customer" }), merchantId, name: "Nico Robin" });
     if (scenario === "foreign") {
@@ -118,6 +131,8 @@ describe("UpdateCustomerService", () => {
     const before = await db.select().from(tables.customer).orderBy(tables.customer.id);
 
     const result = await service.execute([id, { name: "Bepo" }]);
+
+    expect(broadcast).not.toHaveBeenCalled();
 
     expect(result).toEqual(
       err({ code: codes.resourceNotFound, message: `Customer ${id} has not been found.`, details: [] }),

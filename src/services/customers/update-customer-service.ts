@@ -7,6 +7,7 @@ import type { Customer } from "../../contracts/customer.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
 import type { CustomerFinder } from "../../finders/customer-finder.ts";
+import type { RealtimeEventPublisher } from "../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../utils/assert-found.ts";
 import { hasDefinedValues } from "../../utils/has-defined-values.ts";
 import { now } from "../../utils/now.ts";
@@ -22,6 +23,7 @@ const UpdateCustomerRequest = z.object({
 type UpdateCustomerRequest = z.infer<typeof UpdateCustomerRequest>;
 
 type InjectedDependencies = {
+  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
   customerFinder: CustomerFinder;
@@ -29,22 +31,42 @@ type InjectedDependencies = {
 };
 
 class UpdateCustomerService extends BaseService<[string, UpdateCustomerRequest], Customer> {
+  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
   private readonly customerFinder: CustomerFinder;
   private readonly user: CurrentUser;
 
-  constructor(logger: Logger, db: Database, customerFinder: CustomerFinder, user: CurrentUser) {
+  constructor(
+    logger: Logger,
+    db: Database,
+    customerFinder: CustomerFinder,
+    user: CurrentUser,
+    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+  ) {
     super(logger);
+    this.publisher = publisher;
     this.db = db;
     this.customerFinder = customerFinder;
     this.user = user;
   }
 
   static create(deps: InjectedDependencies): UpdateCustomerService {
-    return new UpdateCustomerService(deps.logger, deps.db, deps.customerFinder, deps.user);
+    return new UpdateCustomerService(deps.logger, deps.db, deps.customerFinder, deps.user, deps.publisher);
   }
 
   async execute(request: [string, UpdateCustomerRequest]): Promise<Result<Customer, BusinessError>> {
+    const result = await this.updateCustomer(request);
+    if (result.success) {
+      this.publisher.broadcast({
+        merchantId: this.user.merchantId,
+        resource: { type: "customer", snapshot: result.value },
+      });
+    }
+
+    return result;
+  }
+
+  private async updateCustomer(request: [string, UpdateCustomerRequest]): Promise<Result<Customer, BusinessError>> {
     const [id, values] = request;
 
     const customer = await this.customerFinder.find(this.db, { id, merchantId: this.user.merchantId });

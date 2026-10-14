@@ -12,6 +12,7 @@ import type { Database } from "../../../db/index.ts";
 import { tables } from "../../../db/schema.ts";
 import type { CollectionFinder } from "../../../finders/collection-finder.ts";
 import type { ProductFinder } from "../../../finders/product-finder.ts";
+import type { RealtimeEventPublisher } from "../../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../../utils/assert-found.ts";
 import { isPositive, lessThan } from "../../../utils/decimal.ts";
 import { generateId } from "../../../utils/generate-id.ts";
@@ -38,6 +39,7 @@ const CreateProductRequest = z.object({
 type CreateProductRequest = z.infer<typeof CreateProductRequest>;
 
 type InjectedDependencies = {
+  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
   user: CurrentUser;
@@ -46,6 +48,7 @@ type InjectedDependencies = {
 };
 
 class CreateProductService extends BaseService<CreateProductRequest, Product> {
+  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
   private readonly user: CurrentUser;
   private readonly collectionFinder: CollectionFinder;
@@ -57,20 +60,37 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
     user: CurrentUser,
     collectionFinder: CollectionFinder,
     productFinder: ProductFinder,
+    publisher: Pick<RealtimeEventPublisher, "broadcast">,
   ) {
     super(logger);
+    this.publisher = publisher;
     this.db = db;
     this.user = user;
     this.collectionFinder = collectionFinder;
     this.productFinder = productFinder;
   }
 
-  static create({ logger, db, user, collectionFinder, productFinder }: InjectedDependencies): CreateProductService {
-    return new CreateProductService(logger, db, user, collectionFinder, productFinder);
+  static create({
+    logger,
+    db,
+    user,
+    collectionFinder,
+    productFinder,
+    publisher,
+  }: InjectedDependencies): CreateProductService {
+    return new CreateProductService(logger, db, user, collectionFinder, productFinder, publisher);
   }
 
   async execute(request: CreateProductRequest): Promise<Result<Product, BusinessError>> {
-    return request.productType === "service" ? this.createService(request) : this.createItem(request);
+    const result = await (request.productType === "service" ? this.createService(request) : this.createItem(request));
+    if (result.success) {
+      this.publisher.broadcast({
+        merchantId: this.user.merchantId,
+        resource: { type: "product", snapshot: result.value },
+      });
+    }
+
+    return result;
   }
 
   private async createService(request: CreateProductRequest): Promise<Result<Product, BusinessError>> {

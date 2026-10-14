@@ -16,6 +16,7 @@ import { VoidSaleRequest, VoidSaleService } from "../../../src/services/sales/vo
 import { ConcurrentUpdateError } from "../../../src/utils/concurrent-update-error.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
+import { createBroadcastMock, trackCommittedBroadcasts } from "../../test-utils/realtime-publisher-mock.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -95,9 +96,28 @@ async function setup() {
     accountType: "owner",
   };
   const logger = pino({ enabled: false });
-  const saleService = CreateSaleService.create({ db, user, logger, saleFinder: new SaleFinder() });
-  const purchaseService = CreatePurchaseService.create({ db, user, logger, purchaseFinder: new PurchaseFinder() });
-  const voidService = VoidSaleService.create({ db, user, logger, saleFinder: new SaleFinder() });
+  const saleService = CreateSaleService.create({
+    publisher: { broadcast: async () => {} },
+    db,
+    user,
+    logger,
+    saleFinder: new SaleFinder(),
+  });
+  const purchaseService = CreatePurchaseService.create({
+    publisher: { broadcast: async () => {} },
+    db,
+    user,
+    logger,
+    purchaseFinder: new PurchaseFinder(),
+  });
+  const broadcast = createBroadcastMock();
+  const voidService = VoidSaleService.create({
+    publisher: { broadcast },
+    db,
+    user,
+    logger,
+    saleFinder: new SaleFinder(),
+  });
   const saleRequest: CreateSaleRequest = {
     locationId,
     source: "pos.web",
@@ -107,6 +127,7 @@ async function setup() {
   };
 
   return {
+    broadcast,
     db,
     employeeId,
     locationId,
@@ -136,6 +157,7 @@ async function createSale(context: Awaited<ReturnType<typeof setup>>, request = 
 
 function createVoidService(context: Awaited<ReturnType<typeof setup>>, user = context.user) {
   return VoidSaleService.create({
+    publisher: { broadcast: async () => {} },
     db: context.db,
     user,
     logger: pino({ enabled: false }),
@@ -198,10 +220,18 @@ describe("VoidSaleService", () => {
       .where(eq(tables.product.id, context.productId));
     await context.db.update(tables.variant).set({ archivedAt }).where(eq(tables.variant.id, context.variantId));
 
+    const committedAtPublish = trackCommittedBroadcasts(context.db, context.broadcast);
+
     const result = await context.voidService.execute(
       sale.id,
       VoidSaleRequest.parse({ reason: "  Damaged during the crossing  " }),
     );
+
+    expect(context.broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId: context.merchantId,
+      resource: { type: "sale", snapshot: result.value },
+    });
+    expect(committedAtPublish).toEqual([true]);
 
     expect(result).toMatchObject({
       success: true,
@@ -448,6 +478,7 @@ describe("VoidSaleService", () => {
     const saleFinder = new SaleFinder();
     vi.spyOn(saleFinder, "find").mockRejectedValueOnce(new ConcurrentUpdateError());
     const service = VoidSaleService.create({
+      publisher: { broadcast: async () => {} },
       db: context.db,
       user: context.user,
       logger: pino({ enabled: false }),
@@ -472,6 +503,7 @@ describe("VoidSaleService", () => {
     const saleFinder = new SaleFinder();
     vi.spyOn(saleFinder, "find").mockRejectedValue(new ConcurrentUpdateError());
     const service = VoidSaleService.create({
+      publisher: { broadcast: async () => {} },
       db: context.db,
       user: context.user,
       logger: pino({ enabled: false }),

@@ -6,6 +6,7 @@ import { SupplierFinder } from "../../../src/finders/supplier-finder.ts";
 import { UpdateSupplierService } from "../../../src/services/suppliers/update-supplier-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
+import { createBroadcastMock } from "../../test-utils/realtime-publisher-mock.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -15,7 +16,9 @@ async function setup() {
     { id: merchantId, name: "Straw Hat Pirates" },
     { id: otherMerchantId, name: "Heart Pirates" },
   ]);
+  const broadcast = createBroadcastMock();
   const service = UpdateSupplierService.create({
+    publisher: { broadcast },
     db,
     logger: pino({ enabled: false }),
     supplierFinder: new SupplierFinder(),
@@ -27,12 +30,12 @@ async function setup() {
       merchantId,
     },
   });
-  return { db, merchantId, otherMerchantId, service };
+  return { broadcast, db, merchantId, otherMerchantId, service };
 }
 
 describe("UpdateSupplierService", () => {
   it("updates supplied fields while preserving omitted contacts and unrelated suppliers", async () => {
-    const { db, merchantId, otherMerchantId, service } = await setup();
+    const { broadcast, db, merchantId, otherMerchantId, service } = await setup();
     const id = generateId({ model: "supplier" });
     const otherId = generateId({ model: "supplier" });
     const siblingId = generateId({ model: "supplier" });
@@ -44,6 +47,11 @@ describe("UpdateSupplierService", () => {
     const before = await db.select().from(tables.supplier);
 
     const result = await service.execute([id, { name: "Sanji's provisions", email: null }]);
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "supplier", snapshot: result.value },
+    });
 
     expect(result.success).toBe(true);
     expect(result.value).toMatchObject({ id, name: "Sanji's provisions", email: null, phone: "50512345678" });
@@ -58,12 +66,17 @@ describe("UpdateSupplierService", () => {
   });
 
   it("treats an empty patch as a no-op without changing timestamps", async () => {
-    const { db, merchantId, service } = await setup();
+    const { broadcast, db, merchantId, service } = await setup();
     const id = generateId({ model: "supplier" });
     await db.insert(tables.supplier).values({ id, merchantId, name: "Sanji", phone: "50512345678" });
     const [before] = await db.select().from(tables.supplier);
 
     const result = await service.execute([id, {}]);
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "supplier", snapshot: result.value },
+    });
 
     expect(result.success).toBe(true);
     expect(result.value).toMatchObject({

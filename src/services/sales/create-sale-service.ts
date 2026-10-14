@@ -13,6 +13,7 @@ import { Source } from "../../contracts/source.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
 import type { SaleFinder } from "../../finders/sale-finder.ts";
+import type { RealtimeEventPublisher } from "../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../utils/assert-found.ts";
 import { ConcurrentUpdateError, isConcurrentUpdateError } from "../../utils/concurrent-update-error.ts";
 import { generateId } from "../../utils/generate-id.ts";
@@ -60,6 +61,7 @@ const CREATE_SALE_FALLBACK_POLICY = fallback(handleWhen(isConcurrentUpdateError)
 );
 
 type InjectedDependencies = {
+  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
   user: CurrentUser;
@@ -67,19 +69,27 @@ type InjectedDependencies = {
 };
 
 class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
+  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
   private readonly user: CurrentUser;
   private readonly saleFinder: SaleFinder;
 
-  constructor(logger: Logger, db: Database, user: CurrentUser, saleFinder: SaleFinder) {
+  constructor(
+    logger: Logger,
+    db: Database,
+    user: CurrentUser,
+    saleFinder: SaleFinder,
+    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+  ) {
     super(logger);
+    this.publisher = publisher;
     this.db = db;
     this.user = user;
     this.saleFinder = saleFinder;
   }
 
   static create(deps: InjectedDependencies): CreateSaleService {
-    return new CreateSaleService(deps.logger, deps.db, deps.user, deps.saleFinder);
+    return new CreateSaleService(deps.logger, deps.db, deps.user, deps.saleFinder, deps.publisher);
   }
 
   async execute(request: CreateSaleRequest): Promise<Result<Sale, BusinessError>> {
@@ -97,7 +107,15 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
 
     const createSaleWithRetry = () => CREATE_SALE_RETRY_POLICY.execute(() => this.createSale(request));
 
-    return CREATE_SALE_FALLBACK_POLICY.execute(createSaleWithRetry);
+    const result = await CREATE_SALE_FALLBACK_POLICY.execute(createSaleWithRetry);
+    if (result.success) {
+      this.publisher.broadcast({
+        merchantId: this.user.merchantId,
+        resource: { type: "sale", snapshot: result.value },
+      });
+    }
+
+    return result;
   }
 
   private async createSale(request: CreateSaleRequest): Promise<Result<Sale, BusinessError>> {

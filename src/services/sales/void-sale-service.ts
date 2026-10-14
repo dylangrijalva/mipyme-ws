@@ -8,6 +8,7 @@ import type { Sale } from "../../contracts/sale.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
 import type { SaleFinder } from "../../finders/sale-finder.ts";
+import type { RealtimeEventPublisher } from "../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../utils/assert-found.ts";
 import { ConcurrentUpdateError, isConcurrentUpdateError } from "../../utils/concurrent-update-error.ts";
 import { generateId } from "../../utils/generate-id.ts";
@@ -45,6 +46,7 @@ const VOID_SALE_FALLBACK_POLICY = fallback(handleWhen(isConcurrentUpdateError), 
 );
 
 type InjectedDependencies = {
+  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
   user: CurrentUser;
@@ -52,24 +54,40 @@ type InjectedDependencies = {
 };
 
 class VoidSaleService extends BaseService<string, Sale> {
+  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
   private readonly user: CurrentUser;
   private readonly saleFinder: SaleFinder;
 
-  constructor(logger: Logger, db: Database, user: CurrentUser, saleFinder: SaleFinder) {
+  constructor(
+    logger: Logger,
+    db: Database,
+    user: CurrentUser,
+    saleFinder: SaleFinder,
+    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+  ) {
     super(logger);
+    this.publisher = publisher;
     this.db = db;
     this.user = user;
     this.saleFinder = saleFinder;
   }
 
-  static create({ logger, db, user, saleFinder }: InjectedDependencies): VoidSaleService {
-    return new VoidSaleService(logger, db, user, saleFinder);
+  static create({ logger, db, user, saleFinder, publisher }: InjectedDependencies): VoidSaleService {
+    return new VoidSaleService(logger, db, user, saleFinder, publisher);
   }
 
   async execute(id: string, request: VoidSaleRequest = {}): Promise<Result<Sale, BusinessError>> {
     const voidSaleWithRetry = () => VOID_SALE_RETRY_POLICY.execute(() => this.voidSale(id, request.reason ?? null));
-    return VOID_SALE_FALLBACK_POLICY.execute(voidSaleWithRetry);
+    const result = await VOID_SALE_FALLBACK_POLICY.execute(voidSaleWithRetry);
+    if (result.success) {
+      this.publisher.broadcast({
+        merchantId: this.user.merchantId,
+        resource: { type: "sale", snapshot: result.value },
+      });
+    }
+
+    return result;
   }
 
   private async voidSale(id: string, reason: string | null): Promise<Result<Sale, BusinessError>> {

@@ -10,6 +10,7 @@ import type { Purchase } from "../../contracts/purchase.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
 import type { PurchaseFinder } from "../../finders/purchase-finder.ts";
+import type { RealtimeEventPublisher } from "../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../utils/assert-found.ts";
 import { add, divideAndRound, multiply } from "../../utils/decimal.ts";
 import { generateId } from "../../utils/generate-id.ts";
@@ -56,6 +57,7 @@ const CreatePurchaseRequest = z.object({
 type CreatePurchaseRequest = z.infer<typeof CreatePurchaseRequest>;
 
 type InjectedDependencies = {
+  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
   user: CurrentUser;
@@ -71,19 +73,27 @@ type ProductPurchase = {
 };
 
 class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase> {
+  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
   private readonly user: CurrentUser;
   private readonly purchaseFinder: PurchaseFinder;
 
-  constructor(logger: Logger, db: Database, user: CurrentUser, purchaseFinder: PurchaseFinder) {
+  constructor(
+    logger: Logger,
+    db: Database,
+    user: CurrentUser,
+    purchaseFinder: PurchaseFinder,
+    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+  ) {
     super(logger);
+    this.publisher = publisher;
     this.db = db;
     this.user = user;
     this.purchaseFinder = purchaseFinder;
   }
 
   static create(deps: InjectedDependencies): CreatePurchaseService {
-    return new CreatePurchaseService(deps.logger, deps.db, deps.user, deps.purchaseFinder);
+    return new CreatePurchaseService(deps.logger, deps.db, deps.user, deps.purchaseFinder, deps.publisher);
   }
 
   async execute(request: CreatePurchaseRequest): Promise<Result<Purchase, BusinessError>> {
@@ -400,7 +410,15 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
         return ok(purchase);
       });
 
-    return CREATE_PURCHASE_RETRY_POLICY.execute(runTransaction);
+    const result = await CREATE_PURCHASE_RETRY_POLICY.execute(runTransaction);
+    if (result.success) {
+      this.publisher.broadcast({
+        merchantId: this.user.merchantId,
+        resource: { type: "purchase_order", snapshot: result.value },
+      });
+    }
+
+    return result;
   }
 }
 
