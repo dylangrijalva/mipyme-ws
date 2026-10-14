@@ -21,6 +21,7 @@ import { now } from "../../utils/now.ts";
 import { err, ok, type Result } from "../../utils/result.ts";
 import { splitDistinct } from "../../utils/split-distinct.ts";
 import { BaseService } from "../base-service.ts";
+import { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
 
 const CreateSaleRequest = z.object({
   source: Source.default("pos.web"),
@@ -61,35 +62,35 @@ const CREATE_SALE_FALLBACK_POLICY = fallback(handleWhen(isConcurrentUpdateError)
 );
 
 type InjectedDependencies = {
-  publisher: Pick<RealtimeEventPublisher, "broadcast">;
   logger: Logger;
   db: Database;
-  user: CurrentUser;
+  publisher: RealtimeEventPublisher;
   saleFinder: SaleFinder;
+  user: CurrentUser;
 };
 
 class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
-  private readonly publisher: Pick<RealtimeEventPublisher, "broadcast">;
   private readonly db: Database;
-  private readonly user: CurrentUser;
+  private readonly publisher: RealtimeEventPublisher;
   private readonly saleFinder: SaleFinder;
+  private readonly user: CurrentUser;
 
   constructor(
     logger: Logger,
     db: Database,
-    user: CurrentUser,
     saleFinder: SaleFinder,
-    publisher: Pick<RealtimeEventPublisher, "broadcast">,
+    publisher: RealtimeEventPublisher,
+    user: CurrentUser,
   ) {
     super(logger);
-    this.publisher = publisher;
     this.db = db;
-    this.user = user;
+    this.publisher = publisher;
     this.saleFinder = saleFinder;
+    this.user = user;
   }
 
   static create(deps: InjectedDependencies): CreateSaleService {
-    return new CreateSaleService(deps.logger, deps.db, deps.user, deps.saleFinder, deps.publisher);
+    return new CreateSaleService(deps.logger, deps.db, deps.saleFinder, deps.publisher, deps.user);
   }
 
   async execute(request: CreateSaleRequest): Promise<Result<Sale, BusinessError>> {
@@ -120,53 +121,40 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
 
   private async createSale(request: CreateSaleRequest): Promise<Result<Sale, BusinessError>> {
     const variantIds = request.lineItems.map((line) => line.variantId);
-    const [employee] = await this.db
-      .select()
-      .from(tables.employee)
-      .where(and(eq(tables.employee.id, this.user.employeeId), eq(tables.employee.merchantId, this.user.merchantId)))
-      .limit(1);
-
-    const permissions = splitDistinct(employee?.permissions, " ");
-    if (!employee) {
+    const employeeAuthorization = EmployeeAuthorizationService.create({ db: this.db });
+    const authorization = await employeeAuthorization.authorizePermission({
+      employeeId: this.user.employeeId,
+      merchantId: this.user.merchantId,
+      permission: "checkout",
+    });
+    if (!authorization.success) {
       return err({
         code: codes.forbiddenError,
         message: "You do not have permission to checkout.",
         details: [],
       });
     }
+    const employee = authorization.value;
+    const permissions = splitDistinct(employee.permissions, " ");
 
-    const hasCheckoutPermission = permissions.includes("checkout");
-    const employeeIsDisabled = employee.status !== "enabled";
-    const employeeLacksCheckoutPermission = !employee.isOwner && !hasCheckoutPermission;
-    const employeeCannotCheckout = employeeIsDisabled || employeeLacksCheckoutPermission;
-    if (employeeCannotCheckout) {
-      return err({
-        code: codes.forbiddenError,
-        message: "You do not have permission to checkout.",
-        details: [],
-      });
-    }
-
-    const employeeNeedsLocationAccess = !employee.isOwner;
-    if (employeeNeedsLocationAccess) {
-      const [access] = await this.db
-        .select({ id: tables.locationAccess.id })
-        .from(tables.locationAccess)
-        .where(
-          and(
-            eq(tables.locationAccess.merchantId, this.user.merchantId),
-            eq(tables.locationAccess.employeeId, employee.id),
-            eq(tables.locationAccess.locationId, request.locationId),
-          ),
-        )
-        .limit(1);
-      if (!access) {
+    const locationAuthorization = await employeeAuthorization.authorizeLocationAccess({
+      employee,
+      locationId: request.locationId,
+    });
+    if (!locationAuthorization.success) {
+      if (locationAuthorization.error.kind === "location_not_found") {
         return err({
-          code: codes.forbiddenError,
-          message: "You do not have access to this location.",
+          code: codes.resourceNotFound,
+          message: "The location has not been found.",
           details: [],
         });
       }
+
+      return err({
+        code: codes.forbiddenError,
+        message: "You do not have access to this location.",
+        details: [],
+      });
     }
 
     const variants = await this.db

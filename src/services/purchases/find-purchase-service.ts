@@ -1,14 +1,12 @@
-import { and, eq } from "drizzle-orm";
 import type { Logger } from "pino";
 import { codes, type BusinessError } from "../../contracts/business-error.ts";
 import type { CurrentUser } from "../../contracts/current-user.ts";
 import type { Purchase } from "../../contracts/purchase.ts";
 import type { Database } from "../../db/index.ts";
-import { tables } from "../../db/schema.ts";
 import type { PurchaseFinder } from "../../finders/purchase-finder.ts";
 import { err, ok, type Result } from "../../utils/result.ts";
-import { splitDistinct } from "../../utils/split-distinct.ts";
 import { BaseService } from "../base-service.ts";
+import { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
 
 type InjectedDependencies = {
   logger: Logger;
@@ -34,22 +32,20 @@ class FindPurchaseService extends BaseService<string, Purchase> {
   }
 
   async execute(id: string): Promise<Result<Purchase, BusinessError>> {
-    const [employee] = await this.db
-      .select()
-      .from(tables.employee)
-      .where(and(eq(tables.employee.id, this.user.employeeId), eq(tables.employee.merchantId, this.user.merchantId)))
-      .limit(1);
-    if (
-      !employee ||
-      employee.status !== "enabled" ||
-      (!employee.isOwner && !splitDistinct(employee.permissions, " ").includes("view_transactions"))
-    ) {
+    const employeeAuthorization = EmployeeAuthorizationService.create({ db: this.db });
+    const authorization = await employeeAuthorization.authorizePermission({
+      employeeId: this.user.employeeId,
+      merchantId: this.user.merchantId,
+      permission: "view_transactions",
+    });
+    if (!authorization.success) {
       return err({
         code: codes.forbiddenError,
         message: "You do not have permission to view purchases.",
         details: [],
       });
     }
+    const employee = authorization.value;
 
     const purchase = await this.purchaseFinder.find(this.db, {
       id,
