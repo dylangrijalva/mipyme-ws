@@ -2,7 +2,7 @@ import pino from "pino";
 import { describe, expect, it } from "vitest";
 import { tables } from "../../../src/db/schema.ts";
 import { CustomerFinder } from "../../../src/finders/customer-finder.ts";
-import { ListCustomersService } from "../../../src/services/customers/list-customer-service.ts";
+import { ListCustomersService } from "../../../src/services/customers/list-customers-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { ok } from "../../../src/utils/result.ts";
 import { prepareDatabase } from "../../prepare-db.ts";

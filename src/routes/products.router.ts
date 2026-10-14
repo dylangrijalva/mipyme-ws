@@ -7,7 +7,7 @@ import { idempotency } from "../middlewares/idempotency.ts";
 import { createAuthScopedKey, DEFAULT_RATE_LIMIT_CONFIG, rateLimiter } from "../middlewares/rate-limiter.ts";
 import { CreateProductRequest, CreateProductService } from "../services/catalog/products/create-product-service.ts";
 import { FindProductService } from "../services/catalog/products/find-product-service.ts";
-import { ListProductsService } from "../services/catalog/products/list-product-service.ts";
+import { ListProductsService } from "../services/catalog/products/list-products-service.ts";
 import { UpdateProductRequest, UpdateProductService } from "../services/catalog/products/update-product-service.ts";
 import { FacilitoHono } from "../types.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";

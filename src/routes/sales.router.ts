@@ -7,7 +7,7 @@ import { idempotency } from "../middlewares/idempotency.ts";
 import { createAuthScopedKey, DEFAULT_RATE_LIMIT_CONFIG, rateLimiter } from "../middlewares/rate-limiter.ts";
 import { CreateSaleRequest, CreateSaleService } from "../services/sales/create-sale-service.ts";
 import { FindSaleService } from "../services/sales/find-sale-service.ts";
-import { ListSalesService } from "../services/sales/list-sale-service.ts";
+import { ListSalesService } from "../services/sales/list-sales-service.ts";
 import { VoidSaleRequest, VoidSaleService } from "../services/sales/void-sale-service.ts";
 import { FacilitoHono } from "../types.ts";
 import { camelCaseKeys } from "../utils/camel-case-keys.ts";

@@ -5,7 +5,7 @@ import type { CurrentUser } from "../../../src/contracts/current-user.ts";
 import { SalePaginationRequest } from "../../../src/contracts/sale-pagination-query.ts";
 import { tables } from "../../../src/db/schema.ts";
 import { SaleFinder } from "../../../src/finders/sale-finder.ts";
-import { ListSalesService } from "../../../src/services/sales/list-sale-service.ts";
+import { ListSalesService } from "../../../src/services/sales/list-sales-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
 
