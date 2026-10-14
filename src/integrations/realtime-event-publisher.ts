@@ -70,29 +70,27 @@ class RealtimeEventPublisher {
       return;
     }
 
-    await Promise.resolve()
-      .then(async () => {
-        const event = snakeCaseKeys({
-          id: generateId({ model: "event" }),
-          resourceId: resource.snapshot.id,
-          ...resource,
-        });
-        const CHANGE_EVENT_NAME = "facilito.changes" as const;
-        const PUSHER_EVENT_DATA_LIMIT_IN_BYTES = 10 * 1024;
-        const serializedEvent = JSON.stringify(event);
-        const isOversized = Buffer.byteLength(serializedEvent, "utf8") >= PUSHER_EVENT_DATA_LIMIT_IN_BYTES;
-        const payload = isOversized ? { ...event, snapshot: null } : event;
-        const channel = `private-${merchantId}`;
-
-        await this.pusher.trigger(channel, CHANGE_EVENT_NAME, payload);
-        this.logger.info({ event: payload }, "An event has been emitted successfully");
-      })
-      .catch((error: unknown) => {
-        this.logger.error(
-          { err: error, resourceId: resource.snapshot.id, resourceType: resource.type },
-          "Realtime event publishing failed",
-        );
+    try {
+      const event = snakeCaseKeys({
+        id: generateId({ model: "event" }),
+        resourceId: resource.snapshot.id,
+        ...resource,
       });
+      const CHANGE_EVENT_NAME = "facilito.changes" as const;
+      const PUSHER_EVENT_DATA_LIMIT_IN_BYTES = 10 * 1024;
+      const serializedEvent = JSON.stringify(event);
+      const isOversized = Buffer.byteLength(serializedEvent, "utf8") >= PUSHER_EVENT_DATA_LIMIT_IN_BYTES;
+      const payload = isOversized ? { ...event, snapshot: null } : event;
+      const channel = `private-${merchantId}`;
+
+      await this.pusher.trigger(channel, CHANGE_EVENT_NAME, payload);
+      this.logger.info({ event: payload }, "An event has been emitted successfully");
+    } catch (error: unknown) {
+      this.logger.error(
+        { err: error, resourceId: resource.snapshot.id, resourceType: resource.type },
+        "Realtime event publishing failed",
+      );
+    }
   }
 
   authorizeChannelSubscription({ socketId, channelName }: AuthorizeChannelRequest): Pusher.ChannelAuthResponse {
