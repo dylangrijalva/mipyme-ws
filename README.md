@@ -47,12 +47,3 @@ Each plan is designed around different business needs, so you can pay for the fe
 - **Expense Management**: Track the money going in and out of your business from one place. Facilito helps you organize expenses and maintain a clearer picture of your business's finances.
 
 - **Reports & Analytics**: Understand how your business is performing with clear, easy-to-read reports. Track key metrics such as revenue, profit, top-selling products, and your most loyal customers.
-
-## HTTP tests
-
-Run all workflows with `pnpm test:http`. Run one workflow with `pnpm test:http --workflow suppliers`.
-Repeat `--workflow` to select several workflows, for example:
-
-```bash
-pnpm test:http --workflow products --workflow customers --workflow suppliers
-```
