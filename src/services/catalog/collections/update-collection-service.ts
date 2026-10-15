@@ -56,14 +56,8 @@ class UpdateCollectionService extends BaseService<[string, UpdateCollectionReque
     this.user = user;
   }
 
-  static create(dependencies: InjectedDependencies): UpdateCollectionService {
-    return new UpdateCollectionService(
-      dependencies.logger,
-      dependencies.db,
-      dependencies.collectionFinder,
-      dependencies.publisher,
-      dependencies.user,
-    );
+  static create({ logger, db, collectionFinder, publisher, user }: InjectedDependencies): UpdateCollectionService {
+    return new UpdateCollectionService(logger, db, collectionFinder, publisher, user);
   }
 
   async execute([id, request]: [string, UpdateCollectionRequest]): Promise<Result<Collection, BusinessError>> {

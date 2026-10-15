@@ -26,13 +26,8 @@ class FindCollectionService extends BaseService<string, Collection> {
     this.user = user;
   }
 
-  static create(dependencies: InjectedDependencies): FindCollectionService {
-    return new FindCollectionService(
-      dependencies.logger,
-      dependencies.db,
-      dependencies.collectionFinder,
-      dependencies.user,
-    );
+  static create({ logger, db, collectionFinder, user }: InjectedDependencies): FindCollectionService {
+    return new FindCollectionService(logger, db, collectionFinder, user);
   }
 
   async execute(id: string): Promise<Result<Collection, BusinessError>> {

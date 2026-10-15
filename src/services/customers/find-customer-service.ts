@@ -26,8 +26,8 @@ class FindCustomerService extends BaseService<string, Customer> {
     this.user = user;
   }
 
-  static create(deps: InjectedDependencies): FindCustomerService {
-    return new FindCustomerService(deps.logger, deps.db, deps.customerFinder, deps.user);
+  static create({ logger, db, customerFinder, user }: InjectedDependencies): FindCustomerService {
+    return new FindCustomerService(logger, db, customerFinder, user);
   }
 
   async execute(id: string): Promise<Result<Customer, BusinessError>> {

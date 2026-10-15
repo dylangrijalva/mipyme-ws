@@ -28,13 +28,8 @@ class ListCollectionsService extends BaseService<PaginationRequest, PaginationRe
     this.user = user;
   }
 
-  static create(dependencies: InjectedDependencies): ListCollectionsService {
-    return new ListCollectionsService(
-      dependencies.logger,
-      dependencies.db,
-      dependencies.collectionFinder,
-      dependencies.user,
-    );
+  static create({ logger, db, collectionFinder, user }: InjectedDependencies): ListCollectionsService {
+    return new ListCollectionsService(logger, db, collectionFinder, user);
   }
 
   async execute(request: PaginationRequest): Promise<Result<PaginationResponse<Collection>, BusinessError>> {

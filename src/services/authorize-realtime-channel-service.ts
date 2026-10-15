@@ -22,8 +22,8 @@ class AuthorizeRealtimeChannelService extends BaseService<AuthorizeChannelReques
     this.user = user;
   }
 
-  static create(dependencies: InjectedDependencies): AuthorizeRealtimeChannelService {
-    return new AuthorizeRealtimeChannelService(dependencies.logger, dependencies.publisher, dependencies.user);
+  static create({ logger, publisher, user }: InjectedDependencies): AuthorizeRealtimeChannelService {
+    return new AuthorizeRealtimeChannelService(logger, publisher, user);
   }
 
   async execute(request: AuthorizeChannelRequest): Promise<Result<Pusher.ChannelAuthResponse, BusinessError>> {

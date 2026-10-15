@@ -29,8 +29,8 @@ class ListPurchasesService extends BaseService<PurchasePaginationRequest, Pagina
     this.user = user;
   }
 
-  static create(deps: InjectedDependencies): ListPurchasesService {
-    return new ListPurchasesService(deps.logger, deps.db, deps.purchaseFinder, deps.user);
+  static create({ logger, db, purchaseFinder, user }: InjectedDependencies): ListPurchasesService {
+    return new ListPurchasesService(logger, db, purchaseFinder, user);
   }
 
   async execute(request: PurchasePaginationRequest): Promise<Result<PaginationResponse<Purchase>, BusinessError>> {

@@ -68,15 +68,15 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
     this.user = user;
   }
 
-  static create(deps: InjectedDependencies): UpdateProductService {
-    return new UpdateProductService(
-      deps.logger,
-      deps.db,
-      deps.collectionFinder,
-      deps.productFinder,
-      deps.publisher,
-      deps.user,
-    );
+  static create({
+    logger,
+    db,
+    collectionFinder,
+    productFinder,
+    publisher,
+    user,
+  }: InjectedDependencies): UpdateProductService {
+    return new UpdateProductService(logger, db, collectionFinder, productFinder, publisher, user);
   }
 
   async execute([id, request]: [string, UpdateProductRequest]): Promise<Result<Product, BusinessError>> {

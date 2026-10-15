@@ -50,8 +50,8 @@ class UpdateCustomerService extends BaseService<[string, UpdateCustomerRequest],
     this.user = user;
   }
 
-  static create(deps: InjectedDependencies): UpdateCustomerService {
-    return new UpdateCustomerService(deps.logger, deps.db, deps.customerFinder, deps.publisher, deps.user);
+  static create({ logger, db, customerFinder, publisher, user }: InjectedDependencies): UpdateCustomerService {
+    return new UpdateCustomerService(logger, db, customerFinder, publisher, user);
   }
 
   async execute(request: [string, UpdateCustomerRequest]): Promise<Result<Customer, BusinessError>> {

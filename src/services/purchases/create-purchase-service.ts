@@ -91,8 +91,8 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
     this.user = user;
   }
 
-  static create(deps: InjectedDependencies): CreatePurchaseService {
-    return new CreatePurchaseService(deps.logger, deps.db, deps.purchaseFinder, deps.publisher, deps.user);
+  static create({ logger, db, purchaseFinder, publisher, user }: InjectedDependencies): CreatePurchaseService {
+    return new CreatePurchaseService(logger, db, purchaseFinder, publisher, user);
   }
 
   async execute(request: CreatePurchaseRequest): Promise<Result<Purchase, BusinessError>> {

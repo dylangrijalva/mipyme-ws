@@ -54,14 +54,8 @@ class CreateCollectionService extends BaseService<CreateCollectionRequest, Colle
     this.user = user;
   }
 
-  static create(dependencies: InjectedDependencies): CreateCollectionService {
-    return new CreateCollectionService(
-      dependencies.logger,
-      dependencies.db,
-      dependencies.collectionFinder,
-      dependencies.publisher,
-      dependencies.user,
-    );
+  static create({ logger, db, collectionFinder, publisher, user }: InjectedDependencies): CreateCollectionService {
+    return new CreateCollectionService(logger, db, collectionFinder, publisher, user);
   }
 
   async execute(request: CreateCollectionRequest): Promise<Result<Collection, BusinessError>> {

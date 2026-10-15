@@ -39,8 +39,8 @@ class EmployeeAuthorizationService {
     this.db = db;
   }
 
-  static create(dependencies: InjectedDependencies): EmployeeAuthorizationService {
-    return new EmployeeAuthorizationService(dependencies.db);
+  static create({ db }: InjectedDependencies): EmployeeAuthorizationService {
+    return new EmployeeAuthorizationService(db);
   }
 
   async authorizePermission(

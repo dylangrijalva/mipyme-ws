@@ -27,8 +27,8 @@ class FindSaleService extends BaseService<string, Sale> {
     this.user = user;
   }
 
-  static create(deps: InjectedDependencies): FindSaleService {
-    return new FindSaleService(deps.logger, deps.db, deps.saleFinder, deps.user);
+  static create({ logger, db, saleFinder, user }: InjectedDependencies): FindSaleService {
+    return new FindSaleService(logger, db, saleFinder, user);
   }
 
   async execute(id: string): Promise<Result<Sale, BusinessError>> {

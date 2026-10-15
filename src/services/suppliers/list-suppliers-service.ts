@@ -28,8 +28,8 @@ class ListSuppliersService extends BaseService<PaginationRequest, PaginationResp
     this.user = user;
   }
 
-  static create(deps: InjectedDependencies): ListSuppliersService {
-    return new ListSuppliersService(deps.logger, deps.db, deps.supplierFinder, deps.user);
+  static create({ logger, db, supplierFinder, user }: InjectedDependencies): ListSuppliersService {
+    return new ListSuppliersService(logger, db, supplierFinder, user);
   }
 
   async execute(request: PaginationRequest): Promise<Result<PaginationResponse<Supplier>, BusinessError>> {

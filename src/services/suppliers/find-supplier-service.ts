@@ -26,8 +26,8 @@ class FindSupplierService extends BaseService<string, Supplier> {
     this.user = user;
   }
 
-  static create(deps: InjectedDependencies): FindSupplierService {
-    return new FindSupplierService(deps.logger, deps.db, deps.supplierFinder, deps.user);
+  static create({ logger, db, supplierFinder, user }: InjectedDependencies): FindSupplierService {
+    return new FindSupplierService(logger, db, supplierFinder, user);
   }
 
   async execute(id: string): Promise<Result<Supplier, BusinessError>> {

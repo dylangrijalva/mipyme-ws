@@ -48,8 +48,8 @@ class CreateSupplierService extends BaseService<CreateSupplierRequest, Supplier>
     this.user = user;
   }
 
-  static create(deps: InjectedDependencies): CreateSupplierService {
-    return new CreateSupplierService(deps.logger, deps.db, deps.supplierFinder, deps.publisher, deps.user);
+  static create({ logger, db, supplierFinder, publisher, user }: InjectedDependencies): CreateSupplierService {
+    return new CreateSupplierService(logger, db, supplierFinder, publisher, user);
   }
 
   async execute(request: CreateSupplierRequest): Promise<Result<Supplier, BusinessError>> {

@@ -27,8 +27,8 @@ class FindPurchaseService extends BaseService<string, Purchase> {
     this.user = user;
   }
 
-  static create(deps: InjectedDependencies): FindPurchaseService {
-    return new FindPurchaseService(deps.logger, deps.db, deps.purchaseFinder, deps.user);
+  static create({ logger, db, purchaseFinder, user }: InjectedDependencies): FindPurchaseService {
+    return new FindPurchaseService(logger, db, purchaseFinder, user);
   }
 
   async execute(id: string): Promise<Result<Purchase, BusinessError>> {

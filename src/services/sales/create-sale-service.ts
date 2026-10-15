@@ -89,8 +89,8 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
     this.user = user;
   }
 
-  static create(deps: InjectedDependencies): CreateSaleService {
-    return new CreateSaleService(deps.logger, deps.db, deps.saleFinder, deps.publisher, deps.user);
+  static create({ logger, db, saleFinder, publisher, user }: InjectedDependencies): CreateSaleService {
+    return new CreateSaleService(logger, db, saleFinder, publisher, user);
   }
 
   async execute(request: CreateSaleRequest): Promise<Result<Sale, BusinessError>> {

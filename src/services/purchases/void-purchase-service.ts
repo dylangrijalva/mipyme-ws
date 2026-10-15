@@ -64,8 +64,8 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
     this.user = user;
   }
 
-  static create(dependencies: InjectedDependencies): VoidPurchaseService {
-    return new VoidPurchaseService(dependencies);
+  static create({ logger, db, publisher, purchaseFinder, user }: InjectedDependencies): VoidPurchaseService {
+    return new VoidPurchaseService({ logger, db, publisher, purchaseFinder, user });
   }
 
   async execute(id: string, request: VoidPurchaseRequest = {}): Promise<Result<Purchase, BusinessError>> {
