@@ -233,6 +233,10 @@ class HttpTestRunner {
       });
       await db.update(tables.employee).set({ accountId }).where(eq(tables.employee.id, context.employeeId));
     }
+    await db
+      .update(tables.location)
+      .set({ nextPurchaseOrderNumber: 10 })
+      .where(eq(tables.location.id, context.locationId));
     const purchasesBefore = await db
       .select()
       .from(tables.purchaseOrder)
@@ -244,6 +248,7 @@ class HttpTestRunner {
       .where(eq(tables.purchaseOrderItem.id, context.itemId));
     return {
       environment: {
+        purchaseEmployeeId: context.employeeId,
         purchaseId: context.ids[1],
         newestPurchaseId: context.ids[3],
         secondPurchaseId: context.ids[0],
@@ -266,11 +271,81 @@ class HttpTestRunner {
           await db.select().from(tables.purchaseOrderItem).where(eq(tables.purchaseOrderItem.id, context.itemId)),
           itemsBefore,
         );
+        const orders = (
+          await db.select().from(tables.purchaseOrder).where(eq(tables.purchaseOrder.supplierId, context.supplierId))
+        )
+          .filter((order) => !context.ids.includes(order.id))
+          .sort((left, right) => left.transactionNumber - right.transactionNumber);
+        assert.equal(orders.length, 3);
+        assert.deepEqual(
+          orders.map((order) => order.status),
+          ["voided", "fulfilled", "voided"],
+        );
+        assert.equal(orders[0].voidReason, "Wrong supplier delivery");
+        assert.equal(orders[0].voidedById, context.employeeId);
+        assert(orders[0].voidedAt instanceof Date);
+        assert.equal(orders[1].voidedAt, null);
+        assert.equal(orders[2].voidReason, null);
+        const [product] = await db.select().from(tables.product).where(eq(tables.product.id, context.productId));
+        assert.equal(product.unitCost, "12.00");
+        assert.equal(product.lastSoldAt, null);
+        const levels = await db
+          .select()
+          .from(tables.inventoryLevel)
+          .where(eq(tables.inventoryLevel.variantId, context.variantId));
+        assert.equal(levels.length, 1);
+        assert.equal(levels[0].onHand, 2);
+        const movements = await db
+          .select()
+          .from(tables.inventoryMovement)
+          .where(eq(tables.inventoryMovement.inventoryLevelId, levels[0].id));
+        assert.equal(movements.length, 5);
+        assert.deepEqual(
+          movements
+            .filter((movement) => movement.reason === "purchase_void")
+            .map((movement) => movement.quantityDelta)
+            .sort(),
+          [-2, -1].sort(),
+        );
+        assert.equal(
+          movements.filter((movement) => movement.referenceId === orders[1].id && movement.reason === "purchase_void")
+            .length,
+          0,
+        );
       },
       async cleanup() {
+        const orders = await db
+          .select()
+          .from(tables.purchaseOrder)
+          .where(
+            inArray(tables.purchaseOrder.locationId, [
+              context.locationId,
+              context.inaccessibleLocationId,
+              context.foreignLocationId,
+            ]),
+          );
+        const orderIds = orders.map((order) => order.id);
+        const levels = await db
+          .select()
+          .from(tables.inventoryLevel)
+          .where(eq(tables.inventoryLevel.variantId, context.variantId));
         await db.transaction(async (transaction) => {
-          await transaction.delete(tables.purchaseOrderItem).where(eq(tables.purchaseOrderItem.id, context.itemId));
-          await transaction.delete(tables.purchaseOrder).where(inArray(tables.purchaseOrder.id, context.ids));
+          if (levels.length) {
+            await transaction.delete(tables.inventoryMovement).where(
+              inArray(
+                tables.inventoryMovement.inventoryLevelId,
+                levels.map((level) => level.id),
+              ),
+            );
+          }
+          await transaction
+            .delete(tables.purchaseOrderItem)
+            .where(inArray(tables.purchaseOrderItem.purchaseOrderId, orderIds));
+          await transaction.delete(tables.purchaseOrder).where(inArray(tables.purchaseOrder.id, orderIds));
+          await transaction
+            .delete(tables.supplierProduct)
+            .where(eq(tables.supplierProduct.productId, context.productId));
+          await transaction.delete(tables.inventoryLevel).where(eq(tables.inventoryLevel.variantId, context.variantId));
           await transaction.delete(tables.variant).where(eq(tables.variant.id, context.variantId));
           await transaction.delete(tables.product).where(eq(tables.product.id, context.productId));
           await transaction

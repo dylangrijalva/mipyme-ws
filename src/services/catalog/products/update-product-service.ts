@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { Logger } from "pino";
 import z from "zod";
 import { codes, type BusinessError } from "../../../contracts/business-error.ts";
@@ -280,7 +280,12 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
 
     return await this.db.transaction(async (trx) => {
       const [currentProduct] = await trx
-        .select({ price: tables.product.price, unitCost: tables.product.unitCost, status: tables.product.status })
+        .select({
+          price: tables.product.price,
+          unitCost: tables.product.unitCost,
+          status: tables.product.status,
+          updatedAt: tables.product.updatedAt,
+        })
         .from(tables.product)
         .where(and(eq(tables.product.id, product.id), eq(tables.product.merchantId, this.user.merchantId)))
         .for("update");
@@ -312,11 +317,14 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
         });
       }
 
+      const updatedAt = now();
+      const nextUpdatedAt = new Date(Math.max(updatedAt.getTime(), currentProduct.updatedAt.getTime() + 1));
       await trx
         .update(tables.product)
         .set({
           ...productValues,
-          inventoryVersion: unitCostChanged ? sql`${tables.product.inventoryVersion} + 1` : undefined,
+          lastInventoryChangedAt: unitCostChanged ? nextUpdatedAt : undefined,
+          updatedAt: nextUpdatedAt,
         })
         .where(and(eq(tables.product.id, product.id), eq(tables.product.merchantId, this.user.merchantId)));
 

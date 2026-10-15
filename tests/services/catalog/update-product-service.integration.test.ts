@@ -443,8 +443,8 @@ describe("UpdateProductService items", () => {
               name: "Chopper's medicine",
               price: "35.50",
               unitCost: "35.50",
-              inventoryVersion: product.inventoryVersion + 1,
               collectionId: replacementCollectionId,
+              lastInventoryChangedAt: expect.any(Date),
               updatedAt: expect.any(Date),
             }
           : product,
@@ -493,11 +493,14 @@ describe("UpdateProductService items", () => {
   ])("patches only supplied item fields for %j", async (request) => {
     const { db, service, productId } = await setup("item");
     const before = await readState(db);
+    const previousUpdatedAt = before.products.find((product) => product.id === productId)!.updatedAt;
+    vi.spyOn(Date, "now").mockReturnValue(previousUpdatedAt.getTime());
     const { name, price, unitCost, sku, barcode } = request;
     const productChanges = {
       ...(name !== undefined ? { name } : {}),
       ...(price !== undefined ? { price } : {}),
       ...(unitCost !== undefined ? { unitCost } : {}),
+      ...(unitCost !== undefined ? { lastInventoryChangedAt: expect.any(Date) } : {}),
     };
     const variantChanges = {
       ...(name !== undefined ? { name } : {}),
@@ -510,15 +513,15 @@ describe("UpdateProductService items", () => {
 
     expect(result.success).toBe(true);
     const after = await readState(db);
+    expect(after.products.find((product) => product.id === productId)!.updatedAt.getTime()).toBeGreaterThan(
+      previousUpdatedAt.getTime(),
+    );
     expect(after.products).toEqual(
       before.products.map((product) =>
         product.id === productId
           ? {
               ...product,
               ...productChanges,
-              ...(unitCost !== undefined && unitCost !== product.unitCost
-                ? { inventoryVersion: product.inventoryVersion + 1 }
-                : {}),
               updatedAt: expect.any(Date),
             }
           : product,

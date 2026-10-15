@@ -100,7 +100,7 @@ describe("EmployeeAuthorizationService", () => {
     const permissionResult = await service.authorizePermission({
       employeeId: context.ownerId,
       merchantId: context.merchantId,
-      permission: "void_sales",
+      permission: "void_transaction",
     });
 
     expect(permissionResult).toMatchObject({
@@ -189,8 +189,8 @@ describe("EmployeeAuthorizationService", () => {
       {
         employeeId: context.employeeId,
         merchantId: context.merchantId,
-        permission: "void_sales",
-        error: { kind: "permission_denied", permission: "void_sales" },
+        permission: "void_transaction",
+        error: { kind: "permission_denied", permission: "void_transaction" },
       },
     ] as const;
 

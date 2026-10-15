@@ -199,8 +199,9 @@ export const product = mysqlTable(
     slug: varchar({ length: 128 }).notNull(),
     price: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }).notNull(),
     unitCost: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }).notNull(),
-    inventoryVersion: int({ unsigned: true }).notNull().default(0),
     lastRestockAt: datetime({ mode: "date", fsp: 6 }),
+    lastSoldAt: datetime({ mode: "date", fsp: 6 }),
+    lastInventoryChangedAt: datetime({ mode: "date", fsp: 6 }),
     status: varchar({ length: 24 }).$type<ProductStatus>().notNull().default("draft"),
     type: varchar({ length: 24 }).$type<ProductType>().notNull().default("item"),
     createdAt: datetime({ mode: "date", fsp: 6 })
@@ -766,12 +767,16 @@ export const purchaseOrder = mysqlTable(
     createdById: char({ length: ID_LENGTH })
       .notNull()
       .references(() => employee.id),
+    voidedById: char({ length: ID_LENGTH }).references(() => employee.id),
+    voidedAt: datetime({ mode: "date", fsp: 6 }),
+    voidReason: varchar({ length: 256 }),
   },
   (table) => [
     unique("purchase_orders_location_transaction_unique").on(table.locationId, table.transactionNumber),
     index("purchase_orders_supplier_id_idx").on(table.supplierId),
     index("purchase_orders_merchant_id_idx").on(table.merchantId),
     index("purchase_orders_created_by_id_idx").on(table.createdById),
+    index("purchase_orders_voided_by_id_idx").on(table.voidedById),
     unique("purchase_orders_merchant_id_unique").on(table.merchantId, table.id),
     foreignKey({
       columns: [table.merchantId, table.supplierId],
@@ -788,6 +793,11 @@ export const purchaseOrder = mysqlTable(
       foreignColumns: [employee.merchantId, employee.id],
       name: "purchase_orders_merchant_createdById_fk",
     }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.merchantId, table.voidedById],
+      foreignColumns: [employee.merchantId, employee.id],
+      name: "purchase_orders_merchant_voidedById_fk",
+    }).onDelete("restrict"),
   ],
 );
 
@@ -799,6 +809,7 @@ export const purchaseOrderItem = mysqlTable(
     quantity: int({ unsigned: true }).notNull(),
     price: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }).notNull(),
     unitCost: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }).notNull(),
+    previousUnitCost: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }),
     createdAt: datetime({ mode: "date", fsp: 6 })
       .notNull()
       .$defaultFn(() => now()),

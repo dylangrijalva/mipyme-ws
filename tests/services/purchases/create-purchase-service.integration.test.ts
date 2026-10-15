@@ -157,7 +157,7 @@ function createDeferred() {
   return { promise, resolve: resolvePromise };
 }
 
-function holdAndIncrementProductVersion(db: Database, merchantId: string, productId: string) {
+function holdAndUpdateProduct(db: Database, merchantId: string, productId: string) {
   const acquired = createDeferred();
   const release = createDeferred();
   const finished = db.transaction(async (transaction) => {
@@ -170,7 +170,7 @@ function holdAndIncrementProductVersion(db: Database, merchantId: string, produc
     await release.promise;
     await transaction
       .update(tables.product)
-      .set({ inventoryVersion: sql`${tables.product.inventoryVersion} + 1` })
+      .set({ updatedAt: sql`DATE_ADD(${tables.product.updatedAt}, INTERVAL 1000 MICROSECOND)` })
       .where(and(eq(tables.product.merchantId, merchantId), eq(tables.product.id, productId)));
   });
 
@@ -267,10 +267,10 @@ describe("CreatePurchaseService", () => {
     });
 
     const [product] = await db
-      .select({ unitCost: tables.product.unitCost, inventoryVersion: tables.product.inventoryVersion })
+      .select({ unitCost: tables.product.unitCost })
       .from(tables.product)
       .where(and(eq(tables.product.merchantId, merchantId), eq(tables.product.id, productId)));
-    expect(product).toEqual({ unitCost: "8.47", inventoryVersion: 1 });
+    expect(product).toEqual({ unitCost: "8.47" });
 
     const [location] = await db
       .select({ nextPurchaseOrderNumber: tables.location.nextPurchaseOrderNumber })
@@ -524,18 +524,18 @@ describe("CreatePurchaseService", () => {
       lineItems: [{ variantId: mandarinVariantId, quantity: 3, unitCost: "9.00" }],
     });
     const transactionSpy = vi.spyOn(db, "transaction");
-    const productLocks: Array<ReturnType<typeof holdAndIncrementProductVersion>> = [];
+    const productLocks: Array<ReturnType<typeof holdAndUpdateProduct>> = [];
     let createPurchase: ReturnType<typeof service.execute> | undefined;
 
     try {
-      const firstProductLock = holdAndIncrementProductVersion(db, merchantId, productId);
+      const firstProductLock = holdAndUpdateProduct(db, merchantId, productId);
       productLocks.push(firstProductLock);
       await firstProductLock.acquired;
 
       createPurchase = service.execute(request);
       await waitForProductRowLockWaits(db, 1);
 
-      const secondProductLock = holdAndIncrementProductVersion(db, merchantId, productId);
+      const secondProductLock = holdAndUpdateProduct(db, merchantId, productId);
       productLocks.push(secondProductLock);
       await waitForProductRowLockWaits(db, 2);
 
@@ -544,7 +544,7 @@ describe("CreatePurchaseService", () => {
       await secondProductLock.acquired;
       await waitForProductRowLockWaits(db, 1);
 
-      const thirdProductLock = holdAndIncrementProductVersion(db, merchantId, productId);
+      const thirdProductLock = holdAndUpdateProduct(db, merchantId, productId);
       productLocks.push(thirdProductLock);
       await waitForProductRowLockWaits(db, 2);
 
@@ -571,7 +571,6 @@ describe("CreatePurchaseService", () => {
       const state = await readState(db, merchantId);
       expect(state.products.find(({ id }) => id === productId)).toMatchObject({
         unitCost: "8.00",
-        inventoryVersion: 3,
       });
       expect(state.locations).toEqual(before.locations);
       expect(state.supplierProducts).toEqual(before.supplierProducts);
@@ -589,7 +588,7 @@ describe("CreatePurchaseService", () => {
     }
   }, 15_000);
 
-  it("retries a purchase after the product inventory version changes", async () => {
+  it("serializes purchases of the same product without losing received quantities or costs", async () => {
     const {
       db,
       service,
@@ -615,7 +614,7 @@ describe("CreatePurchaseService", () => {
     expect(results.every(({ success }) => success)).toBe(true);
 
     const state = await readState(db, merchantId);
-    expect(state.products.find(({ id }) => id === productId)).toMatchObject({ unitCost: "8.37", inventoryVersion: 2 });
+    expect(state.products.find(({ id }) => id === productId)).toMatchObject({ unitCost: "8.37" });
     expect(state.locations.find(({ id }) => id === locationId)?.nextPurchaseOrderNumber).toBe(44);
     expect(state.purchases).toHaveLength(2);
     expect(state.purchases.map(({ transactionNumber }) => transactionNumber).sort()).toEqual([42, 43]);
@@ -692,10 +691,9 @@ describe("CreatePurchaseService", () => {
     expect(results.every(({ success }) => success)).toBe(true);
     const state = await readState(db, merchantId);
 
-    expect(state.products.find(({ id }) => id === productId)).toMatchObject({ unitCost: "8.23", inventoryVersion: 1 });
+    expect(state.products.find(({ id }) => id === productId)).toMatchObject({ unitCost: "8.23" });
     expect(state.products.find(({ id }) => id === otherProductId)).toMatchObject({
       unitCost: "13.00",
-      inventoryVersion: 1,
     });
     expect(state.locations.find(({ id }) => id === locationId)?.nextPurchaseOrderNumber).toBe(44);
     expect(state.locations.find(({ id }) => id === otherLocationId)?.nextPurchaseOrderNumber).toBe(1);

@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import { Purchase } from "../contracts/purchase.ts";
 import type { PaginationResponse } from "../contracts/pagination-response.ts";
 import type { PurchasePaginationRequest } from "../contracts/purchase-pagination-query.ts";
@@ -23,11 +24,13 @@ function locationAccessCondition(criteria: { merchantId: string; employeeId?: st
 
 class PurchaseFinder {
   async find(db: Database, criteria: Criteria): Promise<Purchase | null> {
+    const voidedBy = alias(tables.employee, "voided_by");
     const [record] = await db
       .select({
         purchaseOrder: tables.purchaseOrder,
         supplier: tables.supplier,
         createdBy: tables.employee,
+        voidedBy,
       })
       .from(tables.purchaseOrder)
       .innerJoin(
@@ -43,6 +46,10 @@ class PurchaseFinder {
           eq(tables.employee.merchantId, criteria.merchantId),
           eq(tables.employee.id, tables.purchaseOrder.createdById),
         ),
+      )
+      .leftJoin(
+        voidedBy,
+        and(eq(voidedBy.id, tables.purchaseOrder.voidedById), eq(voidedBy.merchantId, criteria.merchantId)),
       )
       .where(
         and(
@@ -88,15 +95,18 @@ class PurchaseFinder {
         variants: [{ id: item.variantId, name: item.name, quantity: item.quantity }],
       })),
       createdBy: record.createdBy ? { id: record.createdBy.id, name: record.createdBy.name } : null,
+      voidedBy: record.voidedBy ? { id: record.voidedBy.id, name: record.voidedBy.name } : null,
     });
   }
 
   async paginate(db: Database, criteria: PaginationCriteria): Promise<PaginationResponse<Purchase>> {
+    const voidedBy = alias(tables.employee, "voided_by");
     const records = await db
       .select({
         purchaseOrder: tables.purchaseOrder,
         supplier: tables.supplier,
         createdBy: tables.employee,
+        voidedBy,
         cursorTimestamp: sql<string>`date_format(${tables.purchaseOrder.createdAt}, '%Y-%m-%dT%H:%i:%s.%fZ')`,
       })
       .from(tables.purchaseOrder)
@@ -113,6 +123,10 @@ class PurchaseFinder {
           eq(tables.employee.merchantId, criteria.merchantId),
           eq(tables.employee.id, tables.purchaseOrder.createdById),
         ),
+      )
+      .leftJoin(
+        voidedBy,
+        and(eq(voidedBy.id, tables.purchaseOrder.voidedById), eq(voidedBy.merchantId, criteria.merchantId)),
       )
       .where(
         and(
@@ -151,6 +165,7 @@ class PurchaseFinder {
         ...record.purchaseOrder,
         supplier: { id: record.supplier.id, name: record.supplier.name },
         createdBy: record.createdBy ? { id: record.createdBy.id, name: record.createdBy.name } : null,
+        voidedBy: record.voidedBy ? { id: record.voidedBy.id, name: record.voidedBy.name } : null,
         lineItems: items
           .filter((item) => item.purchaseOrderId === record.purchaseOrder.id)
           .map((item) => ({

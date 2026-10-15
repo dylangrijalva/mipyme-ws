@@ -2335,7 +2335,7 @@
         "tags": ["Sales"],
         "operationId": "voidSale",
         "summary": "Void a sale",
-        "description": "Voids a fulfilled sale and restores items at the original location. Cannot void if an item was restocked on or after the sale. Payments remain; no refund. Owners can void; staff need `void_sales` and location access. Repeats return original details without restoring stock.",
+        "description": "Voids a fulfilled sale and restores items at the original location. Cannot void if an item was restocked on or after the sale. Payments remain; no refund. Owners can void; staff need `void_transaction` and location access. Repeats return original details without restoring stock.",
         "security": [
           {
             "bearerAuth": []
@@ -2527,6 +2527,119 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/purchases/{id}/void": {
+      "post": {
+        "tags": ["Purchases"],
+        "operationId": "voidPurchase",
+        "summary": "Void a purchase",
+        "description": "Voids a fulfilled purchase, removes its received quantities at the original location, and restores each product's saved previous unit cost. Any later inventory movement or adjustment to any variant of an affected product, at any location, blocks voiding, even if that later transaction was voided. Purchases without saved cost snapshots cannot be voided. Enabled owners can void; enabled staff need `void_transaction` and purchase-location access. Repeated requests return the original void details without changing stock or cost again.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            },
+            "description": "The purchase identifier."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidPurchaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
+          "200": {
+            "description": "The voided purchase with its original item snapshots and void metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Purchase"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier or reason, a purchase that is not fulfilled, missing previous-cost snapshots, or a later inventory change. Returns validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership, void permission, employee status, or purchase-location access prevents voiding.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The purchase does not exist within this merchant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stock is insufficient to reverse the purchase (`stock_insufficient`), or concurrent updates prevented the void (`concurrent_update_conflict`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the purchase from being voided. The purchase and stock remain unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
           }
         }
       }
@@ -4462,7 +4575,7 @@
           "manage_inventory",
           "manage_suppliers",
           "apply_discounts",
-          "void_sales",
+          "void_transaction",
           "refund"
         ]
       },
@@ -7263,6 +7376,42 @@
             "format": "date-time",
             "description": "The date and time when the purchase order was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "void_reason": {
+            "type": ["string", "null"],
+            "description": "The reason recorded when the purchase was voided, with surrounding whitespace removed. Returns `null` when no reason was supplied.",
+            "examples": [null]
+          },
+          "voided_by": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the employee."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The display name of the employee."
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee associated with voiding the purchase. Returns `null` if no voiding employee is recorded.",
+            "examples": [null]
+          },
+          "voided_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "The time when the purchase was voided, in RFC 3339 format. Returns `null` until the purchase is voided.",
+            "examples": [null]
           }
         },
         "required": [
@@ -7275,7 +7424,10 @@
           "notes",
           "created_by",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "void_reason",
+          "voided_by",
+          "voided_at"
         ],
         "additionalProperties": false,
         "description": "A record of products received from a supplier at a location. It preserves the quantities and costs recorded for each variant.",
@@ -7309,7 +7461,10 @@
               "name": "Nami"
             },
             "created_at": "2026-09-23T09:00:00.000Z",
-            "updated_at": "2026-09-23T09:00:00.000Z"
+            "updated_at": "2026-09-23T09:00:00.000Z",
+            "void_reason": null,
+            "voided_by": null,
+            "voided_at": null
           }
         ]
       },
@@ -7372,6 +7527,24 @@
           }
         ],
         "additionalProperties": false
+      },
+      "VoidPurchaseRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": ["string", "null"],
+            "description": "An optional reason for voiding the purchase, up to 256 characters after surrounding whitespace is removed. Omitted, blank, or `null` values return as `null`.",
+            "examples": ["Damaged package", null]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Optional reason for voiding a purchase.",
+        "examples": [
+          {},
+          {
+            "reason": "Damaged package"
+          }
+        ]
       }
     },
     "securitySchemes": {

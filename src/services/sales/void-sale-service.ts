@@ -121,7 +121,7 @@ class VoidSaleService extends BaseService<string, Sale> {
 
     if (!employee.isOwner) {
       const permissions = splitDistinct(employee.permissions, " ");
-      if (!permissions.includes("void_sales")) {
+      if (!permissions.includes("void_transaction")) {
         return err({
           code: codes.forbiddenError,
           message: "You do not have permission to void sales.",
@@ -255,12 +255,14 @@ class VoidSaleService extends BaseService<string, Sale> {
         for (const product of products) {
           const [updatedProduct] = await trx
             .update(tables.product)
-            .set({ inventoryVersion: sql`${tables.product.inventoryVersion} + 1`, updatedAt: voidedAt })
+            .set({
+              lastInventoryChangedAt: voidedAt,
+              updatedAt: new Date(Math.max(voidedAt.getTime(), product.updatedAt.getTime() + 1)),
+            })
             .where(
               and(
                 eq(tables.product.merchantId, this.user.merchantId),
                 eq(tables.product.id, product.id),
-                eq(tables.product.inventoryVersion, product.inventoryVersion),
                 eq(tables.product.updatedAt, product.updatedAt),
                 or(isNull(tables.product.lastRestockAt), lt(tables.product.lastRestockAt, sale.createdAt)),
               ),

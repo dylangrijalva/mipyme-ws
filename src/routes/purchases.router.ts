@@ -8,6 +8,7 @@ import { createAuthScopedKey, DEFAULT_RATE_LIMIT_CONFIG, rateLimiter } from "../
 import { CreatePurchaseRequest, CreatePurchaseService } from "../services/purchases/create-purchase-service.ts";
 import { FindPurchaseService } from "../services/purchases/find-purchase-service.ts";
 import { ListPurchasesService } from "../services/purchases/list-purchases-service.ts";
+import { VoidPurchaseRequest, VoidPurchaseService } from "../services/purchases/void-purchase-service.ts";
 import { FacilitoHono } from "../types.ts";
 import { camelCaseKeys } from "../utils/camel-case-keys.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
@@ -26,6 +27,17 @@ function purchasesRouter(): FacilitoHono {
       const service = CreatePurchaseService.create(ctx.var);
       const result = await service.execute(request);
       return toHttpResponse(result, 201);
+    },
+  );
+
+  router.post(
+    "/:id/void",
+    validator("param", (input) => ObjectId.parse(input.id)),
+    validator("json", (input) => VoidPurchaseRequest.parse(input)),
+    idempotency(),
+    async (ctx) => {
+      const service = VoidPurchaseService.create(ctx.var);
+      return toHttpResponse(await service.execute(ctx.req.valid("param"), ctx.req.valid("json")));
     },
   );
 

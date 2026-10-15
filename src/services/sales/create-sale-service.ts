@@ -300,18 +300,21 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
       async (trx): Promise<Result<Sale, BusinessError>> => {
         const createdAt = now();
 
-        if (shouldDeductInventory) {
-          const changedProductIds = [...new Set(physicalLines.map((line) => line.product.id))].sort();
+        if (saleStatus === "fulfilled") {
+          const changedProductIds = [...new Set(lines.map((line) => line.product.id))].sort();
           for (const productId of changedProductIds) {
             const product = productsById.get(productId)!;
             const [updatedProduct] = await trx
               .update(tables.product)
-              .set({ inventoryVersion: sql`${tables.product.inventoryVersion} + 1`, updatedAt: createdAt })
+              .set({
+                lastSoldAt: createdAt,
+                lastInventoryChangedAt: product.type === "item" ? createdAt : undefined,
+                updatedAt: new Date(Math.max(createdAt.getTime(), product.updatedAt.getTime() + 1)),
+              })
               .where(
                 and(
                   eq(tables.product.merchantId, this.user.merchantId),
                   eq(tables.product.id, product.id),
-                  eq(tables.product.inventoryVersion, product.inventoryVersion),
                   eq(tables.product.updatedAt, product.updatedAt),
                 ),
               );
@@ -321,7 +324,9 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
               throw new ConcurrentUpdateError();
             }
           }
+        }
 
+        if (shouldDeductInventory) {
           for (const line of physicalLines) {
             const level = inventoryByVariant.get(line.variantId);
             if (!level) {

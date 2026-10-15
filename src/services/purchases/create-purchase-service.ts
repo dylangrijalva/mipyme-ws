@@ -66,7 +66,7 @@ type InjectedDependencies = {
 type ProductPurchase = {
   productId: string;
   unitCost: string;
-  inventoryVersion: number;
+  updatedAt: Date;
   receivedQuantity: string;
   receivedValue: string;
 };
@@ -153,7 +153,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
             productId: tables.product.id,
             productType: tables.product.type,
             unitCost: tables.product.unitCost,
-            inventoryVersion: tables.product.inventoryVersion,
+            updatedAt: tables.product.updatedAt,
           })
           .from(tables.variant)
           .innerJoin(tables.product, eq(tables.product.id, tables.variant.productId))
@@ -197,7 +197,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
           const productPurchase = productPurchases.get(productId) ?? {
             productId,
             unitCost: purchaseLine.variant.unitCost,
-            inventoryVersion: purchaseLine.variant.inventoryVersion,
+            updatedAt: purchaseLine.variant.updatedAt,
             receivedQuantity: "0",
             receivedValue: "0",
           };
@@ -258,7 +258,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
         );
 
         const lockedProducts = await trx
-          .select({ id: tables.product.id, inventoryVersion: tables.product.inventoryVersion })
+          .select({ id: tables.product.id, updatedAt: tables.product.updatedAt })
           .from(tables.product)
           .where(and(eq(tables.product.merchantId, this.user.merchantId), inArray(tables.product.id, productIds)))
           .orderBy(asc(tables.product.id))
@@ -267,7 +267,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
         const productInventoryChanged =
           lockedProducts.length !== productIds.length ||
           lockedProducts.some(
-            ({ id, inventoryVersion }) => productPurchases.get(id)?.inventoryVersion !== inventoryVersion,
+            ({ id, updatedAt }) => productPurchases.get(id)?.updatedAt.getTime() !== updatedAt.getTime(),
           );
 
         if (productInventoryChanged) {
@@ -300,15 +300,15 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
             .update(tables.product)
             .set({
               unitCost: nextUnitCosts.get(productPurchase.productId)!,
-              inventoryVersion: sql`${tables.product.inventoryVersion} + 1`,
               lastRestockAt: createdAt,
-              updatedAt: createdAt,
+              lastInventoryChangedAt: createdAt,
+              updatedAt: new Date(Math.max(createdAt.getTime(), productPurchase.updatedAt.getTime() + 1)),
             })
             .where(
               and(
                 eq(tables.product.merchantId, this.user.merchantId),
                 eq(tables.product.id, productPurchase.productId),
-                eq(tables.product.inventoryVersion, productPurchase.inventoryVersion),
+                eq(tables.product.updatedAt, productPurchase.updatedAt),
               ),
             );
         }
@@ -333,6 +333,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
           quantity: purchaseLine.quantity,
           price: purchaseLine.variant.price,
           unitCost: purchaseLine.unitCost,
+          previousUnitCost: purchaseLine.variant.unitCost,
           purchaseOrderId: purchaseId,
           variantId: purchaseLine.variant.id,
           merchantId: this.user.merchantId,
@@ -359,6 +360,8 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
           merchantId: this.user.merchantId,
           locationId: request.locationId,
           createdById: this.user.employeeId,
+          createdAt,
+          updatedAt: createdAt,
         });
 
         await trx.insert(tables.purchaseOrderItem).values(purchaseItemValues);

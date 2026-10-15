@@ -255,7 +255,6 @@ describe("VoidSaleService", () => {
     expect(after.inventoryLevels.find((level) => level.locationId === context.otherLocationId)?.onHand).toBe(7);
     expect(after.products.find((product) => product.id === context.productId)).toMatchObject({
       unitCost: "60.00",
-      inventoryVersion: 2,
       archivedAt,
     });
     expect(after.inventoryMovements).toHaveLength(2);
@@ -359,8 +358,6 @@ describe("VoidSaleService", () => {
     expect(after.inventoryLevels).toEqual(before.inventoryLevels);
     expect(after.inventoryMovements).toEqual(before.inventoryMovements);
     expect(after.salePayments).toEqual(before.salePayments);
-    expect(after.products.find((product) => product.id === context.productId)?.inventoryVersion).toBe(0);
-    expect(after.products.find((product) => product.id !== context.productId)?.inventoryVersion).toBe(0);
   });
 
   it("rejects pending sales without changing their inventory or history", async () => {
@@ -379,7 +376,7 @@ describe("VoidSaleService", () => {
     expect(await readState(context.db, context.merchantId)).toEqual(before);
   });
 
-  it("allows enabled staff with void_sales permission and access to the sale location", async () => {
+  it("allows enabled staff with void_transaction permission and access to the sale location", async () => {
     const context = await setup();
     const sale = await createSale(context);
     const employeeId = generateId({ model: "employee" });
@@ -389,7 +386,7 @@ describe("VoidSaleService", () => {
       name: "Nico Robin",
       isOwner: false,
       status: "enabled",
-      permissions: "void_sales",
+      permissions: "void_transaction",
     });
     await context.db.insert(tables.locationAccess).values({
       id: generateId({ model: "locationAccess" }),
@@ -411,9 +408,9 @@ describe("VoidSaleService", () => {
   });
 
   it.each([
-    { name: "without void_sales permission", permissions: "checkout", status: "enabled", accessLocation: true },
-    { name: "without the sale location", permissions: "void_sales", status: "enabled", accessLocation: false },
-    { name: "when disabled", permissions: "void_sales", status: "disabled", accessLocation: true },
+    { name: "without void_transaction permission", permissions: "checkout", status: "enabled", accessLocation: true },
+    { name: "without the sale location", permissions: "void_transaction", status: "enabled", accessLocation: false },
+    { name: "when disabled", permissions: "void_transaction", status: "disabled", accessLocation: true },
   ] as const)("denies staff $name", async ({ permissions, status, accessLocation }) => {
     const context = await setup();
     const sale = await createSale(context);
@@ -495,7 +492,6 @@ describe("VoidSaleService", () => {
     const after = await readState(context.db, context.merchantId);
     expect(after.inventoryLevels.find((level) => level.locationId === context.locationId)?.onHand).toBe(5);
     expect(after.inventoryMovements.filter((movement) => movement.reason === "sale_void")).toHaveLength(1);
-    expect(after.products.find((product) => product.id === context.productId)?.inventoryVersion).toBe(2);
     expect(after.saleItems).toEqual(before.saleItems);
     expect(after.salePayments).toEqual(before.salePayments);
   });
@@ -542,7 +538,6 @@ describe("VoidSaleService", () => {
     expect(state.inventoryLevels.find((level) => level.locationId === context.locationId)?.onHand).toBe(3);
     expect(state.inventoryLevels.find((level) => level.locationId === context.otherLocationId)?.onHand).toBe(8);
     expect(state.inventoryMovements.filter((movement) => movement.reason === "sale_void")).toHaveLength(0);
-    expect(state.products.find((product) => product.id === context.productId)?.inventoryVersion).toBe(2);
   });
 
   it("retries a changed inventory snapshot without losing the concurrent adjustment", async () => {
@@ -568,7 +563,6 @@ describe("VoidSaleService", () => {
     const state = await readState(context.db, context.merchantId);
     expect(state.inventoryLevels.find((level) => level.locationId === context.locationId)?.onHand).toBe(9);
     expect(state.inventoryMovements.filter((movement) => movement.reason === "sale_void")).toHaveLength(1);
-    expect(state.products.find((product) => product.id === context.productId)?.inventoryVersion).toBe(2);
   });
 
   it("allows voiding after another sale and a quantity correction", async () => {

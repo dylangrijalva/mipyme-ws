@@ -9,7 +9,7 @@ const PosPermission = z.union([
   z.literal("manage_inventory"),
   z.literal("manage_suppliers"),
   z.literal("apply_discounts"),
-  z.literal("void_sales"),
+  z.literal("void_transaction"),
   z.literal("refund"),
 ]);
 

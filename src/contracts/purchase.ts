@@ -33,6 +33,15 @@ const Purchase = z.object({
     })
     .nullable()
     .default(null),
+  voidReason: z.string().nullable(),
+  voidedBy: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+    })
+    .nullable()
+    .default(null),
+  voidedAt: z.date().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

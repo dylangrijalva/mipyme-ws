@@ -118,6 +118,9 @@ describe("PurchaseFinder", () => {
     });
 
     expect(found).toEqual({
+      voidReason: null,
+      voidedBy: null,
+      voidedAt: null,
       id,
       transactionNumber: 42,
       status: "fulfilled",

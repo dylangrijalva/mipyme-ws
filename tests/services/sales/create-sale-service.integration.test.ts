@@ -145,7 +145,7 @@ async function enableStaff(
 afterEach(() => vi.restoreAllMocks());
 
 describe("CreateSaleService", () => {
-  it("deducts both variants of one product and advances its inventory version once", async () => {
+  it("deducts both variants of one product once", async () => {
     const { broadcast, db, service, request, merchantId, productId, locationId, variantId } = await setup();
     const secondVariantId = generateId({ model: "variant" });
     const secondLevelId = generateId({ model: "inventoryLevel" });
@@ -183,7 +183,6 @@ describe("CreateSaleService", () => {
     const state = await checkoutState(db);
     expect(state.sales).toHaveLength(1);
     expect(state.items).toHaveLength(2);
-    expect(state.products.find((product) => product.id === productId)?.inventoryVersion).toBe(1);
     expect(state.levels.find((level) => level.id === secondLevelId)?.onHand).toBe(0);
     expect(state.levels.find((level) => level.locationId === locationId && level.variantId === variantId)?.onHand).toBe(
       3,
@@ -243,7 +242,10 @@ describe("CreateSaleService", () => {
         if (resource === "product") {
           await db
             .update(tables.product)
-            .set({ inventoryVersion: 1, unitCost: "60.00" })
+            .set({
+              unitCost: "60.00",
+              updatedAt: sql`DATE_ADD(${tables.product.updatedAt}, INTERVAL 1000 MICROSECOND)`,
+            })
             .where(eq(tables.product.id, productId));
         }
         if (resource === "inventory") {
@@ -281,9 +283,6 @@ describe("CreateSaleService", () => {
         expect(state.levels.find((level) => level.locationId === locationId)?.onHand).toBe(
           resource === "inventory" ? 2 : 3,
         );
-        expect(state.products.find((product) => product.id === productId)?.inventoryVersion).toBe(
-          resource === "product" ? 2 : 1,
-        );
         expect(state.locations.find((location) => location.id === locationId)?.nextSaleNumber).toBe(
           resource === "location" ? 44 : 43,
         );
@@ -293,7 +292,7 @@ describe("CreateSaleService", () => {
     },
   );
 
-  it("revalidates pricing when product cost changes without an inventory version change", async () => {
+  it("revalidates pricing when product cost changes", async () => {
     const { db, service, request, productId } = await setup();
     const transact = db.transaction.bind(db);
     const competingStates: Array<Awaited<ReturnType<typeof checkoutState>>> = [];
@@ -353,7 +352,7 @@ describe("CreateSaleService", () => {
         if (resource === "product") {
           await db
             .update(tables.product)
-            .set({ inventoryVersion: sql`${tables.product.inventoryVersion} + 1` })
+            .set({ updatedAt: sql`DATE_ADD(${tables.product.updatedAt}, INTERVAL 1000 MICROSECOND)` })
             .where(eq(tables.product.id, productId));
         }
         if (resource === "inventory") {
@@ -386,9 +385,6 @@ describe("CreateSaleService", () => {
           expect(state.payments).toHaveLength(0);
           expect(state.movements).toHaveLength(0);
           expect(state.levels.find((level) => level.locationId === locationId)?.onHand).toBe(5);
-          expect(state.products.find((product) => product.id === productId)?.inventoryVersion).toBe(
-            resource === "product" ? attempt + 1 : 0,
-          );
           expect(state.locations.find((location) => location.id === locationId)?.nextSaleNumber).toBe(
             resource === "location" ? 43 + attempt : 42,
           );
@@ -454,11 +450,14 @@ describe("CreateSaleService", () => {
     expect(state.movements[0]!.occurredAt).toEqual(result.value.createdAt);
     expect(state.products.find((product) => product.id === context.productId)).toMatchObject({
       unitCost: "50.00",
-      inventoryVersion: 1,
+      lastSoldAt: result.value.createdAt,
+      lastInventoryChangedAt: result.value.createdAt,
     });
-    expect(state.products.find((product) => product.id === context.serviceProductId)).toEqual(
-      before.products.find((product) => product.id === context.serviceProductId),
-    );
+    expect(state.products.find((product) => product.id === context.serviceProductId)).toEqual({
+      ...before.products.find((product) => product.id === context.serviceProductId),
+      lastSoldAt: result.value.createdAt,
+      updatedAt: result.value.createdAt,
+    });
     expect(state.locations.find((location) => location.id === locationId)?.nextSaleNumber).toBe(43);
   });
 
@@ -533,7 +532,7 @@ describe("CreateSaleService", () => {
   });
 
   it("recomputes shortages after a location conflict and fulfills a replenished pending checkout", async () => {
-    const { broadcast, merchantId, db, service, request, locationId, variantId, productId } = await setup();
+    const { broadcast, merchantId, db, service, request, locationId, variantId } = await setup();
     await db.update(tables.location).set({ allowBackorders: true }).where(eq(tables.location.id, locationId));
     const transact = db.transaction.bind(db);
     const transactionSpy = vi.spyOn(db, "transaction").mockImplementationOnce(async (callback, config) => {
@@ -566,7 +565,6 @@ describe("CreateSaleService", () => {
         expect.objectContaining({ referenceId: state.sales[0]!.id, quantityDelta: -7 }),
       ]);
       expect(state.levels.find((level) => level.locationId === locationId)?.onHand).toBe(2);
-      expect(state.products.find((product) => product.id === productId)?.inventoryVersion).toBe(1);
       expect(state.locations.find((location) => location.id === locationId)?.nextSaleNumber).toBe(44);
     } finally {
       transactionSpy.mockRestore();
@@ -1109,7 +1107,6 @@ describe("CreateSaleService", () => {
     if (!sale.success) return;
     const [product] = await db.select().from(tables.product).where(eq(tables.product.id, productId));
     expect(product?.unitCost).toBe(sale.value.lineItems[0]!.unitCost === "50.00" ? "55.00" : "54.29");
-    expect(product?.inventoryVersion).toBe(2);
     const [level] = await db
       .select()
       .from(tables.inventoryLevel)
