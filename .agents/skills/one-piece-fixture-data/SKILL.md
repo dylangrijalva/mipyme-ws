@@ -22,17 +22,17 @@ Choose identities and affiliations using the fixture's explicit context and stor
 
 Useful mappings:
 
-| Character | Affiliation | Descriptive title |
-| --- | --- | --- |
-| Monkey D. Luffy | Straw Hat Pirates | Captain |
-| Roronoa Zoro | Straw Hat Pirates | Swordsman |
-| Nami | Straw Hat Pirates | Navigator |
-| Sanji | Straw Hat Pirates | Cook |
-| Tony Tony Chopper | Straw Hat Pirates | Doctor |
-| Nico Robin | Straw Hat Pirates | Archaeologist |
-| Trafalgar Law | Heart Pirates | Captain |
-| Bepo | Heart Pirates | Navigator |
-| Smoker | Marines | Use a rank appropriate to the story period |
+| Character         | Affiliation       | Descriptive title                          |
+| ----------------- | ----------------- | ------------------------------------------ |
+| Monkey D. Luffy   | Straw Hat Pirates | Captain                                    |
+| Roronoa Zoro      | Straw Hat Pirates | Swordsman                                  |
+| Nami              | Straw Hat Pirates | Navigator                                  |
+| Sanji             | Straw Hat Pirates | Cook                                       |
+| Tony Tony Chopper | Straw Hat Pirates | Doctor                                     |
+| Nico Robin        | Straw Hat Pirates | Archaeologist                              |
+| Trafalgar Law     | Heart Pirates     | Captain                                    |
+| Bepo              | Heart Pirates     | Navigator                                  |
+| Smoker            | Marines           | Use a rank appropriate to the story period |
 
 Other organization choices include Red Hair Pirates, World Government, Baroque Works, Beast Pirates, and Kuja Pirates. Choose according to the characters and scenario.
 
@@ -62,10 +62,10 @@ If validation requires an Internet email address, use a suitable reserved exampl
 
 Use aliases only when relevant to the identity or scenario. For Nico Robin:
 
-| Context | Email-like value |
-| --- | --- |
-| Baroque Works-era codename | `miss.all.sunday@baroqueworks` |
-| Baroque Works-era ordinary name | `nico.robin@baroqueworks` |
-| Straw Hat Pirates-era identity | `nico.robin@strawhatpirates` |
+| Context                         | Email-like value               |
+| ------------------------------- | ------------------------------ |
+| Baroque Works-era codename      | `miss.all.sunday@baroqueworks` |
+| Baroque Works-era ordinary name | `nico.robin@baroqueworks`      |
+| Straw Hat Pirates-era identity  | `nico.robin@strawhatpirates`   |
 
 Once established, preserve each mapping unless a different identity, affiliation, or historical context is part of the test.

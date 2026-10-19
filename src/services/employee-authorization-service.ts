@@ -2,8 +2,8 @@ import { and, eq } from "drizzle-orm";
 import type { PosPermission } from "../contracts/pos-permission.ts";
 import type { Database } from "../db/index.ts";
 import { tables } from "../db/schema.ts";
-import { splitDistinct } from "../utils/split-distinct.ts";
 import { ok, type Failure, type Result } from "../utils/result.ts";
+import { splitDistinct } from "../utils/split-distinct.ts";
 
 type AuthorizedEmployee = typeof tables.employee.$inferSelect;
 
@@ -105,8 +105,8 @@ class EmployeeAuthorizationService {
 
 export {
   EmployeeAuthorizationService,
+  type AuthorizedEmployee,
   type AuthorizeLocationAccessRequest,
   type AuthorizePermissionRequest,
-  type AuthorizedEmployee,
   type EmployeeAuthorizationFailure,
 };
