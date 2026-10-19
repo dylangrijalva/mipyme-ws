@@ -211,7 +211,9 @@ describe("CreateSaleService", () => {
       payments: [{ method: "cash_dollar", amount: "2.00" }],
     });
     expect(result.success).toBe(true);
-    if (!result.success) return;
+    if (!result.success) {
+      return;
+    }
 
     await db
       .update(tables.variant)
@@ -413,7 +415,9 @@ describe("CreateSaleService", () => {
     });
 
     expect(result.success).toBe(true);
-    if (!result.success) return;
+    if (!result.success) {
+      return;
+    }
     expect(result.value.id).toMatch(/^sale_/);
     expect(result.value).toMatchObject({
       status: "fulfilled",
@@ -469,8 +473,9 @@ describe("CreateSaleService", () => {
       await db
         .insert(tables.variant)
         .values({ id: missingVariantId, merchantId, productId, name: "Sanji's provisions", price: "100.00" });
-      if (source === "pos.web")
+      if (source === "pos.web") {
         await db.update(tables.location).set({ allowBackorders: true }).where(eq(tables.location.id, locationId));
+      }
       const before = await inventoryState(db);
 
       const result = await service.execute({
@@ -485,7 +490,9 @@ describe("CreateSaleService", () => {
       });
 
       expect(result.success).toBe(true);
-      if (!result.success) return;
+      if (!result.success) {
+        return;
+      }
       expect(result.value.status).toBe("pending");
       expect(result.value.lineItems.find((line) => line.variantId === missingVariantId)?.shortageQuantity).toBe(3);
       expect(
@@ -868,11 +875,12 @@ describe("CreateSaleService", () => {
   it.each(["disabled", "permission", "location"])("rejects staff checkout with missing %s access", async (reason) => {
     const context = await setup();
     await enableStaff(context, reason === "permission" ? "apply_discounts" : "checkout");
-    if (reason === "disabled")
+    if (reason === "disabled") {
       await context.db
         .update(tables.employee)
         .set({ status: "disabled" })
         .where(eq(tables.employee.id, context.employeeId));
+    }
     const before = await checkoutState(context.db);
     const result = await context.service.execute({
       ...context.request,
@@ -1104,7 +1112,9 @@ describe("CreateSaleService", () => {
     ]);
     expect(sale.success).toBe(true);
     expect(purchase.success).toBe(true);
-    if (!sale.success) return;
+    if (!sale.success) {
+      return;
+    }
     const [product] = await db.select().from(tables.product).where(eq(tables.product.id, productId));
     expect(product?.unitCost).toBe(sale.value.lineItems[0]!.unitCost === "50.00" ? "55.00" : "54.29");
     const [level] = await db

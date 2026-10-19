@@ -112,7 +112,9 @@ describe("ListSalesService", () => {
     const ids: Array<string> = [];
     const first = await service.execute(SalePaginationRequest.parse({ limit: 1 }));
     expect(first.success).toBe(true);
-    if (!first.success) return;
+    if (!first.success) {
+      return;
+    }
     pages.push(first.value);
     ids.push(...first.value.results.map((sale) => sale.id));
 
@@ -122,7 +124,9 @@ describe("ListSalesService", () => {
       expect(previous.nextCursor).toEqual(expect.any(String));
       const next = await service.execute(SalePaginationRequest.parse({ limit: 1, cursor: previous.nextCursor }));
       expect(next.success).toBe(true);
-      if (!next.success) return;
+      if (!next.success) {
+        return;
+      }
       expect(next.value.results.map((sale) => sale.id)).toEqual([expectedId]);
       pages.push(next.value);
       ids.push(...next.value.results.map((sale) => sale.id));
@@ -142,7 +146,9 @@ describe("ListSalesService", () => {
 
     const combined = await service.execute({ limit: 50 });
     expect(combined.success).toBe(true);
-    if (!combined.success) return;
+    if (!combined.success) {
+      return;
+    }
     expect(
       combined.value.results.map((sale) => ({
         id: sale.id,
@@ -183,7 +189,9 @@ describe("ListSalesService", () => {
       const result = await service.execute(SalePaginationRequest.parse(scenario.query));
 
       expect(result.success).toBe(true);
-      if (!result.success) return;
+      if (!result.success) {
+        return;
+      }
       expect(result.value.results.map((sale) => sale.id)).toEqual(scenario.ids);
       expect(result.value).toMatchObject({ nextCursor: null, hasMore: false });
     }
@@ -212,7 +220,9 @@ describe("ListSalesService", () => {
     const hidden = await service.execute({ limit: 50, locationId: context.inaccessibleLocationId });
 
     expect(allowed.success).toBe(true);
-    if (!allowed.success) return;
+    if (!allowed.success) {
+      return;
+    }
     expect(allowed.value.results.map((sale) => sale.id)).toEqual([context.ids[1], context.ids[0], context.ids[2]]);
     expect(hidden).toEqual({ success: true, value: { results: [], nextCursor: null, hasMore: false } });
 

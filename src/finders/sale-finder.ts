@@ -18,7 +18,9 @@ type PaginationCriteria = SalePaginationRequest & {
 };
 
 function locationAccessCondition(criteria: { merchantId: string; employeeId?: string }) {
-  if (criteria.employeeId === undefined) return undefined;
+  if (criteria.employeeId === undefined) {
+    return undefined;
+  }
   return sql`exists (select 1 from ${tables.locationAccess} where
     ${tables.locationAccess.merchantId} = ${criteria.merchantId}
     and ${tables.locationAccess.employeeId} = ${criteria.employeeId}
@@ -112,7 +114,9 @@ class SaleFinder {
 
     const hasMore = records.length > criteria.limit;
     const page = records.slice(0, criteria.limit);
-    if (page.length === 0) return { results: [], nextCursor: null, hasMore: false };
+    if (page.length === 0) {
+      return { results: [], nextCursor: null, hasMore: false };
+    }
     const saleIds = page.map((record) => record.sale.id);
     const [lineItems, payments] = await Promise.all([
       db

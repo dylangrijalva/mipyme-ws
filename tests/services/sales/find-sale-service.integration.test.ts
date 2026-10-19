@@ -113,7 +113,9 @@ describe("FindSaleService", () => {
     const result = await service.execute(context.ids[1]);
 
     expect(result.success).toBe(true);
-    if (!result.success) return;
+    if (!result.success) {
+      return;
+    }
     expect(result.value).toMatchObject({
       id: context.ids[1],
       status: "voided",

@@ -10,7 +10,9 @@ type Criteria = { merchantId: string; id: string; employeeId?: string };
 type PaginationCriteria = ScopedPaginationRequest & { employeeId?: string };
 
 function locationAccessCondition(criteria: { merchantId: string; employeeId?: string }) {
-  if (criteria.employeeId === undefined) return undefined;
+  if (criteria.employeeId === undefined) {
+    return undefined;
+  }
   return sql`exists (select 1 from ${tables.locationAccess} where
     ${tables.locationAccess.merchantId} = ${criteria.merchantId}
     and ${tables.locationAccess.employeeId} = ${criteria.employeeId}

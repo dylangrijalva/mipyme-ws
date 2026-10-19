@@ -24,7 +24,9 @@ describe("ListPurchasesService", () => {
       const result = await service.execute(PurchasePaginationRequest.parse({ limit: 1, cursor }));
 
       expect(result.success).toBe(true);
-      if (!result.success) return;
+      if (!result.success) {
+        return;
+      }
       expect(result.value.results.map((purchase) => purchase.id)).toEqual([expectedId]);
       ids.push(result.value.results[0].id);
       expect(result.value.hasMore).toBe(expectedId !== context.ids[2]);
@@ -34,7 +36,9 @@ describe("ListPurchasesService", () => {
     expect(ids).toEqual([context.ids[3], context.ids[1], context.ids[0], context.ids[2]]);
     const all = await service.execute({ limit: 50 });
     expect(all.success).toBe(true);
-    if (!all.success) return;
+    if (!all.success) {
+      return;
+    }
     expect(
       all.value.results.map((purchase) => ({ id: purchase.id, items: purchase.lineItems.map((item) => item.id) })),
     ).toEqual([
@@ -81,13 +85,17 @@ describe("ListPurchasesService", () => {
       const result = await service.execute(PurchasePaginationRequest.parse(scenario.query));
 
       expect(result.success).toBe(true);
-      if (!result.success) return;
+      if (!result.success) {
+        return;
+      }
       expect(result.value.results.map((purchase) => purchase.id)).toEqual(scenario.ids);
       expect(result.value).toMatchObject({ nextCursor: null, hasMore: false });
     }
     const first = await service.execute(PurchasePaginationRequest.parse({ limit: 1, supplierId: context.supplierId }));
     expect(first.success).toBe(true);
-    if (!first.success) return;
+    if (!first.success) {
+      return;
+    }
     const next = await service.execute(
       PurchasePaginationRequest.parse({ limit: 1, supplierId: context.supplierId, cursor: first.value.nextCursor }),
     );
@@ -120,7 +128,9 @@ describe("ListPurchasesService", () => {
     const hidden = await service.execute({ limit: 50, locationId: context.inaccessibleLocationId });
 
     expect(allowed.success).toBe(true);
-    if (!allowed.success) return;
+    if (!allowed.success) {
+      return;
+    }
     expect(allowed.value.results.map((purchase) => purchase.id)).toEqual([
       context.ids[1],
       context.ids[0],

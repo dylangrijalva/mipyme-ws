@@ -18,17 +18,17 @@ import type { EnvVars } from "./infra/config.env.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
 import type { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
 import { authorize } from "./middlewares/authorize.ts";
+import { camelCase } from "./middlewares/camel-case.ts";
+import { errorHandler } from "./middlewares/error-handler.ts";
+import { inject } from "./middlewares/inject.ts";
+import { logging } from "./middlewares/logging.ts";
+import { notFoundHandler } from "./middlewares/not-found-handler.ts";
 import {
   createAuthScopedKey,
   createPublicScopedKey,
   DEFAULT_RATE_LIMIT_CONFIG,
   rateLimiter,
 } from "./middlewares/rate-limiter.ts";
-import { camelCase } from "./middlewares/camel-case.ts";
-import { errorHandler } from "./middlewares/error-handler.ts";
-import { inject } from "./middlewares/inject.ts";
-import { logging } from "./middlewares/logging.ts";
-import { notFoundHandler } from "./middlewares/not-found-handler.ts";
 import { requestId } from "./middlewares/request-id.ts";
 import { snakeCase } from "./middlewares/snake-case.ts";
 import OpenAPIDocument from "./openapi.json" with { type: "json" };

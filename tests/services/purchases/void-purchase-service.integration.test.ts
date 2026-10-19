@@ -122,7 +122,9 @@ async function setup() {
 
 async function createPurchase(context: Awaited<ReturnType<typeof setup>>, request = context.request) {
   const result = await context.purchaseService.execute(request);
-  if (!result.success) throw new Error(result.error.message);
+  if (!result.success) {
+    throw new Error(result.error.message);
+  }
   return result.value;
 }
 
@@ -336,7 +338,9 @@ describe("VoidPurchaseService", () => {
       context.clock.mockReturnValue(PURCHASE_TIME.getTime() + 1000);
       if (movement.startsWith("sale")) {
         const sale = await context.saleService.execute(context.saleRequest);
-        if (!sale.success) throw new Error(sale.error.message);
+        if (!sale.success) {
+          throw new Error(sale.error.message);
+        }
         if (movement === "sale_void") {
           context.clock.mockReturnValue(PURCHASE_TIME.getTime() + 2000);
           const voided = await context.voidSaleService.execute(sale.value.id);
@@ -633,8 +637,12 @@ describe("VoidPurchaseService", () => {
     const context = await setup();
     const purchase = await createPurchase(context);
     const finder = vi.spyOn(context.dependencies.purchaseFinder, "find");
-    if (exhausted) finder.mockRejectedValue(new ConcurrentUpdateError());
-    if (!exhausted) finder.mockRejectedValueOnce(new ConcurrentUpdateError());
+    if (exhausted) {
+      finder.mockRejectedValue(new ConcurrentUpdateError());
+    }
+    if (!exhausted) {
+      finder.mockRejectedValueOnce(new ConcurrentUpdateError());
+    }
     const before = await readState(context.db);
 
     const result = await context.voidService.execute(purchase.id);
@@ -658,7 +666,9 @@ describe("VoidPurchaseService", () => {
     const transaction = context.db.transaction.bind(context.db);
     vi.spyOn(context.db, "transaction").mockImplementationOnce(async (callback, configuration) => {
       const sale = await context.saleService.execute(context.saleRequest);
-      if (!sale.success) throw new Error(sale.error.message);
+      if (!sale.success) {
+        throw new Error(sale.error.message);
+      }
       return transaction(callback, configuration);
     });
 

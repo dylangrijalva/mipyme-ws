@@ -548,7 +548,9 @@ class HttpTestRunner {
 
     const formatValue = (value: unknown) => JSON.stringify(value) ?? String(value);
     const appendChecks = (checks: unknown, parentName = "") => {
-      if (typeof checks !== "object" || checks === null) return;
+      if (typeof checks !== "object" || checks === null) {
+        return;
+      }
 
       for (const [checkName, checkResult] of Object.entries(checks)) {
         const fullName = parentName ? `${parentName}.${checkName}` : checkName;
@@ -599,7 +601,9 @@ class HttpTestRunner {
           );
         }
 
-        if (step.errorMessage) lines.push(`       ${chalk.red(step.errorMessage)}`);
+        if (step.errorMessage) {
+          lines.push(`       ${chalk.red(step.errorMessage)}`);
+        }
         appendChecks(step.checks);
       }
     }

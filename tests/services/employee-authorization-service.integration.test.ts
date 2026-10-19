@@ -107,7 +107,9 @@ describe("EmployeeAuthorizationService", () => {
       success: true,
       value: { id: context.ownerId, isOwner: true },
     });
-    if (!permissionResult.success) return;
+    if (!permissionResult.success) {
+      return;
+    }
 
     const locationResult = await service.authorizeLocationAccess({
       employee: permissionResult.value,
@@ -127,7 +129,9 @@ describe("EmployeeAuthorizationService", () => {
     });
 
     expect(permissionResult.success).toBe(true);
-    if (!permissionResult.success) return;
+    if (!permissionResult.success) {
+      return;
+    }
 
     const locationResult = await service.authorizeLocationAccess({
       employee: permissionResult.value,
@@ -154,7 +158,9 @@ describe("EmployeeAuthorizationService", () => {
       success: true,
       value: { id: context.employeeId, isOwner: false },
     });
-    if (!permissionResult.success) return;
+    if (!permissionResult.success) {
+      return;
+    }
 
     const locationResult = await service.authorizeLocationAccess({
       employee: permissionResult.value,
@@ -211,7 +217,9 @@ describe("EmployeeAuthorizationService", () => {
     });
 
     expect(permissionResult.success).toBe(true);
-    if (!permissionResult.success) return;
+    if (!permissionResult.success) {
+      return;
+    }
 
     const locationIds = [context.otherEmployeeLocationId, context.foreignLocationId];
     for (const locationId of locationIds) {

@@ -244,7 +244,9 @@ describe("VoidSaleService", () => {
         voidedBy: { id: context.employeeId, name: "Nami" },
       },
     });
-    if (!result.success) return;
+    if (!result.success) {
+      return;
+    }
     expect(result.value.voidedAt).toBeInstanceOf(Date);
     expect(result.value.payments).toEqual(sale.payments);
 

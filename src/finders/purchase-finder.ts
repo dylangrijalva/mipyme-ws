@@ -15,7 +15,9 @@ type Criteria = {
 type PaginationCriteria = PurchasePaginationRequest & { merchantId: string; employeeId?: string };
 
 function locationAccessCondition(criteria: { merchantId: string; employeeId?: string }) {
-  if (criteria.employeeId === undefined) return undefined;
+  if (criteria.employeeId === undefined) {
+    return undefined;
+  }
   return sql`exists (select 1 from ${tables.locationAccess} where
     ${tables.locationAccess.merchantId} = ${criteria.merchantId}
     and ${tables.locationAccess.employeeId} = ${criteria.employeeId}
@@ -148,7 +150,9 @@ class PurchaseFinder {
 
     const hasMore = records.length > criteria.limit;
     const page = records.slice(0, criteria.limit);
-    if (page.length === 0) return { results: [], nextCursor: null, hasMore: false };
+    if (page.length === 0) {
+      return { results: [], nextCursor: null, hasMore: false };
+    }
     const purchaseIds = page.map((record) => record.purchaseOrder.id);
     const items = await db
       .select()
