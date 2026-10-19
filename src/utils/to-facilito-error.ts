@@ -9,6 +9,7 @@ const ERROR_STATUS_CODES: Record<ErrorCode, number> = Object.freeze({
   [codes.accountNotProvisioned]: 403,
   [codes.invalidOAuthToken]: 401,
   [codes.syncTokenInvalid]: 400,
+  [codes.syncUnavailable]: 503,
   [codes.conflictError]: 409,
   [codes.collectionNameAlreadyExists]: 409,
   [codes.skuAlreadyExists]: 409,

@@ -10,6 +10,7 @@ const codes = {
   resourceNotFound: "resource_not_found",
   invalidOAuthToken: "invalid_oauth_token",
   syncTokenInvalid: "sync_token_invalid",
+  syncUnavailable: "sync_unavailable",
   concurrentUpdateConflict: "concurrent_update_conflict",
   idempotencyKeyMismatch: "idempotency_key_mismatch",
   idempotencyRequestInProgress: "idempotency_request_in_progress",

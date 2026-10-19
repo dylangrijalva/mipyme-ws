@@ -49,9 +49,104 @@
     {
       "name": "Health",
       "description": "The health endpoint reports whether the API is available."
+    },
+    {
+      "name": "Sync",
+      "description": "Download a full or incremental snapshot of merchant resources for offline use."
     }
   ],
   "paths": {
+    "/v1/sync": {
+      "post": {
+        "tags": ["Sync"],
+        "operationId": "syncResources",
+        "summary": "Sync merchant resources",
+        "description": "Downloads the merchant, products, collections, customers, suppliers, and all merchant locations in one unpaginated response. Requires enabled merchant membership. Send \"*\" for full sync, then the returned token for incremental sync. Incremental queries use updated_at between the previous checkpoint minus one hour and the current checkpoint, inclusively. The overlap can replay recent records and covers delayed commits within that window; it cannot guarantee delivery of transactions that commit after falling outside the overlap. Products are returned complete when their own or related record timestamps qualify, including archived products. All reads share one consistent database snapshot. Redis stores the checkpoint timestamp for 30 days. Authentic expired tokens or missing checkpoints trigger full sync; malformed, tampered, and wrong-merchant tokens are rejected. Successful requests issue fresh merchant-bound tokens with no device identity; older tokens retain their original expiry. Save each token atomically with the applied response. The new checkpoint is saved only after all resource queries succeed. Database failures return 500 and Redis failures return 503, without a new token. No resource selection, deletion tracking, pagination, or record or byte cap.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRequest"
+              },
+              "example": {
+                "sync_token": "*"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns complete qualifying resources and a new sync token. Empty arrays indicate no eligible records. merchant is null when no merchant update qualifies. Recent records can be replayed by the one-hour overlap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values, or the token is malformed, tampered, or belongs to another merchant. Returns validation_error or sync_token_invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns account_not_provisioned or forbidden_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "description": "A database or resource-query failure prevented sync. No new token is issued. Returns internal_server_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Redis cannot read or save the checkpoint. Retry with the same token. Returns sync_unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/locations": {
       "get": {
         "tags": ["Locations"],
@@ -3072,6 +3167,91 @@
       }
     },
     "schemas": {
+      "SyncRequest": {
+        "type": "object",
+        "properties": {
+          "sync_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "Required. Send \"*\" for a full sync, or reuse a token from a successful sync. Treat tokens as opaque.",
+            "examples": ["*"]
+          }
+        },
+        "required": ["sync_token"],
+        "description": "All five resource types are always requested. Unknown fields are ignored."
+      },
+      "SyncResponse": {
+        "type": "object",
+        "properties": {
+          "merchant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Merchant"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The merchant on full sync or when its updated_at is inside the inclusive sync window. Null otherwise; preserve the locally cached merchant when null."
+          },
+          "full_sync": {
+            "type": "boolean",
+            "description": "True for \"*\", authentic expired tokens, or authentic tokens whose checkpoint is missing from Redis."
+          },
+          "sync_token": {
+            "type": "string",
+            "description": "An opaque, signed, merchant-bound token valid for 30 days from issuance. Save it together with all returned changes. Tokens have no device identity; previous tokens remain usable until their original expiry."
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            },
+            "description": "Complete products, including archived products, variants, options, and inventory across every merchant location. Product, variant, inventory, collection, option, option-group, and image timestamps can select a product. Association-only writers must update the parent product timestamp because link tables have no timestamps."
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Collection"
+            },
+            "description": "Complete records updated inside the inclusive sync window. Returns an empty array when no records qualify; the one-hour overlap can replay recently updated records."
+          },
+          "customers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Customer"
+            },
+            "description": "Complete records updated inside the inclusive sync window. Returns an empty array when no records qualify; the one-hour overlap can replay recently updated records."
+          },
+          "suppliers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Supplier"
+            },
+            "description": "Complete records updated inside the inclusive sync window. Returns an empty array when no records qualify; the one-hour overlap can replay recently updated records."
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            },
+            "description": "Merchant locations updated inside the sync window, including locations not assigned to the current employee. Full sync returns every merchant location."
+          }
+        },
+        "required": [
+          "merchant",
+          "full_sync",
+          "sync_token",
+          "products",
+          "collections",
+          "customers",
+          "suppliers",
+          "locations"
+        ],
+        "additionalProperties": false,
+        "description": "All records come from one consistent database snapshot. Full sync returns all datasets. Incremental sync returns complete records with updated_at in the inclusive interval from the previous checkpoint minus one hour through the current checkpoint. Recently updated records may be replayed. Upsert incremental records and preserve the cached merchant when merchant is null. Replace datasets on full sync. No pagination, product-count cap, transactional resources, or deletion tracking."
+      },
       "CreateLocationRequest": {
         "type": "object",
         "description": "Location settings. Requires name and business_type. Unknown fields are ignored. Transaction counters start at 1. Optional text fields default to null; rates default to 0.00; backorders default to false.",
@@ -3493,6 +3673,7 @@
               "resource_not_found",
               "invalid_oauth_token",
               "sync_token_invalid",
+              "sync_unavailable",
               "concurrent_update_conflict",
               "collection_name_already_exists",
               "sku_already_exists",
@@ -4027,6 +4208,7 @@
               "resource_not_found",
               "invalid_oauth_token",
               "sync_token_invalid",
+              "sync_unavailable",
               "concurrent_update_conflict",
               "collection_name_already_exists",
               "sku_already_exists",

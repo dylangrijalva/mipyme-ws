@@ -5,10 +5,20 @@ import { Supplier } from "../contracts/supplier.ts";
 import type { Database } from "../db/index.ts";
 import { tables } from "../db/schema.ts";
 import { paginate } from "../utils/paginate.ts";
+import { type SyncCriteria, syncWindow } from "./sync-criteria.ts";
 
 type Criteria = { merchantId: string; id: string };
 
 class SupplierFinder {
+  async findForSync(db: Database, criteria: SyncCriteria): Promise<Array<Supplier>> {
+    const records = await db
+      .select()
+      .from(tables.supplier)
+      .where(and(eq(tables.supplier.merchantId, criteria.merchantId), syncWindow(tables.supplier.updatedAt, criteria)))
+      .orderBy(tables.supplier.id);
+    return records.map((record) => Supplier.parse(record));
+  }
+
   async find(db: Database, criteria: Criteria): Promise<Supplier | null> {
     const [record] = await db
       .select()

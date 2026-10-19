@@ -5,10 +5,20 @@ import type { PaginationResponse } from "../contracts/pagination-response.ts";
 import type { Database } from "../db/index.ts";
 import { tables } from "../db/schema.ts";
 import { paginate } from "../utils/paginate.ts";
+import { type SyncCriteria, syncWindow } from "./sync-criteria.ts";
 
 type Criteria = { merchantId: string; id: string };
 
 class CustomerFinder {
+  async findForSync(db: Database, criteria: SyncCriteria): Promise<Array<Customer>> {
+    const records = await db
+      .select()
+      .from(tables.customer)
+      .where(and(eq(tables.customer.merchantId, criteria.merchantId), syncWindow(tables.customer.updatedAt, criteria)))
+      .orderBy(tables.customer.id);
+    return records.map((record) => Customer.parse(record));
+  }
+
   async find(db: Database, criteria: Criteria): Promise<Customer | null> {
     const [record] = await db
       .select()

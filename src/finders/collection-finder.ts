@@ -5,6 +5,7 @@ import type { PaginationResponse } from "../contracts/pagination-response.ts";
 import type { Database } from "../db/index.ts";
 import { tables } from "../db/schema.ts";
 import { paginate } from "../utils/paginate.ts";
+import { type SyncCriteria, syncWindow } from "./sync-criteria.ts";
 
 type Criteria = {
   merchantId: string;
@@ -13,6 +14,17 @@ type Criteria = {
 };
 
 class CollectionFinder {
+  async findForSync(db: Database, criteria: SyncCriteria): Promise<Array<Collection>> {
+    const records = await db
+      .select()
+      .from(tables.collection)
+      .where(
+        and(eq(tables.collection.merchantId, criteria.merchantId), syncWindow(tables.collection.updatedAt, criteria)),
+      )
+      .orderBy(tables.collection.id);
+    return records.map((record) => Collection.parse(record));
+  }
+
   async find(db: Database, criteria: Criteria): Promise<Collection | null> {
     const [record] = await db
       .select()

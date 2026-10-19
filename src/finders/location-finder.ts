@@ -5,6 +5,7 @@ import type { PaginationResponse } from "../contracts/pagination-response.ts";
 import type { Database } from "../db/index.ts";
 import { tables } from "../db/schema.ts";
 import { paginate } from "../utils/paginate.ts";
+import { type SyncCriteria, syncWindow } from "./sync-criteria.ts";
 
 type Criteria = { merchantId: string; id: string; employeeId?: string };
 type PaginationCriteria = ScopedPaginationRequest & { employeeId?: string };
@@ -20,6 +21,15 @@ function locationAccessCondition(criteria: { merchantId: string; employeeId?: st
 }
 
 class LocationFinder {
+  async findForSync(db: Database, criteria: SyncCriteria): Promise<Array<Location>> {
+    const records = await db
+      .select()
+      .from(tables.location)
+      .where(and(eq(tables.location.merchantId, criteria.merchantId), syncWindow(tables.location.updatedAt, criteria)))
+      .orderBy(tables.location.id);
+    return records.map((record) => Location.parse(record));
+  }
+
   async find(db: Database, criteria: Criteria): Promise<Location | null> {
     const [record] = await db
       .select()

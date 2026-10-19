@@ -41,6 +41,7 @@ import { purchasesRouter } from "./routes/purchases.router.ts";
 import { realtimeRouter } from "./routes/realtime.router.ts";
 import { salesRouter } from "./routes/sales.router.ts";
 import { suppliersRouter } from "./routes/suppliers.router.ts";
+import { syncRouter } from "./routes/sync.router.ts";
 import { FacilitoHono } from "./types.ts";
 
 type InjectedDependencies = {
@@ -84,6 +85,7 @@ function createApp(dependencies: InjectedDependencies): FacilitoHono {
   app.route("/v1/sales", salesRouter());
   app.route("/v1/purchases", purchasesRouter());
   app.route("/v1/realtime", realtimeRouter());
+  app.route("/v1/sync", syncRouter());
 
   app.get("/_health", rateLimiter({ key: createPublicScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), async (ctx) => {
     const { db, cache } = ctx.var;
