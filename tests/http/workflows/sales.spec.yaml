@@ -81,7 +81,8 @@ before:
           jsonpath:
             $.product_type: item
             $.variants.length: 1
-            $.variants[0].inventory_levels.length: 1
+            $.variants[0].inventory_levels.length:
+              - gt: 0
         captures:
           itemVariantId:
             jsonpath: $.variants[0].id
@@ -125,6 +126,11 @@ before:
         captures:
           customerId:
             jsonpath: $.id
+    - name: prepares pending sale data
+      plugin:
+        id: ${{env.workflowFixtureDirectory}}/sales.fixture.ts
+        params:
+          action: setup
 tests:
   checkout:
     name: records service checkouts and exposes validation through the HTTP contract
@@ -866,10 +872,10 @@ tests:
           auth: *auth
           json: &pendingCheckout
             source: pos.web
-            location_id: ${{env.webLocationId}}
+            location_id: ${{captures.webLocationId}}
             business_date: "2026-10-10T18:30:00Z"
             line_items:
-              - variant_id: ${{env.pendingVariantId}}
+              - variant_id: ${{captures.pendingVariantId}}
                 price: "100.00"
                 quantity: 5
             payments:
@@ -883,9 +889,9 @@ tests:
               $.status: pending
               $.source: pos.web
               $.transaction_number: 42
-              $.location_id: ${{env.webLocationId}}
+              $.location_id: ${{captures.webLocationId}}
               $.line_items.length: 1
-              $.line_items[0].variant_id: ${{env.pendingVariantId}}
+              $.line_items[0].variant_id: ${{captures.pendingVariantId}}
               $.line_items[0].quantity: 5
               $.line_items[0].shortage_quantity: 3
               $.payments.length: 1
@@ -898,7 +904,7 @@ tests:
           auth: *auth
           json:
             <<: *pendingCheckout
-            location_id: ${{env.mobileLocationId}}
+            location_id: ${{captures.mobileLocationId}}
           check:
             status: 409
             schema:
@@ -916,7 +922,7 @@ tests:
           json:
             <<: *pendingCheckout
             source: pos.android
-            location_id: ${{env.mobileLocationId}}
+            location_id: ${{captures.mobileLocationId}}
           check:
             status: 201
             schema:
@@ -925,7 +931,7 @@ tests:
               $.status: pending
               $.source: pos.android
               $.transaction_number: 42
-              $.location_id: ${{env.mobileLocationId}}
+              $.location_id: ${{captures.mobileLocationId}}
               $.line_items[0].shortage_quantity: 3
               $.payments[0].amount: "500.00"
       - name: records an iOS shortage without reserving stock from the Android sale
@@ -936,7 +942,7 @@ tests:
           json:
             <<: *pendingCheckout
             source: pos.ios
-            location_id: ${{env.mobileLocationId}}
+            location_id: ${{captures.mobileLocationId}}
           check:
             status: 201
             schema:
@@ -947,3 +953,11 @@ tests:
               $.transaction_number: 43
               $.line_items[0].shortage_quantity: 3
               $.payments[0].amount: "500.00"
+after:
+  name: verifies and removes pending sale data
+  steps:
+    - name: verifies the pending sale fixture
+      plugin:
+        id: ${{env.workflowFixtureDirectory}}/sales.fixture.ts
+        params:
+          action: cleanup

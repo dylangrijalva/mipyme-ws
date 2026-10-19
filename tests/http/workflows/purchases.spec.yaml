@@ -10,13 +10,21 @@ components:
       $ref: ./src/openapi.json#/components/schemas/FacilitoError
 config:
   concurrency: 1
+before:
+  name: prepares purchase scenario data
+  steps:
+    - name: seeds purchase records
+      plugin:
+        id: ${{env.workflowFixtureDirectory}}/purchases.fixture.ts
+        params:
+          action: setup
 tests:
   reads:
     name: reads complete purchases through the public HTTP contract
     steps:
       - name: "retrieves a voided purchase with its supplier and item snapshots"
         http:
-          url: ${{env.baseUrl}}/v1/purchases/${{env.purchaseId}}
+          url: ${{env.baseUrl}}/v1/purchases/${{captures.purchaseId}}
           method: GET
           auth:
             bearer:
@@ -26,13 +34,13 @@ tests:
             schema:
               $ref: "#/components/schemas/Purchase"
             jsonpath:
-              $.id: ${{env.purchaseId}}
+              $.id: ${{captures.purchaseId}}
               $.status: voided
-              $.supplier.id: ${{env.purchaseSupplierId}}
+              $.supplier.id: ${{captures.purchaseSupplierId}}
               $.line_items.length: 1
               $.line_items[0].unit_cost: "10.00"
               $.line_items[0].price: "20.00"
-              $.line_items[0].variants[0].id: ${{env.purchaseVariantId}}
+              $.line_items[0].variants[0].id: ${{captures.purchaseVariantId}}
               $.line_items[0].variants[0].quantity: 2
       - name: "applies snake case filters and inclusive microsecond date bounds"
         http:
@@ -42,8 +50,8 @@ tests:
             bearer:
               token: ${{env.token}}
           params:
-            location_id: "${{env.purchaseLocationId}}"
-            supplier_id: "${{env.purchaseSupplierId}}"
+            location_id: "${{captures.purchaseLocationId}}"
+            supplier_id: "${{captures.purchaseSupplierId}}"
             status: "voided"
             from: "2026-10-10T12:30:00.123456-06:00"
             to: "2026-10-10T18:30:00.123456Z"
@@ -53,8 +61,8 @@ tests:
               $ref: "#/components/schemas/PurchasePaginationResponse"
             jsonpath:
               $.results.length: 1
-              $.results[0].id: ${{env.purchaseId}}
-              $.results[0].line_items[0].variants[0].id: ${{env.purchaseVariantId}}
+              $.results[0].id: ${{captures.purchaseId}}
+              $.results[0].line_items[0].variants[0].id: ${{captures.purchaseVariantId}}
               $.has_more: false
               $.next_cursor: null
       - name: "retrieves page 1 across timestamp ties"
@@ -72,7 +80,7 @@ tests:
               $ref: "#/components/schemas/PurchasePaginationResponse"
             jsonpath:
               $.results.length: 1
-              $.results[0].id: ${{env.newestPurchaseId}}
+              $.results[0].id: ${{captures.newestPurchaseId}}
               $.has_more: true
           captures:
             page1Cursor:
@@ -93,7 +101,7 @@ tests:
               $ref: "#/components/schemas/PurchasePaginationResponse"
             jsonpath:
               $.results.length: 1
-              $.results[0].id: ${{env.purchaseId}}
+              $.results[0].id: ${{captures.purchaseId}}
               $.has_more: true
           captures:
             page2Cursor:
@@ -114,7 +122,7 @@ tests:
               $ref: "#/components/schemas/PurchasePaginationResponse"
             jsonpath:
               $.results.length: 1
-              $.results[0].id: ${{env.secondPurchaseId}}
+              $.results[0].id: ${{captures.secondPurchaseId}}
               $.has_more: true
           captures:
             page3Cursor:
@@ -135,7 +143,7 @@ tests:
               $ref: "#/components/schemas/PurchasePaginationResponse"
             jsonpath:
               $.results.length: 1
-              $.results[0].id: ${{env.oldestPurchaseId}}
+              $.results[0].id: ${{captures.oldestPurchaseId}}
               $.has_more: false
               $.next_cursor: null
       - name: "rejects invalid input ID"
@@ -302,7 +310,7 @@ tests:
               $.code: resource_not_found
       - name: "hides a missing or foreign purchase"
         http:
-          url: ${{env.baseUrl}}/v1/purchases/${{env.foreignPurchaseId}}
+          url: ${{env.baseUrl}}/v1/purchases/${{captures.foreignPurchaseId}}
           method: GET
           auth:
             bearer:
@@ -323,7 +331,7 @@ tests:
               $.code: invalid_oauth_token
       - name: "requires authentication"
         http:
-          url: ${{env.baseUrl}}/v1/purchases/${{env.purchaseId}}
+          url: ${{env.baseUrl}}/v1/purchases/${{captures.purchaseId}}
           method: GET
           check:
             status: 401
@@ -340,10 +348,10 @@ tests:
             bearer:
               token: ${{env.token}}
           json:
-            location_id: ${{env.purchaseLocationId}}
-            supplier_id: ${{env.purchaseSupplierId}}
+            location_id: ${{captures.purchaseLocationId}}
+            supplier_id: ${{captures.purchaseSupplierId}}
             line_items:
-              - variant_id: ${{env.purchaseVariantId}}
+              - variant_id: ${{captures.purchaseVariantId}}
                 quantity: 2
                 unit_cost: "12.00"
           check:
@@ -387,7 +395,7 @@ tests:
             jsonpath:
               $.status: voided
               $.void_reason: Wrong supplier delivery
-              $.voided_by.id: ${{env.purchaseEmployeeId}}
+              $.voided_by.id: ${{captures.purchaseEmployeeId}}
               $.line_items[0].variants[0].quantity: 2
           captures:
             originalVoidedAt:
@@ -437,7 +445,7 @@ tests:
               $ref: "#/components/schemas/Purchase"
             jsonpath:
               $.voided_at: ${{captures.originalVoidedAt}}
-              $.voided_by.id: ${{env.purchaseEmployeeId}}
+              $.voided_by.id: ${{captures.purchaseEmployeeId}}
       - name: creates an earlier purchase that will be blocked
         http:
           url: ${{env.baseUrl}}/v1/purchases
@@ -446,10 +454,10 @@ tests:
             bearer:
               token: ${{env.token}}
           json:
-            location_id: ${{env.purchaseLocationId}}
-            supplier_id: ${{env.purchaseSupplierId}}
+            location_id: ${{captures.purchaseLocationId}}
+            supplier_id: ${{captures.purchaseSupplierId}}
             line_items:
-              - variant_id: ${{env.purchaseVariantId}}
+              - variant_id: ${{captures.purchaseVariantId}}
                 quantity: 2
                 unit_cost: "12.00"
           check:
@@ -465,10 +473,10 @@ tests:
             bearer:
               token: ${{env.token}}
           json:
-            location_id: ${{env.purchaseLocationId}}
-            supplier_id: ${{env.purchaseSupplierId}}
+            location_id: ${{captures.purchaseLocationId}}
+            supplier_id: ${{captures.purchaseSupplierId}}
             line_items:
-              - variant_id: ${{env.purchaseVariantId}}
+              - variant_id: ${{captures.purchaseVariantId}}
                 quantity: 1
                 unit_cost: "14.00"
           check:
@@ -516,7 +524,7 @@ tests:
               $.code: validation_error
       - name: rejects a legacy purchase without cost snapshots
         http:
-          url: ${{env.baseUrl}}/v1/purchases/${{env.secondPurchaseId}}/void
+          url: ${{env.baseUrl}}/v1/purchases/${{captures.secondPurchaseId}}/void
           method: POST
           auth:
             bearer:
@@ -527,7 +535,7 @@ tests:
               $.code: validation_error
       - name: hides purchases belonging to another merchant
         http:
-          url: ${{env.baseUrl}}/v1/purchases/${{env.foreignPurchaseId}}/void
+          url: ${{env.baseUrl}}/v1/purchases/${{captures.foreignPurchaseId}}/void
           method: POST
           auth:
             bearer:
@@ -555,3 +563,11 @@ tests:
             status: 401
             jsonpath:
               $.code: invalid_oauth_token
+after:
+  name: verifies and removes purchase scenario data
+  steps:
+    - name: verifies the purchase fixture and cleans it up
+      plugin:
+        id: ${{env.workflowFixtureDirectory}}/purchases.fixture.ts
+        params:
+          action: cleanup

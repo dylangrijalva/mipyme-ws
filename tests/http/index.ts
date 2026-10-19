@@ -1,5 +1,7 @@
 import { parseArgs } from "node:util";
+import { fileURLToPath } from "node:url";
 import type { Environment } from "../../src/infra/config.env.ts";
+import { HttpTestEnvironment } from "./http-test-environment.ts";
 import { HttpTestRunner } from "./http-test-runner.ts";
 
 const { values } = parseArgs({
@@ -21,11 +23,16 @@ const { values } = parseArgs({
 });
 
 const environment = values.environment as Environment;
+const workflowFixtureDirectory = fileURLToPath(new URL("./workflow-fixtures", import.meta.url));
 
-new HttpTestRunner(environment, values.workflow, values.verbose).run().then(
-  () => process.exit(0),
-  (error: unknown) => {
-    console.error(error);
-    process.exit(1);
-  },
-);
+new HttpTestEnvironment(environment)
+  .run((workflowEnvironment) =>
+    new HttpTestRunner({ ...workflowEnvironment, workflowFixtureDirectory }, values.workflow, values.verbose).run(),
+  )
+  .then(
+    () => process.exit(0),
+    (error: unknown) => {
+      console.error(error);
+      process.exit(1);
+    },
+  );
