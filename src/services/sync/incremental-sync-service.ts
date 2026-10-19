@@ -34,19 +34,58 @@ type InjectedDependencies = {
 
 class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
   private readonly tokens: SyncTokenStore;
+  private readonly db: Database;
+  private readonly user: CurrentUser;
+  private readonly merchantFinder: MerchantFinder;
+  private readonly productFinder: ProductFinder;
+  private readonly collectionFinder: CollectionFinder;
+  private readonly customerFinder: CustomerFinder;
+  private readonly supplierFinder: SupplierFinder;
+  private readonly locationFinder: LocationFinder;
 
-  constructor(private readonly dependencies: InjectedDependencies) {
-    super(dependencies.logger);
-    this.tokens = new SyncTokenStore(dependencies.cache, dependencies.env.CLERK_SECRET_KEY);
+  constructor(
+    logger: Logger,
+    db: Database,
+    cache: Redis,
+    env: EnvVars,
+    user: CurrentUser,
+    merchantFinder: MerchantFinder,
+    productFinder: ProductFinder,
+    collectionFinder: CollectionFinder,
+    customerFinder: CustomerFinder,
+    supplierFinder: SupplierFinder,
+    locationFinder: LocationFinder,
+  ) {
+    super(logger);
+    this.tokens = new SyncTokenStore(cache, env.CLERK_SECRET_KEY);
+    this.db = db;
+    this.user = user;
+    this.merchantFinder = merchantFinder;
+    this.productFinder = productFinder;
+    this.collectionFinder = collectionFinder;
+    this.customerFinder = customerFinder;
+    this.supplierFinder = supplierFinder;
+    this.locationFinder = locationFinder;
   }
 
-  static create(dependencies: InjectedDependencies): IncrementalSyncService {
-    return new IncrementalSyncService(dependencies);
-  }
-
-  async execute(request: SyncRequest): Promise<Result<SyncResponse, BusinessError>> {
-    const {
+  static create({
+    logger,
+    db,
+    cache,
+    env,
+    user,
+    merchantFinder,
+    productFinder,
+    collectionFinder,
+    customerFinder,
+    supplierFinder,
+    locationFinder,
+  }: InjectedDependencies): IncrementalSyncService {
+    return new IncrementalSyncService(
+      logger,
       db,
+      cache,
+      env,
       user,
       merchantFinder,
       productFinder,
@@ -54,27 +93,30 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
       customerFinder,
       supplierFinder,
       locationFinder,
-    } = this.dependencies;
-    const previous = await this.tokens.load(request.syncToken, user.merchantId);
+    );
+  }
+
+  async execute(request: SyncRequest): Promise<Result<SyncResponse, BusinessError>> {
+    const previous = await this.tokens.load(request.syncToken, this.user.merchantId);
     if (!previous.success) {
       return previous;
     }
 
     const currentSyncedAt = now();
     const criteria = {
-      merchantId: user.merchantId,
+      merchantId: this.user.merchantId,
       previousSyncedAt: previous.value ? new Date(previous.value.getTime() - SYNC_OVERLAP_WINDOW_IN_MS) : null,
       currentSyncedAt,
     };
-    const resources = await db.transaction(
+    const resources = await this.db.transaction(
       async (trx) => {
         const [merchant, products, collections, customers, suppliers, locations] = await Promise.all([
-          merchantFinder.findForSync(trx, criteria),
-          productFinder.findForSync(trx, criteria),
-          collectionFinder.findForSync(trx, criteria),
-          customerFinder.findForSync(trx, criteria),
-          supplierFinder.findForSync(trx, criteria),
-          locationFinder.findForSync(trx, criteria),
+          this.merchantFinder.findForSync(trx, criteria),
+          this.productFinder.findForSync(trx, criteria),
+          this.collectionFinder.findForSync(trx, criteria),
+          this.customerFinder.findForSync(trx, criteria),
+          this.supplierFinder.findForSync(trx, criteria),
+          this.locationFinder.findForSync(trx, criteria),
         ]);
 
         return { merchant, products, collections, customers, suppliers, locations };
@@ -82,7 +124,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
       { isolationLevel: "repeatable read", withConsistentSnapshot: true },
     );
 
-    const token = await this.tokens.save(currentSyncedAt, user.merchantId);
+    const token = await this.tokens.save(currentSyncedAt, this.user.merchantId);
     if (!token.success) {
       return token;
     }
