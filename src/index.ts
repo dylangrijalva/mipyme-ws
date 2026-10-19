@@ -5,6 +5,7 @@ import { createApp } from "./app.ts";
 import { createDrizzle } from "./db/index.ts";
 import { CollectionFinder } from "./finders/collection-finder.ts";
 import { CustomerFinder } from "./finders/customer-finder.ts";
+import { LocationFinder } from "./finders/location-finder.ts";
 import { MerchantFinder } from "./finders/merchant-finder.ts";
 import { ProductFinder } from "./finders/product-finder.ts";
 import { PurchaseFinder } from "./finders/purchase-finder.ts";
@@ -37,6 +38,7 @@ async function run() {
   const merchantFinder = new MerchantFinder();
   const collectionFinder = new CollectionFinder();
   const customerFinder = new CustomerFinder();
+  const locationFinder = new LocationFinder();
   const supplierFinder = new SupplierFinder();
   const productFinder = new ProductFinder();
   const purchaseFinder = new PurchaseFinder();
@@ -52,6 +54,7 @@ async function run() {
     merchantFinder,
     collectionFinder,
     customerFinder,
+    locationFinder,
     supplierFinder,
     productFinder,
     purchaseFinder,

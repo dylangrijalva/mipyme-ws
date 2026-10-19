@@ -6,6 +6,7 @@ import type { JsonWebTokenPayload } from "./contracts/json-web-token-payload.ts"
 import type { Database } from "./db/index.ts";
 import type { CollectionFinder } from "./finders/collection-finder.ts";
 import type { CustomerFinder } from "./finders/customer-finder.ts";
+import type { LocationFinder } from "./finders/location-finder.ts";
 import type { MerchantFinder } from "./finders/merchant-finder.ts";
 import type { PurchaseFinder } from "./finders/purchase-finder.ts";
 import type { SaleFinder } from "./finders/sale-finder.ts";
@@ -27,6 +28,7 @@ type FacilitoEnv = {
     merchantFinder: MerchantFinder;
     collectionFinder: CollectionFinder;
     customerFinder: CustomerFinder;
+    locationFinder: LocationFinder;
     supplierFinder: SupplierFinder;
     productFinder: ProductFinder;
     purchaseFinder: PurchaseFinder;

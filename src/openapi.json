@@ -7,6 +7,10 @@
   },
   "tags": [
     {
+      "name": "Locations",
+      "description": "Manage merchant locations and their settings. Staff can read assigned locations."
+    },
+    {
       "name": "Realtime",
       "description": "Realtime notifications report changes to your merchant's data. Authorize the private channel for your merchant before subscribing."
     },
@@ -48,6 +52,370 @@
     }
   ],
   "paths": {
+    "/v1/locations": {
+      "get": {
+        "tags": ["Locations"],
+        "operationId": "listLocations",
+        "summary": "List all locations",
+        "description": "Lists locations for your merchant, ordered by ID. Owners see all locations; staff see only assigned locations. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "The maximum number of locations to return. Defaults to 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The `next_cursor` value returned by the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns a page of locations and pagination information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationPaginationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the locations from being listed. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Locations"],
+        "operationId": "createLocation",
+        "summary": "Create a location",
+        "description": "Creates a location for your merchant. Only owners can create locations. Both `name` and `business_type` are required. Each merchant can have at most 3 locations, including the location created during onboarding. Location names do not need to be unique. IDs, merchant ownership, timestamps, and transaction counters are server-managed; unknown request fields are ignored.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLocationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "201": {
+            "description": "Returns the created location.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Location"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is invited or disabled or is staff (`forbidden_error`), or the merchant already has 3 locations (`location_limit_exceeded`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented creation. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/v1/locations/{id}": {
+      "get": {
+        "tags": ["Locations"],
+        "operationId": "getLocation",
+        "summary": "Retrieve a location",
+        "description": "Retrieves a location in your merchant. Owners can retrieve all locations; staff can retrieve only assigned locations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The location identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns the location.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Location"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The location does not exist, belongs to another merchant, or is not assigned to the staff member. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the location from being retrieved. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Locations"],
+        "operationId": "updateLocation",
+        "summary": "Update a location",
+        "description": "Only owners can update locations. Updates supplied fields; omitted fields stay unchanged. Set optional text fields or `tax_rate` to `null` to clear them. An empty body returns the unchanged location, including timestamps. IDs, merchant ownership, timestamps, and transaction counters are server-managed; unknown request fields are ignored.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The location identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLocationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns the updated location.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Location"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership (`account_not_provisioned`), or its employee is invited, disabled, or staff (`forbidden_error`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The location does not exist or does not belong to the current merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the location from being updated. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacilitoError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/realtime/subscriptions": {
       "post": {
         "tags": ["Realtime"],
@@ -2704,6 +3072,168 @@
       }
     },
     "schemas": {
+      "CreateLocationRequest": {
+        "type": "object",
+        "description": "Location settings. Requires name and business_type. Unknown fields are ignored. Transaction counters start at 1. Optional text fields default to null; rates default to 0.00; backorders default to false.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Location name. Surrounding whitespace is removed."
+          },
+          "business_type": {
+            "$ref": "#/components/schemas/BusinessType"
+          },
+          "phone": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Surrounding whitespace is removed. Omit on creation or set to null to store no value. Omit on update to leave unchanged."
+          },
+          "address": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Surrounding whitespace is removed. Omit on creation or set to null to store no value. Omit on update to leave unchanged."
+          },
+          "tax_id": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Surrounding whitespace is removed. Omit on creation or set to null to store no value. Omit on update to leave unchanged."
+          },
+          "receipt_header_text": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Surrounding whitespace is removed. Omit on creation or set to null to store no value. Omit on update to leave unchanged."
+          },
+          "receipt_footer_text": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Surrounding whitespace is removed. Omit on creation or set to null to store no value. Omit on update to leave unchanged."
+          },
+          "exchange_rate": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d{1,2})?$",
+            "description": "A non-negative decimal string with at most two decimal places and a value below 10000000000. Defaults to 0.00 on creation."
+          },
+          "tax_rate": {
+            "type": ["string", "null"],
+            "pattern": "^\\d+(\\.\\d{1,2})?$",
+            "description": "A non-negative decimal string with at most two decimal places and a value below 10000000000. Defaults to 0.00 on creation. Set to null to clear."
+          },
+          "allow_backorders": {
+            "type": "boolean",
+            "description": "Whether sales can exceed available stock. Defaults to false on creation."
+          }
+        },
+        "required": ["name", "business_type"],
+        "examples": [
+          {
+            "name": "Water 7",
+            "business_type": "grocery_store",
+            "exchange_rate": "36.50"
+          }
+        ]
+      },
+      "UpdateLocationRequest": {
+        "type": "object",
+        "description": "Location settings to update. Omit fields to preserve them. Optional text fields and tax_rate can be cleared with null. Unknown fields are ignored. An empty object leaves the location unchanged.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Location name. Surrounding whitespace is removed."
+          },
+          "business_type": {
+            "$ref": "#/components/schemas/BusinessType"
+          },
+          "phone": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Surrounding whitespace is removed. Set to null to clear. Omit to leave unchanged."
+          },
+          "address": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Surrounding whitespace is removed. Set to null to clear. Omit to leave unchanged."
+          },
+          "tax_id": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Surrounding whitespace is removed. Set to null to clear. Omit to leave unchanged."
+          },
+          "receipt_header_text": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Surrounding whitespace is removed. Set to null to clear. Omit to leave unchanged."
+          },
+          "receipt_footer_text": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Surrounding whitespace is removed. Set to null to clear. Omit to leave unchanged."
+          },
+          "exchange_rate": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d{1,2})?$",
+            "description": "A non-negative decimal string with at most two decimal places and a value below 10000000000."
+          },
+          "tax_rate": {
+            "type": ["string", "null"],
+            "pattern": "^\\d+(\\.\\d{1,2})?$",
+            "description": "A non-negative decimal string with at most two decimal places and a value below 10000000000. Set to null to clear."
+          },
+          "allow_backorders": {
+            "type": "boolean",
+            "description": "Whether sales can exceed available stock."
+          }
+        },
+        "examples": [
+          {
+            "address": null,
+            "allow_backorders": true
+          }
+        ]
+      },
+      "LocationPaginationResponse": {
+        "type": "object",
+        "description": "A page of locations with the information needed to request the next page.",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            },
+            "description": "The locations returned in this page."
+          },
+          "next_cursor": {
+            "type": ["string", "null"],
+            "description": "The opaque cursor to pass when requesting the next page. Returns `null` on the final page."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether more locations are available after this page."
+          }
+        },
+        "required": ["results", "next_cursor", "has_more"],
+        "examples": [
+          {
+            "results": [],
+            "next_cursor": null,
+            "has_more": false
+          }
+        ],
+        "additionalProperties": false
+      },
       "AuthorizeRealtimeChannelRequest": {
         "type": "object",
         "description": "The connection details your realtime client sends when requesting access to a private channel.",
