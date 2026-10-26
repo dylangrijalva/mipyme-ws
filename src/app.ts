@@ -42,7 +42,7 @@ import { realtimeRouter } from "./routes/realtime.router.ts";
 import { salesRouter } from "./routes/sales.router.ts";
 import { suppliersRouter } from "./routes/suppliers.router.ts";
 import { syncRouter } from "./routes/sync.router.ts";
-import { FacilitoHono } from "./types.ts";
+import { MipymeHono } from "./types.ts";
 
 type InjectedDependencies = {
   logger: Logger;
@@ -61,8 +61,8 @@ type InjectedDependencies = {
   saleFinder: SaleFinder;
 };
 
-function createApp(dependencies: InjectedDependencies): FacilitoHono {
-  const app = new FacilitoHono();
+function createApp(dependencies: InjectedDependencies): MipymeHono {
+  const app = new MipymeHono();
 
   app.use("/v1/*", ...[snakeCase(), camelCase()]);
 
@@ -106,7 +106,7 @@ function createApp(dependencies: InjectedDependencies): FacilitoHono {
     "/scalar",
     devGuard(),
     Scalar({
-      pageTitle: "Facilito API Reference",
+      pageTitle: "Mipyme API Reference",
       url: "/openapi.json",
       theme: "alternate",
     }),

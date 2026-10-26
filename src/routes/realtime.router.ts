@@ -4,12 +4,12 @@ import { membershipGuard } from "../guards/membership-guard.ts";
 import { AuthorizeRealtimeChannelService } from "../services/authorize-realtime-channel-service.ts";
 import { authorize } from "../middlewares/authorize.ts";
 import { createAuthScopedKey, rateLimiter } from "../middlewares/rate-limiter.ts";
-import { FacilitoHono } from "../types.ts";
+import { MipymeHono } from "../types.ts";
 import { camelCaseKeys } from "../utils/camel-case-keys.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
-function realtimeRouter(): FacilitoHono {
-  const router = new FacilitoHono();
+function realtimeRouter(): MipymeHono {
+  const router = new MipymeHono();
 
   router.use(
     "*",

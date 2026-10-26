@@ -9,11 +9,11 @@ import { CreateSupplierRequest, CreateSupplierService } from "../services/suppli
 import { FindSupplierService } from "../services/suppliers/find-supplier-service.ts";
 import { ListSuppliersService } from "../services/suppliers/list-suppliers-service.ts";
 import { UpdateSupplierRequest, UpdateSupplierService } from "../services/suppliers/update-supplier-service.ts";
-import { FacilitoHono } from "../types.ts";
+import { MipymeHono } from "../types.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
-function suppliersRouter(): FacilitoHono {
-  const router = new FacilitoHono();
+function suppliersRouter(): MipymeHono {
+  const router = new MipymeHono();
 
   router.use(authorize(), rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), membershipGuard());
 

@@ -1,5 +1,5 @@
 import { codes, type BusinessError, type ErrorCode } from "../contracts/business-error.ts";
-import type { FacilitoError } from "../contracts/facilito-error.ts";
+import type { MipymeError } from "../contracts/mipyme-error.ts";
 
 const ERROR_STATUS_CODES: Record<ErrorCode, number> = Object.freeze({
   [codes.internalServerError]: 500,
@@ -25,7 +25,7 @@ const ERROR_STATUS_CODES: Record<ErrorCode, number> = Object.freeze({
   [codes.idempotencyUnavailable]: 503,
 });
 
-function toFacilitoError({ requestId, error }: { requestId: string; error: Error | BusinessError }): FacilitoError {
+function toMipymeError({ requestId, error }: { requestId: string; error: Error | BusinessError }): MipymeError {
   if (error instanceof Error) {
     return {
       requestId,
@@ -33,10 +33,10 @@ function toFacilitoError({ requestId, error }: { requestId: string; error: Error
       code: codes.internalServerError,
       message: error.message,
       details: [],
-    } satisfies FacilitoError;
+    } satisfies MipymeError;
   }
 
-  const response: FacilitoError = {
+  const response: MipymeError = {
     requestId,
     status: ERROR_STATUS_CODES[error.code],
     code: error.code,
@@ -47,4 +47,4 @@ function toFacilitoError({ requestId, error }: { requestId: string; error: Error
   return response;
 }
 
-export { ERROR_STATUS_CODES, toFacilitoError };
+export { ERROR_STATUS_CODES, toMipymeError };

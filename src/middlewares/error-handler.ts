@@ -1,8 +1,8 @@
 import type { Context } from "hono/";
 import z, { ZodError } from "zod";
 import { codes } from "../contracts/business-error.ts";
-import type { FacilitoEnv } from "../types.ts";
-import { toFacilitoError } from "../utils/to-facilito-error.ts";
+import type { MipymeEnv } from "../types.ts";
+import { toMipymeError } from "../utils/to-mipyme-error.ts";
 
 const defaultMessage = z.locales.en().localeError;
 
@@ -88,13 +88,13 @@ function formatZodIssueMessage(issue: z.core.$ZodIssue): string {
 }
 
 function errorHandler() {
-  return async (error: Error, ctx: Context<FacilitoEnv>): Promise<Response> => {
+  return async (error: Error, ctx: Context<MipymeEnv>): Promise<Response> => {
     const { logger } = ctx.var;
 
     if (error instanceof SyntaxError) {
       logger.error("The request's payload is not formatted correctly");
       return ctx.json(
-        toFacilitoError({
+        toMipymeError({
           requestId: ctx.var.requestId,
           error: {
             code: codes.validationError,
@@ -114,7 +114,7 @@ function errorHandler() {
       }));
 
       return ctx.json(
-        toFacilitoError({
+        toMipymeError({
           requestId: ctx.var.requestId,
           error: {
             code: codes.validationError,
@@ -127,11 +127,11 @@ function errorHandler() {
     }
 
     return ctx.json(
-      toFacilitoError({
+      toMipymeError({
         requestId: ctx.var.requestId,
         error: {
           code: codes.internalServerError,
-          message: "Something went wrong on Facilito's end",
+          message: "Something went wrong on Mipyme's end",
           details: [],
         },
       }),

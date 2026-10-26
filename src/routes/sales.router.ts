@@ -9,12 +9,12 @@ import { CreateSaleRequest, CreateSaleService } from "../services/sales/create-s
 import { FindSaleService } from "../services/sales/find-sale-service.ts";
 import { ListSalesService } from "../services/sales/list-sales-service.ts";
 import { VoidSaleRequest, VoidSaleService } from "../services/sales/void-sale-service.ts";
-import { FacilitoHono } from "../types.ts";
+import { MipymeHono } from "../types.ts";
 import { camelCaseKeys } from "../utils/camel-case-keys.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
-function salesRouter(): FacilitoHono {
-  const router = new FacilitoHono();
+function salesRouter(): MipymeHono {
+  const router = new MipymeHono();
 
   router.use(authorize(), rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), membershipGuard());
 

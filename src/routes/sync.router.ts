@@ -3,11 +3,11 @@ import { SyncRequest } from "../contracts/sync.ts";
 import { membershipGuard } from "../guards/membership-guard.ts";
 import { authorize } from "../middlewares/authorize.ts";
 import { IncrementalSyncService } from "../services/sync/incremental-sync-service.ts";
-import { FacilitoHono } from "../types.ts";
+import { MipymeHono } from "../types.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
-function syncRouter(): FacilitoHono {
-  const router = new FacilitoHono();
+function syncRouter(): MipymeHono {
+  const router = new MipymeHono();
 
   router.use(authorize(), membershipGuard());
 

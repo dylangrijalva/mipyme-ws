@@ -6,8 +6,8 @@ components:
       $ref: ./src/openapi.json#/components/schemas/Purchase
     PurchasePaginationResponse:
       $ref: ./src/openapi.json#/components/schemas/PurchasePaginationResponse
-    FacilitoError:
-      $ref: ./src/openapi.json#/components/schemas/FacilitoError
+    MipymeError:
+      $ref: ./src/openapi.json#/components/schemas/MipymeError
 config:
   concurrency: 1
 before:
@@ -156,7 +156,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: "rejects invalid input {'limit': 0}"
@@ -171,7 +171,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: "rejects invalid input {'limit': 101}"
@@ -186,7 +186,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: "rejects invalid input {'status': 'pending'}"
@@ -201,7 +201,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: "rejects invalid input {'supplier_id': 'Baratie'}"
@@ -216,7 +216,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: "rejects invalid input {'location_id': 'Water7'}"
@@ -231,7 +231,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: "rejects invalid input {'cursor': 'not-a-cursor'}"
@@ -246,7 +246,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: "rejects invalid input {'from': '2026-10-10T18:30:00'}"
@@ -261,7 +261,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: "rejects invalid input {'from': '2026-02-30T00:00:00Z'}"
@@ -276,7 +276,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: "rejects invalid input {'from': '2026-10-10T18:30:00.1234562Z', 'to': '2026-10-10T18:30:00.1234561Z'}"
@@ -292,7 +292,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: "hides a missing or foreign purchase"
@@ -305,7 +305,7 @@ tests:
           check:
             status: 404
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: resource_not_found
       - name: "hides a missing or foreign purchase"
@@ -318,7 +318,7 @@ tests:
           check:
             status: 404
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: resource_not_found
       - name: "requires authentication"
@@ -494,7 +494,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: voids the latest purchase without a request body

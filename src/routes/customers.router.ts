@@ -9,11 +9,11 @@ import { CreateCustomerRequest, CreateCustomerService } from "../services/custom
 import { FindCustomerService } from "../services/customers/find-customer-service.ts";
 import { ListCustomersService } from "../services/customers/list-customers-service.ts";
 import { UpdateCustomerRequest, UpdateCustomerService } from "../services/customers/update-customer-service.ts";
-import { FacilitoHono } from "../types.ts";
+import { MipymeHono } from "../types.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
-function customersRouter(): FacilitoHono {
-  const router = new FacilitoHono();
+function customersRouter(): MipymeHono {
+  const router = new MipymeHono();
 
   router.use(authorize(), rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), membershipGuard());
 

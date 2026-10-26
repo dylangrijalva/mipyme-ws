@@ -1,9 +1,9 @@
 import { createMiddleware } from "hono/factory";
-import type { FacilitoEnv } from "../types.ts";
+import type { MipymeEnv } from "../types.ts";
 import { snakeCaseKeys } from "../utils/snake-case-keys.ts";
 
 function snakeCase() {
-  return createMiddleware<FacilitoEnv>(async (ctx, next) => {
+  return createMiddleware<MipymeEnv>(async (ctx, next) => {
     await next();
 
     const isJSONResponse = ctx.res.headers.get("Content-Type")?.startsWith("application/json") === true;

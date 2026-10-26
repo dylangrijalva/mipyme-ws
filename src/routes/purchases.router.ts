@@ -9,12 +9,12 @@ import { CreatePurchaseRequest, CreatePurchaseService } from "../services/purcha
 import { FindPurchaseService } from "../services/purchases/find-purchase-service.ts";
 import { ListPurchasesService } from "../services/purchases/list-purchases-service.ts";
 import { VoidPurchaseRequest, VoidPurchaseService } from "../services/purchases/void-purchase-service.ts";
-import { FacilitoHono } from "../types.ts";
+import { MipymeHono } from "../types.ts";
 import { camelCaseKeys } from "../utils/camel-case-keys.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
-function purchasesRouter(): FacilitoHono {
-  const router = new FacilitoHono();
+function purchasesRouter(): MipymeHono {
+  const router = new MipymeHono();
 
   router.use(authorize(), rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), membershipGuard());
 

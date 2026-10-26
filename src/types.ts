@@ -16,7 +16,7 @@ import type { EnvVars } from "./infra/config.env.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
 import type { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
 
-type FacilitoEnv = {
+type MipymeEnv = {
   Variables: {
     requestId: string;
     logger: Logger;
@@ -38,6 +38,6 @@ type FacilitoEnv = {
   };
 };
 
-class FacilitoHono extends Hono<FacilitoEnv> {}
+class MipymeHono extends Hono<MipymeEnv> {}
 
-export { FacilitoHono, type FacilitoEnv };
+export { MipymeHono, type MipymeEnv };

@@ -4,8 +4,8 @@ components:
   schemas:
     RealtimeChannelAuthorization:
       $ref: ./src/openapi.json#/components/schemas/RealtimeChannelAuthorization
-    FacilitoError:
-      $ref: ./src/openapi.json#/components/schemas/FacilitoError
+    MipymeError:
+      $ref: ./src/openapi.json#/components/schemas/MipymeError
 config:
   concurrency: 1
 before:
@@ -70,7 +70,7 @@ tests:
           check:
             status: 403
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: forbidden_error
@@ -89,7 +89,7 @@ tests:
           check:
             status: 403
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: forbidden_error
@@ -111,7 +111,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -132,7 +132,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -150,7 +150,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -169,7 +169,7 @@ tests:
           check:
             status: 401
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: invalid_oauth_token

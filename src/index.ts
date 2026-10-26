@@ -64,7 +64,7 @@ async function run() {
   serve({ fetch: app.fetch, port: env.PORT }, ({ address, port }) => {
     const host = env.NODE_ENV === "development" ? "localhost" : address;
 
-    logger.debug(chalk.greenBright(`Facilito ${env.NODE_ENV} server running!`));
+    logger.debug(chalk.greenBright(`Mipyme ${env.NODE_ENV} server running!`));
     logger.debug(`${chalk.white("API:")}               ${chalk.greenBright(`http://${host}:${port}`)}`);
     logger.debug(`${chalk.white("Runtime version:")}   ${chalk.greenBright(process.versions.node)}`);
     logger.debug(`${chalk.white("CPU Architecture:")}  ${chalk.greenBright(process.arch)}`);

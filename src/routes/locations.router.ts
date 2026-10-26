@@ -9,11 +9,11 @@ import { CreateLocationRequest, CreateLocationService } from "../services/locati
 import { FindLocationService } from "../services/locations/find-location-service.ts";
 import { ListLocationsService } from "../services/locations/list-locations-service.ts";
 import { UpdateLocationRequest, UpdateLocationService } from "../services/locations/update-location-service.ts";
-import { FacilitoHono } from "../types.ts";
+import { MipymeHono } from "../types.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
-function locationsRouter(): FacilitoHono {
-  const router = new FacilitoHono();
+function locationsRouter(): MipymeHono {
+  const router = new MipymeHono();
 
   router.use(
     authorize(),

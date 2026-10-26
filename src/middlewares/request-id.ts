@@ -1,9 +1,9 @@
 import { createMiddleware } from "hono/factory";
-import type { FacilitoEnv } from "../types.ts";
+import type { MipymeEnv } from "../types.ts";
 import { generateId } from "../utils/generate-id.ts";
 
 function requestId() {
-  return createMiddleware<FacilitoEnv>((ctx, next) => {
+  return createMiddleware<MipymeEnv>((ctx, next) => {
     const requestId = ctx.req.header("x-request-id")?.trim() || generateId({ model: "request", length: 21 });
     ctx.set("requestId", requestId);
     ctx.header("X-Request-ID", requestId);

@@ -1,10 +1,10 @@
 import { createMiddleware } from "hono/factory";
 import { routePath } from "hono/route";
 import { performance } from "perf_hooks";
-import type { FacilitoEnv } from "../types.ts";
+import type { MipymeEnv } from "../types.ts";
 
 function logging() {
-  return createMiddleware<FacilitoEnv>(async (ctx, next) => {
+  return createMiddleware<MipymeEnv>(async (ctx, next) => {
     const start = performance.now();
     await next();
 

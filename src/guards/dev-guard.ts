@@ -1,8 +1,8 @@
 import { createMiddleware } from "hono/factory";
-import type { FacilitoEnv } from "../types.ts";
+import type { MipymeEnv } from "../types.ts";
 
 function devGuard() {
-  return createMiddleware<FacilitoEnv>(async (ctx, next) => {
+  return createMiddleware<MipymeEnv>(async (ctx, next) => {
     const isDevelopment = ctx.var.env.NODE_ENV === "development";
     if (!isDevelopment) {
       return ctx.notFound();

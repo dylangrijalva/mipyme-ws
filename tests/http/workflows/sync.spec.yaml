@@ -4,8 +4,8 @@ components:
   schemas:
     SyncResponse:
       $ref: ./src/openapi.json#/components/schemas/SyncResponse
-    FacilitoError:
-      $ref: ./src/openapi.json#/components/schemas/FacilitoError
+    MipymeError:
+      $ref: ./src/openapi.json#/components/schemas/MipymeError
     Merchant:
       $ref: ./src/openapi.json#/components/schemas/Merchant
     ProductPaginationResponse:
@@ -29,7 +29,7 @@ before:
             anyOf:
               - $ref: "#/components/schemas/ProductPaginationResponse"
               - allOf:
-                  - $ref: "#/components/schemas/FacilitoError"
+                  - $ref: "#/components/schemas/MipymeError"
                   - type: object
                     properties:
                       code:
@@ -336,7 +336,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -352,7 +352,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -368,7 +368,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -384,7 +384,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -400,7 +400,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: sync_token_invalid
@@ -416,7 +416,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -432,7 +432,7 @@ tests:
           check:
             status: 401
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: invalid_oauth_token

@@ -1,11 +1,11 @@
 import { createMiddleware } from "hono/factory";
 import { codes } from "../contracts/business-error.ts";
-import type { FacilitoEnv } from "../types.ts";
+import type { MipymeEnv } from "../types.ts";
 import { err } from "../utils/result.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
 function authorize() {
-  return createMiddleware<FacilitoEnv>(async (ctx, next) => {
+  return createMiddleware<MipymeEnv>(async (ctx, next) => {
     const token = ctx.req.header("Authorization")?.match(/^Bearer +([A-Za-z0-9._~+/-]+=*)$/i)?.[1];
 
     if (!token) {

@@ -76,7 +76,7 @@ class RealtimeEventPublisher {
         resourceId: resource.snapshot.id,
         ...resource,
       });
-      const CHANGE_EVENT_NAME = "facilito.changes" as const;
+      const CHANGE_EVENT_NAME = "mipyme.changes" as const;
       const PUSHER_EVENT_DATA_LIMIT_IN_BYTES = 10 * 1024;
       const serializedEvent = JSON.stringify(event);
       const isOversized = Buffer.byteLength(serializedEvent, "utf8") >= PUSHER_EVENT_DATA_LIMIT_IN_BYTES;

@@ -1,9 +1,9 @@
 import { createMiddleware } from "hono/factory";
-import type { FacilitoEnv } from "../types.ts";
+import type { MipymeEnv } from "../types.ts";
 import { camelCaseKeys } from "../utils/camel-case-keys.ts";
 
 function camelCase() {
-  return createMiddleware<FacilitoEnv>(async (ctx, next) => {
+  return createMiddleware<MipymeEnv>(async (ctx, next) => {
     if (ctx.req.method === "GET") {
       const queryOf = ctx.req.query.bind(ctx.req) as typeof ctx.req.query;
       const queriesOf = ctx.req.queries.bind(ctx.req) as typeof ctx.req.queries;

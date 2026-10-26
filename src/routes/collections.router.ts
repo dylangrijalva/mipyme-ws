@@ -15,11 +15,11 @@ import {
   UpdateCollectionRequest,
   UpdateCollectionService,
 } from "../services/catalog/collections/update-collection-service.ts";
-import { FacilitoHono } from "../types.ts";
+import { MipymeHono } from "../types.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
-function collectionsRouter(): FacilitoHono {
-  const router = new FacilitoHono();
+function collectionsRouter(): MipymeHono {
+  const router = new MipymeHono();
 
   router.use(authorize(), rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), membershipGuard());
 

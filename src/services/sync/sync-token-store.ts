@@ -35,7 +35,7 @@ class SyncTokenStore {
     secret: string,
   ) {
     // Derive a separate signing key so sync tokens cannot be used as authentication tokens.
-    this.signingKey = new Uint8Array(hkdfSync("sha256", secret, "facilito", "sync-token-v1", 32));
+    this.signingKey = new Uint8Array(hkdfSync("sha256", secret, "mipyme", "sync-token-v1", 32));
   }
 
   async load(token: string, merchantId: string): Promise<Result<Date | null, BusinessError>> {

@@ -2,12 +2,12 @@ import { and, eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { codes } from "../contracts/business-error.ts";
 import { tables } from "../db/schema.ts";
-import type { FacilitoEnv } from "../types.ts";
+import type { MipymeEnv } from "../types.ts";
 import { err } from "../utils/result.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
 function membershipGuard() {
-  return createMiddleware<FacilitoEnv>(async (ctx, next) => {
+  return createMiddleware<MipymeEnv>(async (ctx, next) => {
     const { db, claims } = ctx.var;
 
     const [membership] = await db

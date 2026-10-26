@@ -9,11 +9,11 @@ import { CreateProductRequest, CreateProductService } from "../services/catalog/
 import { FindProductService } from "../services/catalog/products/find-product-service.ts";
 import { ListProductsService } from "../services/catalog/products/list-products-service.ts";
 import { UpdateProductRequest, UpdateProductService } from "../services/catalog/products/update-product-service.ts";
-import { FacilitoHono } from "../types.ts";
+import { MipymeHono } from "../types.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
-function productsRouter(): FacilitoHono {
-  const router = new FacilitoHono();
+function productsRouter(): MipymeHono {
+  const router = new MipymeHono();
 
   router.use(authorize(), rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), membershipGuard());
 

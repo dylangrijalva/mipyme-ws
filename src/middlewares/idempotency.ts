@@ -5,7 +5,7 @@ import type { StatusCode } from "hono/utils/http-status";
 import { createHash, randomUUID } from "node:crypto";
 import z from "zod";
 import { codes } from "../contracts/business-error.ts";
-import type { FacilitoEnv } from "../types.ts";
+import type { MipymeEnv } from "../types.ts";
 import { err } from "../utils/result.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
@@ -54,7 +54,7 @@ redis.call("HSET", KEYS[1], "response", ARGV[2])
 return 1
 `;
 
-async function requestFingerprint(ctx: Context<FacilitoEnv>): Promise<string> {
+async function requestFingerprint(ctx: Context<MipymeEnv>): Promise<string> {
   const url = new URL(ctx.req.url);
   url.searchParams.sort();
   const requestBodyWasConsumed = ctx.req.raw.bodyUsed;
@@ -68,7 +68,7 @@ async function requestFingerprint(ctx: Context<FacilitoEnv>): Promise<string> {
 }
 
 function idempotency() {
-  return createMiddleware<FacilitoEnv>(async (ctx, next) => {
+  return createMiddleware<MipymeEnv>(async (ctx, next) => {
     const idempotencyKey = ctx.req.header("Idempotency-Key");
     const methodSupportsIdempotency = ctx.req.method === "POST";
     if (!methodSupportsIdempotency || idempotencyKey === undefined) {

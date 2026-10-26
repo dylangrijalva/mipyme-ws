@@ -3,11 +3,11 @@ import { authorize } from "../middlewares/authorize.ts";
 import { idempotency } from "../middlewares/idempotency.ts";
 import { createAuthOperationScopedKey, DEFAULT_RATE_LIMIT_CONFIG, rateLimiter } from "../middlewares/rate-limiter.ts";
 import { OnboardAccountRequest, ProvisionAccountService } from "../services/onboarding/provision-account-service.ts";
-import { FacilitoHono } from "../types.ts";
+import { MipymeHono } from "../types.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
-function onboardingRouter(): FacilitoHono {
-  const router = new FacilitoHono();
+function onboardingRouter(): MipymeHono {
+  const router = new MipymeHono();
 
   router.use(
     authorize(),

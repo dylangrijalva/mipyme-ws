@@ -6,8 +6,8 @@ components:
       $ref: ./src/openapi.json#/components/schemas/Location
     LocationPaginationResponse:
       $ref: ./src/openapi.json#/components/schemas/LocationPaginationResponse
-    FacilitoError:
-      $ref: ./src/openapi.json#/components/schemas/FacilitoError
+    MipymeError:
+      $ref: ./src/openapi.json#/components/schemas/MipymeError
     Merchant:
       $ref: ./src/openapi.json#/components/schemas/Merchant
 config:
@@ -29,7 +29,7 @@ before:
             anyOf:
               - $ref: "#/components/schemas/LocationPaginationResponse"
               - allOf:
-                  - $ref: "#/components/schemas/FacilitoError"
+                  - $ref: "#/components/schemas/MipymeError"
                   - type: object
                     properties:
                       code:
@@ -213,7 +213,7 @@ tests:
           check:
             status: 403
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: location_limit_exceeded
@@ -398,7 +398,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -416,7 +416,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -435,7 +435,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -454,7 +454,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -474,7 +474,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -494,7 +494,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -514,7 +514,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -534,7 +534,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -554,7 +554,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -572,7 +572,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -590,7 +590,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -608,7 +608,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -626,7 +626,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -642,7 +642,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -658,7 +658,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -674,7 +674,7 @@ tests:
           check:
             status: 404
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: resource_not_found
@@ -692,7 +692,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: validation_error
@@ -710,7 +710,7 @@ tests:
           check:
             status: 404
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: resource_not_found
@@ -739,7 +739,7 @@ tests:
           check:
             status: 401
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: invalid_oauth_token
@@ -755,7 +755,7 @@ tests:
           check:
             status: 401
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: invalid_oauth_token
@@ -768,7 +768,7 @@ tests:
           check:
             status: 401
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: invalid_oauth_token
@@ -784,7 +784,7 @@ tests:
           check:
             status: 401
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code:
                 - eq: invalid_oauth_token

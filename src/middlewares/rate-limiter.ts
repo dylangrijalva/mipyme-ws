@@ -3,12 +3,12 @@ import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { routePath } from "hono/route";
 import { codes } from "../contracts/business-error.ts";
-import type { FacilitoEnv } from "../types.ts";
+import type { MipymeEnv } from "../types.ts";
 import { err } from "../utils/result.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
 type RateLimiterConfig = {
-  key: (ctx: Context<FacilitoEnv>) => string;
+  key: (ctx: Context<MipymeEnv>) => string;
   limit: number;
   windowInSeconds: number;
 };
@@ -27,21 +27,21 @@ end
 return count
 `;
 
-function createAuthScopedKey(ctx: Context<FacilitoEnv>): string {
+function createAuthScopedKey(ctx: Context<MipymeEnv>): string {
   return `rate-limit:${ctx.req.method}:${routePath(ctx, -1)}:${ctx.var.claims.sub}`;
 }
 
-function createPublicScopedKey(ctx: Context<FacilitoEnv>): string {
+function createPublicScopedKey(ctx: Context<MipymeEnv>): string {
   const remoteAddress = getConnInfo(ctx).remote.address ?? "unknown";
   return `rate-limit:${ctx.req.method}:${routePath(ctx, -1)}:${remoteAddress}`;
 }
 
-function createAuthOperationScopedKey(operation: string): (ctx: Context<FacilitoEnv>) => string {
+function createAuthOperationScopedKey(operation: string): (ctx: Context<MipymeEnv>) => string {
   return (ctx) => `rate-limit:${operation}:${ctx.var.claims.sub}`;
 }
 
 function rateLimiter(config: RateLimiterConfig) {
-  return createMiddleware<FacilitoEnv>(async (ctx, next) => {
+  return createMiddleware<MipymeEnv>(async (ctx, next) => {
     const key = config.key(ctx);
     const count = Number(await ctx.var.cache.eval(RATE_LIMIT_SCRIPT, 1, key, config.windowInSeconds));
     const isFirstAttempt = count === 1;

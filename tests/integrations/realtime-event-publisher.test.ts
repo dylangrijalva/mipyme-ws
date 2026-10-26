@@ -36,7 +36,7 @@ describe("RealtimeEventPublisher", () => {
       await publisher.broadcast({ merchantId: "merchant_strawhatpirates", resource: { type: "customer", snapshot } });
 
       expect(trigger).toHaveBeenCalledTimes(1);
-      expect(trigger).toHaveBeenCalledWith("private-merchant_strawhatpirates", "facilito.changes", {
+      expect(trigger).toHaveBeenCalledWith("private-merchant_strawhatpirates", "mipyme.changes", {
         id: expect.stringMatching(/^evt_/),
         resource_id: "customer_robin",
         type: "customer",

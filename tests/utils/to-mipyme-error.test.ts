@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { BusinessError } from "../../src/contracts/business-error.ts";
-import { toFacilitoError } from "../../src/utils/to-facilito-error.ts";
+import { toMipymeError } from "../../src/utils/to-mipyme-error.ts";
 
-describe("toFacilitoError", () => {
+describe("toMipymeError", () => {
   const requestId = "req_00000000000000000000";
 
   it.each([new Error("Crew lookup failed"), new TypeError("Crew lookup failed")])(
     "converts a native %s to an internal server error",
     (error) => {
-      const result = toFacilitoError({ requestId, error });
+      const result = toMipymeError({ requestId, error });
 
       expect(result).toStrictEqual({
         requestId,
@@ -39,7 +39,7 @@ describe("toFacilitoError", () => {
   ] as const)("maps business error %s to HTTP %i", (code, status) => {
     const error: BusinessError = { code, message: "The operation could not be completed.", details: [] };
 
-    const result = toFacilitoError({ requestId, error });
+    const result = toMipymeError({ requestId, error });
 
     expect(result).toStrictEqual({ requestId, status, code, message: error.message, details: [] });
   });
@@ -52,7 +52,7 @@ describe("toFacilitoError", () => {
     const error: BusinessError = { code: "validation_error", message: "Check the submitted fields.", details };
     Object.freeze(error);
 
-    const result = toFacilitoError({ requestId, error });
+    const result = toMipymeError({ requestId, error });
 
     expect(result).toStrictEqual({
       requestId,

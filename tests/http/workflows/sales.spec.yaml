@@ -6,8 +6,8 @@ components:
       $ref: ./src/openapi.json#/components/schemas/Sale
     SalePaginationResponse:
       $ref: ./src/openapi.json#/components/schemas/SalePaginationResponse
-    FacilitoError:
-      $ref: ./src/openapi.json#/components/schemas/FacilitoError
+    MipymeError:
+      $ref: ./src/openapi.json#/components/schemas/MipymeError
     Product:
       $ref: ./src/openapi.json#/components/schemas/Product
     ProductPaginationResponse:
@@ -35,7 +35,7 @@ before:
             anyOf:
               - $ref: "#/components/schemas/ProductPaginationResponse"
               - allOf:
-                  - $ref: "#/components/schemas/FacilitoError"
+                  - $ref: "#/components/schemas/MipymeError"
                   - type: object
                     properties:
                       code:
@@ -272,7 +272,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
               $.status: 400
@@ -289,7 +289,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: payment_insufficient
               $.status: 400
@@ -306,7 +306,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
               $.status: 400
@@ -321,7 +321,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: payment_insufficient
               $.status: 400
@@ -345,7 +345,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
               $.status: 400
@@ -360,7 +360,7 @@ tests:
           check:
             status: 404
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: resource_not_found
               $.status: 404
@@ -378,7 +378,7 @@ tests:
           check:
             status: 404
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: resource_not_found
               $.status: 404
@@ -424,7 +424,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
               $.status: 400
@@ -445,7 +445,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
               $.message: Only active products and unarchived variants can be sold.
@@ -461,7 +461,7 @@ tests:
           check:
             status: 404
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: resource_not_found
               $.message: The location has not been found.
@@ -477,7 +477,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
               $.status: 400
@@ -579,7 +579,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: returns not found for an unknown sale
@@ -591,7 +591,7 @@ tests:
           check:
             status: 404
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: resource_not_found
       - name: trims and records the void reason and returns the original payment
@@ -717,7 +717,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: rejects zero limits
@@ -728,7 +728,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: rejects invalid status
@@ -739,7 +739,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: rejects invalid location identifiers
@@ -750,7 +750,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: rejects invalid customer identifiers
@@ -761,7 +761,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: rejects malformed cursors
@@ -772,7 +772,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: rejects timestamps without a timezone
@@ -783,7 +783,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: rejects invalid calendar dates
@@ -794,7 +794,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: rejects reversed date ranges
@@ -805,7 +805,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: rejects invalid sale ID
@@ -816,7 +816,7 @@ tests:
           check:
             status: 400
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: validation_error
       - name: rejects missing sale
@@ -827,7 +827,7 @@ tests:
           check:
             status: 404
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: resource_not_found
       - name: rejects unauthenticated detail
@@ -837,7 +837,7 @@ tests:
           check:
             status: 401
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: invalid_oauth_token
       - name: rejects unauthenticated list
@@ -847,7 +847,7 @@ tests:
           check:
             status: 401
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: invalid_oauth_token
       - name: rejects reversed ranges that differ only in fractional milliseconds
@@ -908,7 +908,7 @@ tests:
           check:
             status: 409
             schema:
-              $ref: "#/components/schemas/FacilitoError"
+              $ref: "#/components/schemas/MipymeError"
             jsonpath:
               $.code: stock_insufficient
               $.status: 409
