@@ -3681,7 +3681,10 @@
               "price_below_unit_cost",
               "payment_insufficient",
               "stock_insufficient",
-              "location_limit_exceeded"
+              "location_limit_exceeded",
+              "idempotency_key_mismatch",
+              "idempotency_request_in_progress",
+              "idempotency_unavailable"
             ]
           },
           "message": {
@@ -3774,7 +3777,7 @@
           "other"
         ]
       },
-      "ClerkAccount": {
+      "IdentityAccount": {
         "type": "object",
         "properties": {
           "id": {
@@ -3790,9 +3793,7 @@
           "email": {
             "anyOf": [
               {
-                "type": "string",
-                "format": "email",
-                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -3865,14 +3866,12 @@
           "name": {
             "type": "string",
             "description": "The display name of the collection.",
-            "examples": ["East Blue Provisions"],
-            "maxLength": 128
+            "examples": ["East Blue Provisions"]
           },
           "slug": {
             "type": "string",
             "description": "The URL-friendly name of the collection.",
-            "examples": ["east-blue-provisions"],
-            "maxLength": 128
+            "examples": ["east-blue-provisions"]
           },
           "created_at": {
             "type": "string",
@@ -4011,20 +4010,17 @@
           "name": {
             "type": "string",
             "description": "The display name of the customer.",
-            "examples": ["Trafalgar Law"],
-            "maxLength": 128
+            "examples": ["Trafalgar Law"]
           },
           "email": {
             "type": ["string", "null"],
             "description": "The email address of the customer. Returns `null` if none is recorded.",
-            "examples": ["law@heartpirates.example.com"],
-            "maxLength": 320
+            "examples": ["law@heartpirates.example.com"]
           },
           "phone": {
             "type": ["string", "null"],
             "description": "The contact phone number of the customer. Returns `null` if none is recorded.",
-            "examples": [null],
-            "maxLength": 32
+            "examples": [null]
           },
           "created_at": {
             "type": "string",
@@ -4098,7 +4094,7 @@
           "permissions": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PosPermission"
+              "type": "string"
             },
             "uniqueItems": true,
             "description": "The distinct point-of-sale capabilities assigned to the employee.",
@@ -4157,8 +4153,7 @@
           "max_discount_rate": {
             "type": "string",
             "pattern": "^\\d+(\\.\\d{1,2})?$",
-            "description": "Maximum effective line discount as a fraction. 0.10 means 10%. Defaults to 0.00. Owners are exempt.",
-            "default": "0.00"
+            "description": "Maximum effective line discount as a fraction. 0.10 means 10%. Owners are exempt."
           }
         },
         "required": [
@@ -4974,8 +4969,7 @@
           "exchange_rate": {
             "type": "string",
             "pattern": "^\\d+(\\.\\d{1,2})?$",
-            "description": "Local currency per US dollar, used for cash_dollar sale payments. Defaults to 0.00.",
-            "default": "0.00"
+            "description": "Local currency per US dollar, used for cash_dollar sale payments."
           }
         },
         "required": [
@@ -5063,7 +5057,7 @@
       },
       "ObjectId": {
         "type": "string",
-        "pattern": "^(?=.{24}$)(?:(?:merch|account|req|empl|loc|coll|prod|img|var|optgr|opt|prod_opt|var_opt|inv|invm|inv_pct|cust|sale|sal_ite|sal_pay|supp|purc|purc_ite|supp_prod|evt)_)?[0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ]+$",
+        "pattern": "^(?=.{24}$)(?:(?:merch|account|req|empl|loc|loca|coll|prod|img|var|optgr|opt|prod_opt|var_opt|inv|invm|inv_pct|cust|sale|sal_ite|sal_pay|supp|purc|purc_ite|supp_prod|evt)_)?[0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ]+$",
         "description": "An opaque resource identifier that is exactly 24 characters long, including any prefix and underscore.",
         "examples": ["merch_40KUNF3IWJGFJGPSHC"]
       },
@@ -5902,270 +5896,6 @@
           }
         ]
       },
-      "PurchaseOrder": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "The identifier of the purchase order.",
-            "examples": ["purc_RAT344W9WX6R57EVUI6"]
-          },
-          "transactionNumber": {
-            "type": "number",
-            "description": "The purchase-order number assigned within the receiving location.",
-            "examples": [1]
-          },
-          "status": {
-            "type": "string",
-            "description": "The status recorded for the purchase order.",
-            "examples": ["received"]
-          },
-          "locationId": {
-            "type": "string",
-            "description": "The identifier of the location that received the products.",
-            "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
-          },
-          "supplier": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "The identifier of the supplier.",
-                "examples": ["supp_AM6MZ6Z74KJFAAB1Y0Y"]
-              },
-              "name": {
-                "type": "string",
-                "description": "The display name of the supplier.",
-                "examples": ["Red Hair Pirates"]
-              }
-            },
-            "required": ["id", "name"],
-            "additionalProperties": false,
-            "description": "The identifier and name of the supplier associated with the delivery.",
-            "examples": [
-              {
-                "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
-                "name": "Red Hair Pirates"
-              }
-            ]
-          },
-          "lineItems": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "productId": {
-                  "type": "string",
-                  "description": "The identifier of the product received.",
-                  "examples": ["prod_JNG8424CGQ92NO85MA4"]
-                },
-                "productName": {
-                  "type": "string",
-                  "description": "The product name recorded on the purchase-order line.",
-                  "examples": ["East Blue Tangerines"]
-                },
-                "unitCost": {
-                  "$ref": "#/components/schemas/Decimal",
-                  "description": "The acquisition cost per unit recorded on the line, expressed as a decimal string.",
-                  "examples": ["80.00"]
-                },
-                "price": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/Decimal"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The selling price recorded on the line, expressed as a decimal string. Returns `null` if no price is recorded.",
-                  "examples": ["125.50"]
-                },
-                "variants": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "description": "The identifier of the product variant.",
-                        "examples": ["var_SPPWCBGNASKMHJSHXH38"]
-                      },
-                      "name": {
-                        "type": "string",
-                        "description": "The display name of the product variant.",
-                        "examples": ["1 kg"]
-                      },
-                      "quantity": {
-                        "type": "number",
-                        "description": "The number of units of the variant received in the delivery.",
-                        "examples": [20]
-                      }
-                    },
-                    "required": ["id", "name", "quantity"],
-                    "additionalProperties": false,
-                    "examples": [
-                      {
-                        "id": "var_SPPWCBGNASKMHJSHXH38",
-                        "name": "1 kg",
-                        "quantity": 20
-                      }
-                    ]
-                  },
-                  "description": "The received variants and the quantity of each variant.",
-                  "examples": [
-                    [
-                      {
-                        "id": "var_SPPWCBGNASKMHJSHXH38",
-                        "name": "1 kg",
-                        "quantity": 20
-                      }
-                    ]
-                  ]
-                }
-              },
-              "required": ["productId", "productName", "unitCost", "price", "variants"],
-              "additionalProperties": false,
-              "examples": [
-                {
-                  "productId": "prod_JNG8424CGQ92NO85MA4",
-                  "productName": "East Blue Tangerines",
-                  "unitCost": "80.00",
-                  "price": "125.50",
-                  "variants": [
-                    {
-                      "id": "var_SPPWCBGNASKMHJSHXH38",
-                      "name": "1 kg",
-                      "quantity": 20
-                    }
-                  ]
-                }
-              ]
-            },
-            "description": "The products received in the delivery, with costs, prices, and quantities grouped by variant.",
-            "examples": [
-              [
-                {
-                  "productId": "prod_JNG8424CGQ92NO85MA4",
-                  "productName": "East Blue Tangerines",
-                  "unitCost": "80.00",
-                  "price": "125.50",
-                  "variants": [
-                    {
-                      "id": "var_SPPWCBGNASKMHJSHXH38",
-                      "name": "1 kg",
-                      "quantity": 20
-                    }
-                  ]
-                }
-              ]
-            ]
-          },
-          "notes": {
-            "type": ["string", "null"],
-            "description": "The staff notes associated with the delivery. Returns `null` if no notes are recorded.",
-            "examples": ["Provisions for the Water 7 shop."]
-          },
-          "createdBy": {
-            "default": null,
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "The identifier of the employee.",
-                    "examples": ["empl_YJHP5ULEG3QP1M786T3"]
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "The display name of the employee.",
-                    "examples": ["Nami"]
-                  }
-                },
-                "required": ["id", "name"],
-                "additionalProperties": false,
-                "examples": [
-                  {
-                    "id": "empl_YJHP5ULEG3QP1M786T3",
-                    "name": "Nami"
-                  }
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The employee who recorded the delivery. Returns `null` if no employee is associated.",
-            "examples": [
-              {
-                "id": "empl_YJHP5ULEG3QP1M786T3",
-                "name": "Nami"
-              }
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The date and time when the purchase order was created, in RFC 3339 format.",
-            "examples": ["2026-09-23T09:00:00.000Z"]
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The date and time when the purchase order was last updated, in RFC 3339 format.",
-            "examples": ["2026-09-23T09:00:00.000Z"]
-          }
-        },
-        "required": [
-          "id",
-          "transactionNumber",
-          "status",
-          "locationId",
-          "supplier",
-          "lineItems",
-          "notes",
-          "createdBy",
-          "createdAt",
-          "updatedAt"
-        ],
-        "additionalProperties": false,
-        "description": "A record of products received from a supplier at a location. It preserves the quantities, costs, and selling prices recorded for each item.",
-        "examples": [
-          {
-            "id": "purc_RAT344W9WX6R57EVUI6",
-            "transactionNumber": 1,
-            "status": "received",
-            "locationId": "loc_AGGD8EJA69JRL3UTU79K",
-            "supplier": {
-              "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
-              "name": "Red Hair Pirates"
-            },
-            "lineItems": [
-              {
-                "productId": "prod_JNG8424CGQ92NO85MA4",
-                "productName": "East Blue Tangerines",
-                "unitCost": "80.00",
-                "price": "125.50",
-                "variants": [
-                  {
-                    "id": "var_SPPWCBGNASKMHJSHXH38",
-                    "name": "1 kg",
-                    "quantity": 20
-                  }
-                ]
-              }
-            ],
-            "notes": "Provisions for the Water 7 shop.",
-            "createdBy": {
-              "id": "empl_YJHP5ULEG3QP1M786T3",
-              "name": "Nami"
-            },
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
-          }
-        ]
-      },
       "ReadResourcesResponse": {
         "type": "object",
         "properties": {
@@ -6687,6 +6417,7 @@
         "properties": {
           "reason": {
             "type": ["string", "null"],
+            "maxLength": 256,
             "description": "An optional reason for voiding the sale, up to 256 characters after surrounding whitespace is removed. Omitted, blank, or `null` values return as `null`.",
             "examples": ["Damaged package", null]
           }
@@ -7088,20 +6819,17 @@
           "name": {
             "type": "string",
             "description": "The display name of the supplier.",
-            "examples": ["Red Hair Pirates"],
-            "maxLength": 128
+            "examples": ["Red Hair Pirates"]
           },
           "email": {
             "type": ["string", "null"],
             "description": "The email address of the supplier. Returns `null` if none is recorded.",
-            "examples": ["shanks@redhairpirates.example.com"],
-            "maxLength": 320
+            "examples": ["shanks@redhairpirates.example.com"]
           },
           "phone": {
             "type": ["string", "null"],
             "description": "The contact phone number of the supplier. Returns `null` if none is recorded.",
-            "examples": [null],
-            "maxLength": 32
+            "examples": [null]
           },
           "created_at": {
             "type": "string",
@@ -7881,6 +7609,12 @@
           }
         ]
       },
+      "PurchaseStatus": {
+        "description": "The fulfillment state of a purchase: fulfilled or voided.",
+        "examples": ["fulfilled"],
+        "type": "string",
+        "enum": ["fulfilled", "voided"]
+      },
       "Purchase": {
         "type": "object",
         "properties": {
@@ -7895,10 +7629,7 @@
             "examples": [1]
           },
           "status": {
-            "type": "string",
-            "description": "The status recorded for the purchase order.",
-            "examples": ["fulfilled"],
-            "enum": ["fulfilled", "voided"]
+            "$ref": "#/components/schemas/PurchaseStatus"
           },
           "location_id": {
             "type": "string",
@@ -8245,6 +7976,7 @@
         "properties": {
           "reason": {
             "type": ["string", "null"],
+            "maxLength": 256,
             "description": "An optional reason for voiding the purchase, up to 256 characters after surrounding whitespace is removed. Omitted, blank, or `null` values return as `null`.",
             "examples": ["Damaged package", null]
           }
