@@ -133,6 +133,8 @@ tests:
             sync_token: "*"
           check:
             status: 200
+            headers:
+              Cache-Control: no-store
             schema:
               $ref: "#/components/schemas/SyncResponse"
             jsonpath:

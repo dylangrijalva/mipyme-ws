@@ -70,6 +70,12 @@ tests:
               token: ${{env.token}}
           check:
             status: 200
+            headers:
+              RateLimit-Limit: "100"
+              RateLimit-Remaining:
+                - match: ^\d+$
+              RateLimit-Reset:
+                - match: ^\d+$
             schema:
               $ref: "#/components/schemas/CollectionPaginationResponse"
             jsonpath:
