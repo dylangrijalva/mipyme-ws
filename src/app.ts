@@ -64,14 +64,14 @@ type InjectedDependencies = {
 function createApp(dependencies: InjectedDependencies): MipymeHono {
   const app = new MipymeHono();
 
-  app.use("/v1/*", ...[snakeCase(), camelCase()]);
-
   app.use(inject(dependencies));
   app.use(contextStorage());
   app.use(requestId());
   app.use(logging());
   app.use(secureHeaders());
   app.use(prettyJSON());
+
+  app.use("/v1/*", ...[snakeCase(), camelCase()]);
 
   app.notFound(notFoundHandler());
   app.onError(errorHandler());
@@ -94,9 +94,15 @@ function createApp(dependencies: InjectedDependencies): MipymeHono {
     return ctx.body(null, 204);
   });
 
-  app.get("/me", authorize(), rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }), async (ctx) => {
-    return ctx.json(ctx.var.claims);
-  });
+  app.get(
+    "/me",
+    snakeCase(),
+    authorize(),
+    rateLimiter({ key: createAuthScopedKey, ...DEFAULT_RATE_LIMIT_CONFIG }),
+    async (ctx) => {
+      return ctx.json(ctx.var.claims);
+    },
+  );
 
   app.get("/openapi.json", devGuard(), (ctx) => {
     return ctx.json(OpenAPIDocument);

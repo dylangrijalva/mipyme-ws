@@ -444,6 +444,32 @@ tests:
                 - eq: validation_error
               $.status:
                 - eq: 400
+      - name: rejects a malformed JSON body with a traceable validation error
+        http:
+          url: ${{env.baseUrl}}/v1/customers
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          headers:
+            Content-Type: application/json
+            X-Request-ID: req_malformed_json_customer
+          body: '{"name": "Nico Robin",}'
+          check:
+            status: 400
+            headers:
+              X-Request-ID: req_malformed_json_customer
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.status:
+                - eq: 400
+              $.request_id:
+                - eq: req_malformed_json_customer
+              $.message:
+                - eq: The request body contains malformed JSON. Correct the JSON syntax and try again.
       - name: rejects a blank phone after trimming
         http:
           url: ${{env.baseUrl}}/v1/customers
