@@ -19,3 +19,33 @@ tests:
               $.email:
                 - isString: true
                 - match: '^[^\s@]+@[^\s@]+\.[^\s@]+$'
+  unauthenticated:
+    name: rejects a missing bearer token with a traceable error
+    steps:
+      - name: sends a GET request to /me without a bearer token
+        http:
+          url: ${{env.baseUrl}}/me
+          method: GET
+          headers:
+            X-Request-ID: req_me_missing_token
+          check:
+            status: 401
+            headers:
+              X-Request-ID: req_me_missing_token
+            jsonpath:
+              $.code:
+                - eq: invalid_oauth_token
+              $.request_id:
+                - eq: req_me_missing_token
+      - name: generates a request ID when the client does not send one
+        http:
+          url: ${{env.baseUrl}}/me
+          method: GET
+          check:
+            status: 401
+            headers:
+              X-Request-ID:
+                - match: ^req_[0-9A-Z]+$
+            jsonpath:
+              $.request_id:
+                - match: ^req_[0-9A-Z]+$
