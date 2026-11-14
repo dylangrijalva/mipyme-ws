@@ -1,4 +1,24 @@
-# Mipyme
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/banner-dark.svg">
+    <img src="assets/readme/banner-light.svg" alt="Mipyme" width="100%">
+  </picture>
+</p>
+
+<p align="center">
+  <strong>The simple point-of-sale for small businesses.</strong><br>
+  Products, inventory, payments, and sales — in one app that keeps working offline.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Node.js-5FA04E?logo=nodedotjs&logoColor=white" alt="Node.js">
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Hono-E36002?logo=hono&logoColor=white" alt="Hono">
+  <img src="https://img.shields.io/badge/MySQL-4479A1?logo=mysql&logoColor=white" alt="MySQL">
+  <img src="https://img.shields.io/badge/offline--first-FF4C00" alt="Offline-first">
+</p>
+
+---
 
 Mipyme is a complete point-of-sale (POS) system that brings together products, inventory, payments, sales, and technology in one simple solution for retailers.
 
