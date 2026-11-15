@@ -157,6 +157,11 @@ tests:
                     - Sanji sync provisions
               $.locations.length:
                 - gt: 0
+              $.employees[?(@.is_owner == true)].name:
+                - eq:
+                    - Monkey D. Luffy
+              $.employees[?(@.is_owner == true)].location_ids.length:
+                - gte: 0
               $.merchant.id:
                 - match: ^merch_[A-Z0-9]+$
           captures:

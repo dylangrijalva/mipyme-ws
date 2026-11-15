@@ -9,6 +9,7 @@ import { tables } from "../../src/db/schema.ts";
 import { ProductFinder } from "../../src/finders/product-finder.ts";
 import { CollectionFinder } from "../../src/finders/collection-finder.ts";
 import { CustomerFinder } from "../../src/finders/customer-finder.ts";
+import { EmployeeFinder } from "../../src/finders/employee-finder.ts";
 import { LocationFinder } from "../../src/finders/location-finder.ts";
 import { MerchantFinder } from "../../src/finders/merchant-finder.ts";
 import { PurchaseFinder } from "../../src/finders/purchase-finder.ts";
@@ -76,6 +77,14 @@ async function setup() {
       { id: locationId, merchantId: ownerId, name: "Water 7" },
       { id: otherLocationId, merchantId: ownerId, name: "Loguetown" },
     ]);
+    const employeeId = generateId({ model: "employee" });
+    await db.insert(tables.employee).values({ id: employeeId, merchantId: ownerId, name: "Nami", status: "enabled" });
+    await db.insert(tables.locationAccess).values({
+      id: generateId({ model: "locationAccess" }),
+      merchantId: ownerId,
+      employeeId,
+      locationId,
+    });
     await db.insert(tables.product).values([
       {
         id: productId,
@@ -131,6 +140,7 @@ async function setup() {
       },
     ]);
     return {
+      employeeId,
       collectionId,
       customerId,
       supplierId,
@@ -153,6 +163,7 @@ async function setup() {
     tables.customer,
     tables.supplier,
     tables.location,
+    tables.employee,
     tables.product,
     tables.variant,
     tables.inventoryLevel,
@@ -181,6 +192,7 @@ async function setup() {
     customerFinder: new CustomerFinder(),
     supplierFinder: new SupplierFinder(),
     locationFinder: new LocationFinder(),
+    employeeFinder: new EmployeeFinder(),
   };
   const service = IncrementalSyncService.create(dependencies);
   return { ...records, foreign, merchantId, foreignMerchantId, db, dependencies, service };
@@ -205,6 +217,7 @@ describe("IncrementalSyncService", () => {
       customers: [],
       suppliers: [],
       locations: [],
+      employees: [],
     });
     const [foreign] = await fixture.db
       .select()
@@ -275,6 +288,7 @@ describe("IncrementalSyncService", () => {
       collections: [],
       suppliers: [],
       locations: [],
+      employees: [],
     });
   });
 
@@ -295,6 +309,9 @@ describe("IncrementalSyncService", () => {
     expect(result.value!.locations.map((location) => location.id).sort()).toEqual(
       [fixture.locationId, fixture.otherLocationId].sort(),
     );
+    expect(result.value!.employees).toMatchObject([
+      { id: fixture.employeeId, name: "Nami", locationIds: [fixture.locationId] },
+    ]);
     expect(result.value!.products.map((product) => product.id).sort()).toEqual(
       [fixture.productId, fixture.archivedProductId].sort(),
     );
@@ -339,6 +356,7 @@ describe("IncrementalSyncService", () => {
       customers: [],
       suppliers: [],
       locations: [],
+      employees: [],
     });
     expect(retry.value).toMatchObject({
       fullSync: false,
@@ -348,6 +366,7 @@ describe("IncrementalSyncService", () => {
       customers: [],
       suppliers: [],
       locations: [],
+      employees: [],
     });
     expect(second.value!.syncToken).not.toBe(first.value!.syncToken);
     expect(retry.value!.syncToken).not.toBe(second.value!.syncToken);
@@ -410,6 +429,25 @@ describe("IncrementalSyncService", () => {
     const repeated = await fixture.service.execute({ syncToken: result.value!.syncToken });
     expect(repeated.value!.products).toEqual(result.value!.products);
     expect(repeated.value!.customers).toEqual(result.value!.customers);
+  });
+
+  it("returns only employees changed since the checkpoint with their location ids and never another merchant's", async () => {
+    const fixture = await setup();
+    const first = await fixture.service.execute({ syncToken: "*" });
+    await fixture.db
+      .update(tables.employee)
+      .set({ status: "disabled" })
+      .where(eq(tables.employee.id, fixture.employeeId));
+    await fixture.db
+      .update(tables.employee)
+      .set({ status: "disabled" })
+      .where(eq(tables.employee.id, fixture.foreign.employeeId));
+
+    const result = await fixture.service.execute({ syncToken: first.value!.syncToken });
+
+    expect(result.value!.employees).toMatchObject([
+      { id: fixture.employeeId, status: "disabled", locationIds: [fixture.locationId] },
+    ]);
   });
 
   it.each(["inventory", "variant", "option", "optionGroup", "image", "imageArchive", "collection"] as const)(

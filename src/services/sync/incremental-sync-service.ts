@@ -6,6 +6,7 @@ import type { SyncRequest, SyncResponse } from "../../contracts/sync.ts";
 import type { Database } from "../../db/index.ts";
 import type { CollectionFinder } from "../../finders/collection-finder.ts";
 import type { CustomerFinder } from "../../finders/customer-finder.ts";
+import type { EmployeeFinder } from "../../finders/employee-finder.ts";
 import type { LocationFinder } from "../../finders/location-finder.ts";
 import type { MerchantFinder } from "../../finders/merchant-finder.ts";
 import type { ProductFinder } from "../../finders/product-finder.ts";
@@ -30,6 +31,7 @@ type InjectedDependencies = {
   customerFinder: CustomerFinder;
   supplierFinder: SupplierFinder;
   locationFinder: LocationFinder;
+  employeeFinder: EmployeeFinder;
 };
 
 class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
@@ -42,6 +44,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
   private readonly customerFinder: CustomerFinder;
   private readonly supplierFinder: SupplierFinder;
   private readonly locationFinder: LocationFinder;
+  private readonly employeeFinder: EmployeeFinder;
 
   constructor(
     logger: Logger,
@@ -55,6 +58,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
     customerFinder: CustomerFinder,
     supplierFinder: SupplierFinder,
     locationFinder: LocationFinder,
+    employeeFinder: EmployeeFinder,
   ) {
     super(logger);
     this.tokens = new SyncTokenStore(cache, env.CLERK_SECRET_KEY);
@@ -66,6 +70,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
     this.customerFinder = customerFinder;
     this.supplierFinder = supplierFinder;
     this.locationFinder = locationFinder;
+    this.employeeFinder = employeeFinder;
   }
 
   static create({
@@ -80,6 +85,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
     customerFinder,
     supplierFinder,
     locationFinder,
+    employeeFinder,
   }: InjectedDependencies): IncrementalSyncService {
     return new IncrementalSyncService(
       logger,
@@ -93,6 +99,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
       customerFinder,
       supplierFinder,
       locationFinder,
+      employeeFinder,
     );
   }
 
@@ -110,16 +117,17 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
     };
     const resources = await this.db.transaction(
       async (trx) => {
-        const [merchant, products, collections, customers, suppliers, locations] = await Promise.all([
+        const [merchant, products, collections, customers, suppliers, locations, employees] = await Promise.all([
           this.merchantFinder.findForSync(trx, criteria),
           this.productFinder.findForSync(trx, criteria),
           this.collectionFinder.findForSync(trx, criteria),
           this.customerFinder.findForSync(trx, criteria),
           this.supplierFinder.findForSync(trx, criteria),
           this.locationFinder.findForSync(trx, criteria),
+          this.employeeFinder.findForSync(trx, criteria),
         ]);
 
-        return { merchant, products, collections, customers, suppliers, locations };
+        return { merchant, products, collections, customers, suppliers, locations, employees };
       },
       { isolationLevel: "repeatable read", withConsistentSnapshot: true },
     );

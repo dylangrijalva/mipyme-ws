@@ -19,6 +19,11 @@ const Employee = z.object({
   updatedAt: z.date(),
 });
 
-type Employee = z.infer<typeof Employee>;
+const SyncEmployee = Employee.extend({
+  locationIds: z.string().array(),
+});
 
-export { Employee };
+type Employee = z.infer<typeof Employee>;
+type SyncEmployee = z.infer<typeof SyncEmployee>;
+
+export { Employee, SyncEmployee };

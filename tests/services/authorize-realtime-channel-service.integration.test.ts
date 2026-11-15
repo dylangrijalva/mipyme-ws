@@ -6,6 +6,7 @@ import { createApp } from "../../src/app.ts";
 import { tables } from "../../src/db/schema.ts";
 import { CollectionFinder } from "../../src/finders/collection-finder.ts";
 import { CustomerFinder } from "../../src/finders/customer-finder.ts";
+import { EmployeeFinder } from "../../src/finders/employee-finder.ts";
 import { LocationFinder } from "../../src/finders/location-finder.ts";
 import { MerchantFinder } from "../../src/finders/merchant-finder.ts";
 import { ProductFinder } from "../../src/finders/product-finder.ts";
@@ -110,6 +111,7 @@ async function setupRoute(status: "enabled" | "disabled" | null) {
     merchantFinder: new MerchantFinder(),
     collectionFinder: new CollectionFinder(),
     customerFinder: new CustomerFinder(),
+    employeeFinder: new EmployeeFinder(),
     locationFinder: new LocationFinder(),
     supplierFinder: new SupplierFinder(),
     productFinder: new ProductFinder(),

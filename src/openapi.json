@@ -3179,7 +3179,7 @@
           }
         },
         "required": ["sync_token"],
-        "description": "All five resource types are always requested. Unknown fields are ignored."
+        "description": "All six resource types are always requested. Unknown fields are ignored."
       },
       "SyncResponse": {
         "type": "object",
@@ -3237,6 +3237,13 @@
               "$ref": "#/components/schemas/Location"
             },
             "description": "Merchant locations updated inside the sync window, including locations not assigned to the current employee. Full sync returns every merchant location."
+          },
+          "employees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncEmployee"
+            },
+            "description": "Employees of every status updated inside the inclusive sync window, including each employee's account email. An employee is also returned when its linked account is updated inside the window. Full sync returns every merchant employee. Replace an employee's cached location_ids with the returned list. Owners can access every location regardless of location_ids."
           }
         },
         "required": [
@@ -3247,7 +3254,8 @@
           "collections",
           "customers",
           "suppliers",
-          "locations"
+          "locations",
+          "employees"
         ],
         "additionalProperties": false,
         "description": "All records come from one consistent database snapshot. Full sync returns all datasets. Incremental sync returns complete records with updated_at in the inclusive interval from the previous checkpoint minus one hour through the current checkpoint. Recently updated records may be replayed. Upsert incremental records and preserve the cached merchant when merchant is null. Replace datasets on full sync. No pagination, product-count cap, transactional resources, or deletion tracking."
@@ -4182,6 +4190,135 @@
             },
             "created_at": "2026-09-23T09:00:00.000Z",
             "updated_at": "2026-09-23T09:00:00.000Z",
+            "max_discount_rate": "0.00"
+          }
+        ]
+      },
+      "SyncEmployee": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the employee.",
+            "examples": ["empl_YJHP5ULEG3QP1M786T3"]
+          },
+          "name": {
+            "type": "string",
+            "description": "The display name of the employee.",
+            "examples": ["Nami"]
+          },
+          "is_owner": {
+            "type": "boolean",
+            "description": "Whether the employee is the owner of the merchant.",
+            "examples": [false]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["invited", "enabled", "disabled"],
+            "description": "The access state of the employee at the point of sale: invited, enabled, or disabled.",
+            "examples": ["enabled"]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "description": "The distinct point-of-sale capabilities assigned to the employee.",
+            "examples": [["checkout", "manage_inventory"]]
+          },
+          "account": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the linked account.",
+                    "examples": ["account_RJ9LZ5VTZ4W6P9RR"]
+                  },
+                  "email": {
+                    "type": "string",
+                    "description": "The email address of the linked account.",
+                    "examples": ["nami@strawhatpirates.example.com"]
+                  }
+                },
+                "required": ["id", "email"],
+                "additionalProperties": false,
+                "examples": [
+                  {
+                    "id": "account_RJ9LZ5VTZ4W6P9RR",
+                    "email": "nami@strawhatpirates.example.com"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The sign-in account linked to the employee. Returns `null` if no account is linked.",
+            "examples": [
+              {
+                "id": "account_RJ9LZ5VTZ4W6P9RR",
+                "email": "nami@strawhatpirates.example.com"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the employee was created, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the employee was last updated, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "location_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The identifiers of the locations the employee is explicitly assigned to, as of the employee's last update. Any change to an employee's location access must also update the employee, otherwise clients are not sent the new list. Owners have access to every location regardless of this list, which is usually empty for them.",
+            "examples": [["loc_AGGD8EJA69JRL3UTU79K"]]
+          },
+          "max_discount_rate": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d{1,2})?$",
+            "description": "Maximum effective line discount as a fraction. 0.10 means 10%. Owners are exempt."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "is_owner",
+          "status",
+          "permissions",
+          "account",
+          "created_at",
+          "updated_at",
+          "location_ids",
+          "max_discount_rate"
+        ],
+        "additionalProperties": false,
+        "description": "An employee as delivered by sync: the employee plus the locations they are explicitly assigned to.",
+        "examples": [
+          {
+            "id": "empl_YJHP5ULEG3QP1M786T3",
+            "name": "Nami",
+            "is_owner": false,
+            "status": "enabled",
+            "permissions": ["checkout", "manage_inventory"],
+            "account": {
+              "id": "account_RJ9LZ5VTZ4W6P9RR",
+              "email": "nami@strawhatpirates.example.com"
+            },
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z",
+            "location_ids": ["loc_AGGD8EJA69JRL3UTU79K"],
             "max_discount_rate": "0.00"
           }
         ]

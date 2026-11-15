@@ -6,6 +6,7 @@ import type { JsonWebTokenPayload } from "./contracts/json-web-token-payload.ts"
 import type { Database } from "./db/index.ts";
 import type { CollectionFinder } from "./finders/collection-finder.ts";
 import type { CustomerFinder } from "./finders/customer-finder.ts";
+import type { EmployeeFinder } from "./finders/employee-finder.ts";
 import type { LocationFinder } from "./finders/location-finder.ts";
 import type { MerchantFinder } from "./finders/merchant-finder.ts";
 import type { PurchaseFinder } from "./finders/purchase-finder.ts";
@@ -28,6 +29,7 @@ type MipymeEnv = {
     merchantFinder: MerchantFinder;
     collectionFinder: CollectionFinder;
     customerFinder: CustomerFinder;
+    employeeFinder: EmployeeFinder;
     locationFinder: LocationFinder;
     supplierFinder: SupplierFinder;
     productFinder: ProductFinder;
