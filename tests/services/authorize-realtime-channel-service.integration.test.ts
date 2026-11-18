@@ -14,6 +14,7 @@ import { PurchaseFinder } from "../../src/finders/purchase-finder.ts";
 import { SaleFinder } from "../../src/finders/sale-finder.ts";
 import { SupplierFinder } from "../../src/finders/supplier-finder.ts";
 import { IdentityProvider } from "../../src/integrations/identity-provider.ts";
+import { ProductImageStore } from "../../src/integrations/product-image-store.ts";
 import { generateId } from "../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../prepare-db.ts";
 import type { CurrentUser } from "../../src/contracts/current-user.ts";
@@ -107,6 +108,7 @@ async function setupRoute(status: "enabled" | "disabled" | null) {
     db,
     cache,
     identity,
+    productImageStore: new ProductImageStore({ env, logger }),
     publisher,
     merchantFinder: new MerchantFinder(),
     collectionFinder: new CollectionFinder(),

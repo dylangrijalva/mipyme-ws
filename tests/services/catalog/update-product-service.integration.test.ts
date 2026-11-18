@@ -24,6 +24,10 @@ async function readState(db: Database) {
   };
 }
 
+// Stands in for the bucket the product image store manages.
+const MANAGED_STORAGE_URL = "https://storage.thousand-sunny.example.com/mipyme/product-images/";
+const productImageStore = { isManagedUrl: (url: string) => url.startsWith(MANAGED_STORAGE_URL) };
+
 async function setup(productType: "item" | "service" = "service") {
   const db = await prepareDatabase();
   const merchantId = generateId({ model: "merchant" });
@@ -115,6 +119,7 @@ async function setup(productType: "item" | "service" = "service") {
     db,
     collectionFinder: new CollectionFinder(),
     productFinder: new ProductFinder(),
+    productImageStore,
     logger: pino({ enabled: false }),
     user: {
       id: "luffy",
@@ -140,6 +145,27 @@ async function setup(productType: "item" | "service" = "service") {
 afterEach(() => vi.restoreAllMocks());
 
 describe("UpdateProductService services", () => {
+  it("rejects an image from managed storage without changing products or broadcasting", async () => {
+    const { broadcast, db, service, productId } = await setup();
+    const before = await readState(db);
+
+    const result = await service.execute([
+      productId,
+      { name: "Chopper's checkup", imageUrl: `${MANAGED_STORAGE_URL}uploads/checkup.webp` },
+    ]);
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        code: codes.validationError,
+        message: "Verify a product image upload before using an image from managed storage.",
+        details: [],
+      },
+    });
+    expect(await readState(db)).toEqual(before);
+    expect(broadcast).not.toHaveBeenCalled();
+  });
+
   it("saves supplied fields, synchronizes the variant, and archives the replaced image without changing other products", async () => {
     const { broadcast, merchantId, db, service, productId, replacementCollectionId } = await setup();
     const before = await readState(db);

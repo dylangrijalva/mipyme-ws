@@ -5,10 +5,15 @@ import { membershipGuard } from "../guards/membership-guard.ts";
 import { authorize } from "../middlewares/authorize.ts";
 import { idempotency } from "../middlewares/idempotency.ts";
 import { createAuthScopedKey, DEFAULT_RATE_LIMIT_CONFIG, rateLimiter } from "../middlewares/rate-limiter.ts";
+import {
+  AuthorizeProductImageUploadRequest,
+  AuthorizeProductImageUploadService,
+} from "../services/catalog/products/authorize-product-image-upload-service.ts";
 import { CreateProductRequest, CreateProductService } from "../services/catalog/products/create-product-service.ts";
 import { FindProductService } from "../services/catalog/products/find-product-service.ts";
 import { ListProductsService } from "../services/catalog/products/list-products-service.ts";
 import { UpdateProductRequest, UpdateProductService } from "../services/catalog/products/update-product-service.ts";
+import { VerifyProductImageUploadService } from "../services/catalog/products/verify-product-image-upload-service.ts";
 import { MipymeHono } from "../types.ts";
 import { toHttpResponse } from "../utils/to-http-response.ts";
 
@@ -26,6 +31,33 @@ function productsRouter(): MipymeHono {
       const service = CreateProductService.create(ctx.var);
       const result = await service.execute(request);
       return toHttpResponse(result, 201);
+    },
+  );
+
+  router.post(
+    "/:id/image-uploads",
+    validator("param", (input) => ObjectId.parse(input.id)),
+    validator("json", (input) => AuthorizeProductImageUploadRequest.parse(input)),
+    async (ctx) => {
+      const id = ctx.req.valid("param");
+      const request = ctx.req.valid("json");
+      const service = AuthorizeProductImageUploadService.create(ctx.var);
+      const result = await service.execute([id, request]);
+      return toHttpResponse(result, 201);
+    },
+  );
+
+  router.post(
+    "/:id/image-uploads/:imageId/verify",
+    validator("param", (input) => ({
+      productId: ObjectId.parse(input.id),
+      imageId: ObjectId.parse(input.imageId),
+    })),
+    async (ctx) => {
+      const { productId, imageId } = ctx.req.valid("param");
+      const service = VerifyProductImageUploadService.create(ctx.var);
+      const result = await service.execute([productId, imageId]);
+      return toHttpResponse(result);
     },
   );
 

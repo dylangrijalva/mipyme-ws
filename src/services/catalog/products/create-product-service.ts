@@ -5,13 +5,14 @@ import { codes, type BusinessError } from "../../../contracts/business-error.ts"
 import type { CurrentUser } from "../../../contracts/current-user.ts";
 import { Decimal, PositiveDecimal } from "../../../contracts/decimal.ts";
 import { ObjectId } from "../../../contracts/object-id.ts";
-import { PRODUCT_IMAGE_URL_MAX_LENGTH } from "../../../contracts/product-image.ts";
+import { ProductImageUrlInput } from "../../../contracts/product-image.ts";
 import { ProductType } from "../../../contracts/product-type.ts";
 import type { Product } from "../../../contracts/product.ts";
 import type { Database } from "../../../db/index.ts";
 import { tables } from "../../../db/schema.ts";
 import type { CollectionFinder } from "../../../finders/collection-finder.ts";
 import type { ProductFinder } from "../../../finders/product-finder.ts";
+import type { ProductImageStore } from "../../../integrations/product-image-store.ts";
 import type { RealtimeEventPublisher } from "../../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../../utils/assert-found.ts";
 import { isPositive, lessThan } from "../../../utils/decimal.ts";
@@ -29,11 +30,7 @@ const CreateProductRequest = z.object({
   unitCost: Decimal.optional(),
   collectionId: ObjectId.nullish(),
   productType: ProductType.default("item"),
-  imageUrl: z
-    .string()
-    .trim()
-    .pipe(z.url({ protocol: /^https?$/ }).max(PRODUCT_IMAGE_URL_MAX_LENGTH))
-    .nullish(),
+  imageUrl: ProductImageUrlInput.nullish(),
 });
 
 type CreateProductRequest = z.infer<typeof CreateProductRequest>;
@@ -44,6 +41,7 @@ type InjectedDependencies = {
   publisher: RealtimeEventPublisher;
   collectionFinder: CollectionFinder;
   productFinder: ProductFinder;
+  productImageStore: Pick<ProductImageStore, "isManagedUrl">;
   user: CurrentUser;
 };
 
@@ -52,6 +50,7 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
   private readonly publisher: RealtimeEventPublisher;
   private readonly collectionFinder: CollectionFinder;
   private readonly productFinder: ProductFinder;
+  private readonly productImageStore: Pick<ProductImageStore, "isManagedUrl">;
   private readonly user: CurrentUser;
 
   constructor(
@@ -59,6 +58,7 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
     db: Database,
     collectionFinder: CollectionFinder,
     productFinder: ProductFinder,
+    productImageStore: Pick<ProductImageStore, "isManagedUrl">,
     publisher: RealtimeEventPublisher,
     user: CurrentUser,
   ) {
@@ -67,6 +67,7 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
     this.publisher = publisher;
     this.collectionFinder = collectionFinder;
     this.productFinder = productFinder;
+    this.productImageStore = productImageStore;
     this.user = user;
   }
 
@@ -75,13 +76,22 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
     db,
     collectionFinder,
     productFinder,
+    productImageStore,
     publisher,
     user,
   }: InjectedDependencies): CreateProductService {
-    return new CreateProductService(logger, db, collectionFinder, productFinder, publisher, user);
+    return new CreateProductService(logger, db, collectionFinder, productFinder, productImageStore, publisher, user);
   }
 
   async execute(request: CreateProductRequest): Promise<Result<Product, BusinessError>> {
+    if (request.imageUrl && this.productImageStore.isManagedUrl(request.imageUrl)) {
+      return err({
+        code: codes.validationError,
+        message: "Verify a product image upload before using an image from managed storage.",
+        details: [],
+      });
+    }
+
     const result = await (request.productType === "service" ? this.createService(request) : this.createItem(request));
     if (result.success) {
       this.publisher.broadcast({

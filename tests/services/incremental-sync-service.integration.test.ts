@@ -16,6 +16,7 @@ import { PurchaseFinder } from "../../src/finders/purchase-finder.ts";
 import { SaleFinder } from "../../src/finders/sale-finder.ts";
 import { SupplierFinder } from "../../src/finders/supplier-finder.ts";
 import { IdentityProvider } from "../../src/integrations/identity-provider.ts";
+import { ProductImageStore } from "../../src/integrations/product-image-store.ts";
 import { RealtimeEventPublisher } from "../../src/integrations/realtime-event-publisher.ts";
 import { IncrementalSyncService } from "../../src/services/sync/incremental-sync-service.ts";
 import { generateId } from "../../src/utils/generate-id.ts";
@@ -737,6 +738,7 @@ describe("IncrementalSyncService", () => {
         ...fixture.dependencies,
         cache: dependency === "redis" ? unavailableCache : fixture.dependencies.cache,
         identity,
+        productImageStore: new ProductImageStore({ env, logger }),
         publisher: new RealtimeEventPublisher({ env, logger }),
         merchantFinder: new MerchantFinder(),
         collectionFinder: new CollectionFinder(),

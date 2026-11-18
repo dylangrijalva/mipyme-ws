@@ -1,0 +1,363 @@
+version: "1.1"
+name: Product image uploads
+components:
+  schemas:
+    Product:
+      $ref: ./src/openapi.json#/components/schemas/Product
+    ProductImageUploadAuthorization:
+      $ref: ./src/openapi.json#/components/schemas/ProductImageUploadAuthorization
+    ProductPaginationResponse:
+      $ref: ./src/openapi.json#/components/schemas/ProductPaginationResponse
+    MipymeError:
+      $ref: ./src/openapi.json#/components/schemas/MipymeError
+    Merchant:
+      $ref: ./src/openapi.json#/components/schemas/Merchant
+config:
+  concurrency: 1
+before:
+  name: provisions the authenticated account
+  steps:
+    - name: checks whether onboarding is required
+      http:
+        url: ${{env.baseUrl}}/v1/products
+        method: GET
+        auth:
+          bearer:
+            token: ${{env.token}}
+        check:
+          status:
+            - match: ^(200|403)$
+          schema:
+            anyOf:
+              - $ref: "#/components/schemas/ProductPaginationResponse"
+              - allOf:
+                  - $ref: "#/components/schemas/MipymeError"
+                  - type: object
+                    properties:
+                      code:
+                        const: account_not_provisioned
+        captures:
+          membershipError:
+            jsonpath: $.code
+    - name: completes onboarding
+      http:
+        url: ${{env.baseUrl}}/v1/onboarding
+        method: POST
+        auth:
+          bearer:
+            token: ${{env.token}}
+        json:
+          name: Monkey D. Luffy
+          country: ni
+          location:
+            name: Merry's Shop
+            business_type: electronics_store
+        check:
+          status: 200
+          schema:
+            $ref: "#/components/schemas/Merchant"
+      if: captures.membershipError == "account_not_provisioned"
+    - name: creates a product with an external image outside the managed prefixes
+      http:
+        url: ${{env.baseUrl}}/v1/products
+        method: POST
+        auth:
+          bearer:
+            token: ${{env.token}}
+        json:
+          name: Nami's sea chart consultation
+          price: "30.00"
+          product_type: service
+          image_url: ${{env.storageEndpoint}}/product-photos/sea-chart.webp
+        check:
+          status: 201
+        captures:
+          productId:
+            jsonpath: $.id
+tests:
+  upload:
+    name: keeps the current photo until verification and protects the verified bytes
+    steps:
+      - name: rejects an oversized file
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}/image-uploads
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            byte_size: 5242881
+          check:
+            status: 400
+            jsonpath:
+              $.code:
+                - eq: validation_error
+      - name: signs a PUT for the declared WebP size
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}/image-uploads
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            byte_size: 36
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/ProductImageUploadAuthorization"
+            jsonpath:
+              "$.headers['content-type']":
+                - eq: image/webp
+              "$.headers['content-length']":
+                - eq: "36"
+              $.upload_url:
+                - match: X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost
+          captures:
+            uploadId:
+              jsonpath: $.id
+            uploadUrl:
+              jsonpath: $.upload_url
+            contentType:
+              jsonpath: "$.headers['content-type']"
+            contentLength:
+              jsonpath: "$.headers['content-length']"
+      - name: reports an upload missing until its bytes reach storage
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}/image-uploads/${{captures.uploadId}}/verify
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 409
+            jsonpath:
+              $.code:
+                - eq: conflict_error
+      - name: rejects attaching a managed storage URL as an external image
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            image_url: ${{captures.uploadUrl}}
+          check:
+            status: 400
+            jsonpath:
+              $.code:
+                - eq: validation_error
+      - name: rejects creating a product with a managed storage URL as an external image
+        http:
+          url: ${{env.baseUrl}}/v1/products
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Usopp's slingshot repair
+            price: "12.00"
+            product_type: service
+            image_url: ${{captures.uploadUrl}}
+          check:
+            status: 400
+            jsonpath:
+              $.code:
+                - eq: validation_error
+      - name: stages a WebP with an incorrect stored size
+        http:
+          url: ${{captures.uploadUrl}}
+          method: PUT
+          headers:
+            content-type: ${{captures.contentType}}
+          body: "short"
+          check:
+            status: 200
+      - name: rejects the size mismatch reported by storage
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}/image-uploads/${{captures.uploadId}}/verify
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 400
+            jsonpath:
+              $.message:
+                - match: size does not match
+      - name: stages a WebP with an incorrect stored content type
+        http:
+          url: ${{captures.uploadUrl}}
+          method: PUT
+          headers:
+            content-type: image/png
+            content-length: ${{captures.contentLength}}
+          body:
+            file: ../workflow-fixtures/product-photo.webp
+          check:
+            status: 200
+      - name: rejects the content type reported by storage
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}/image-uploads/${{captures.uploadId}}/verify
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 400
+            jsonpath:
+              $.message:
+                - match: Content-Type image/webp
+      - name: uploads the WebP directly to storage
+        http:
+          url: ${{captures.uploadUrl}}
+          method: PUT
+          headers:
+            content-type: ${{captures.contentType}}
+            content-length: ${{captures.contentLength}}
+          body:
+            file: ../workflow-fixtures/product-photo.webp
+          check:
+            status: 200
+      - name: still reads the external image before verification
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            jsonpath:
+              $.image_url:
+                - eq: ${{env.storageEndpoint}}/product-photos/sea-chart.webp
+      - name: verifies the upload and returns the new public image URL
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}/image-uploads/${{captures.uploadId}}/verify
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Product"
+            jsonpath:
+              $.id:
+                - eq: ${{captures.productId}}
+              $.image_url:
+                - match: /product-images/verified/
+          captures:
+            publishedUrl:
+              jsonpath: $.image_url
+      - name: replays the temporary PUT with different bytes
+        http:
+          url: ${{captures.uploadUrl}}
+          method: PUT
+          headers:
+            content-type: ${{captures.contentType}}
+            content-length: ${{captures.contentLength}}
+          body: "012345678901234567890123456789012345"
+          check:
+            status: 200
+      - name: still serves the original verified bytes
+        http:
+          url: ${{captures.publishedUrl}}
+          method: GET
+          check:
+            status: 200
+            sha256: 882e5be149e09bb13b740230d48f462be51f3b4f8c4bcc051506e7bc419520ac
+      - name: retries verification and returns the same public URL
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}/image-uploads/${{captures.uploadId}}/verify
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            jsonpath:
+              $.image_url:
+                - eq: ${{captures.publishedUrl}}
+      - name: authorizes a replacement
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}/image-uploads
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            byte_size: 36
+          check:
+            status: 201
+          captures:
+            replacementId:
+              jsonpath: $.id
+            replacementUrl:
+              jsonpath: $.upload_url
+      - name: uploads a replacement with a WebP content type and an invalid signature
+        http:
+          url: ${{captures.replacementUrl}}
+          method: PUT
+          headers:
+            content-type: ${{captures.contentType}}
+            content-length: ${{captures.contentLength}}
+          body: "012345678901234567890123456789012345"
+          check:
+            status: 200
+      - name: rejects the invalid signature
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}/image-uploads/${{captures.replacementId}}/verify
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 400
+            jsonpath:
+              $.code:
+                - eq: validation_error
+      - name: reads the first verified photo after the replacement fails
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            jsonpath:
+              $.image_url:
+                - eq: ${{captures.publishedUrl}}
+      - name: removes the current photo and cancels the pending replacement
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            image_url: null
+          check:
+            status: 200
+            jsonpath:
+              $.image_url:
+                - eq: null
+      - name: rejects verifying the cancelled replacement
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.productId}}/image-uploads/${{captures.replacementId}}/verify
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 409
+            jsonpath:
+              $.code:
+                - eq: conflict_error
+after:
+  name: removes the product image fixture
+  steps:
+    - name: deletes the test product and its variants
+      plugin:
+        id: ${{env.workflowFixtureDirectory}}/product-image.fixture.ts

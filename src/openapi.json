@@ -1133,6 +1133,213 @@
         }
       }
     },
+    "/v1/products/{id}/image-uploads": {
+      "post": {
+        "tags": ["Products"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "authorizeProductImageUpload",
+        "summary": "Authorize a product image upload",
+        "description": "Creates an upload authorization for an existing product owned by your merchant. Send the WebP bytes as the body of a PUT to `upload_url` with every returned header before `expires_at`, then call the verify endpoint. Authorizing a new upload supersedes any previous pending upload for the product.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The product identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorizeProductImageUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Returns a PUT URL for the specified WebP image, valid for 10 minutes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductImageUploadAuthorization"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The product ID or byte size is invalid. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The product does not exist or does not belong to your merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "description": "The operation could not be completed because of an internal or storage error. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/products/{id}/image-uploads/{image_id}/verify": {
+      "post": {
+        "tags": ["Products"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "verifyProductImageUpload",
+        "summary": "Verify and activate a product image",
+        "description": "Checks the stored object's size, Content-Type and WebP signature before replacing the current product image. An upload can be verified for 24 hours after authorization. Repeating verification for the active upload returns the product.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The product identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "description": "The image ID returned by upload authorization.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the product with the verified image URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A resource ID is invalid, or the uploaded image size, content type or signature failed verification. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The upload does not exist for this product and merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The upload is missing, expired, superseded or removed. Returns `conflict_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "description": "The operation could not be completed because of an internal or storage error. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/collections": {
       "get": {
         "tags": ["Collections"],
@@ -7207,7 +7414,7 @@
                 "type": "null"
               }
             ],
-            "description": "An optional HTTP or HTTPS URL for an externally hosted product image. Surrounding whitespace is removed."
+            "description": "Optional HTTP or HTTPS URL for an externally hosted product image. Surrounding whitespace is removed. Managed storage URLs require the upload and verification endpoints."
           }
         },
         "required": ["name", "price"],
@@ -7313,7 +7520,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional external image URL. Must use HTTP or HTTPS. Set to null to remove the image."
+            "description": "Optional external HTTP or HTTPS image URL. Setting this field replaces the active image and cancels any pending upload. Set to null to clear the image. Managed storage URLs require the upload and verification endpoints."
           }
         },
         "examples": [
@@ -7326,6 +7533,54 @@
             "image_url": null
           }
         ]
+      },
+      "AuthorizeProductImageUploadRequest": {
+        "type": "object",
+        "properties": {
+          "byte_size": {
+            "type": "integer",
+            "minimum": 12,
+            "maximum": 5242880,
+            "description": "Exact size of the WebP file in bytes, up to 5 MiB."
+          }
+        },
+        "required": ["byte_size"]
+      },
+      "ProductImageUploadAuthorization": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ObjectId",
+            "description": "Image upload ID to pass to the verify endpoint."
+          },
+          "upload_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Temporary URL for a single-object PUT to storage."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Time when the PUT authorization expires."
+          },
+          "headers": {
+            "type": "object",
+            "description": "Headers to include when uploading the WebP bytes to the PUT URL.",
+            "properties": {
+              "content-type": {
+                "type": "string",
+                "enum": ["image/webp"]
+              },
+              "content-length": {
+                "type": "string",
+                "pattern": "^[0-9]+$",
+                "description": "The authorized file size as a decimal string."
+              }
+            },
+            "required": ["content-type", "content-length"]
+          }
+        },
+        "required": ["id", "upload_url", "expires_at", "headers"]
       },
       "CollectionPaginationResponse": {
         "type": "object",

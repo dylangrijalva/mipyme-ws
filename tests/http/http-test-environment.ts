@@ -11,6 +11,7 @@ import pretty from "pino-pretty";
 import { createDrizzle } from "../../src/db/index.ts";
 import { run } from "../../src/index.ts";
 import { loadEnvironmentVariables, type Environment } from "../../src/infra/config.env.ts";
+import { startProductImageStorage } from "./product-image-storage.ts";
 
 type WorkflowEnvironment = Record<string, string>;
 type WorkflowExecutor = (workflowEnvironment: WorkflowEnvironment) => Promise<void>;
@@ -30,9 +31,13 @@ class HttpTestEnvironment {
       throw new Error("Only `test` environment is currently supported.");
     }
 
-    const port = await this.prepareTestEnvironment();
-    const environment = loadEnvironmentVariables(this.environment);
+    const storage = await startProductImageStorage();
+    await this.runWorkflows(storage.endpoint, executeWorkflows).finally(() => storage.close());
+  }
 
+  private async runWorkflows(storageEndpoint: string, executeWorkflows: WorkflowExecutor): Promise<void> {
+    const port = await this.prepareTestEnvironment(storageEndpoint);
+    const environment = loadEnvironmentVariables(this.environment);
     if (!environment.CLERK_TEST_USER_ID) {
       throw new Error("CLERK_TEST_USER_ID is required to run HTTP tests.");
     }
@@ -41,6 +46,7 @@ class HttpTestEnvironment {
       const token = await this.generateToken(environment.CLERK_SECRET_KEY, environment.CLERK_TEST_USER_ID);
       await executeWorkflows({
         baseUrl: new URL("http://localhost:" + port).origin,
+        storageEndpoint,
         token,
         testUserId: environment.CLERK_TEST_USER_ID,
       });
@@ -115,7 +121,7 @@ class HttpTestEnvironment {
     }
   }
 
-  private async prepareTestEnvironment(): Promise<number> {
+  private async prepareTestEnvironment(storageEndpoint: string): Promise<number> {
     this.logger.info("💡 Preparing test environment");
 
     const mySqlContainer = await new MySqlContainer("mysql:8.4.8").start();
@@ -137,6 +143,13 @@ class HttpTestEnvironment {
     process.env["DB_PASSWORD"] = mySqlContainer.getRootPassword();
     process.env["DB_NAME"] = "test";
     process.env["REDIS_URL"] = "redis://" + redisContainer.getHost() + ":" + redisContainer.getMappedPort(6379);
+    process.env["BUCKET_STORAGE_ENDPOINT"] = storageEndpoint;
+    process.env["BUCKET_STORAGE_REGION"] = "us-east-1";
+    process.env["BUCKET_STORAGE_ACCESS_KEY_ID"] = "test-storage-key";
+    process.env["BUCKET_STORAGE_SECRET_ACCESS_KEY"] = "test-storage-secret";
+    process.env["BUCKET_STORAGE_BUCKET_NAME"] = "product-photos";
+    process.env["BUCKET_STORAGE_FORCE_PATH_STYLE"] = "true";
+    process.env["BUCKET_STORAGE_PUBLIC_BASE_URL"] = storageEndpoint;
 
     await this.migrateDatabase(databaseUrl);
     const port = await this.findAvailablePort();

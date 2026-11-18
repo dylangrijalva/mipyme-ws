@@ -325,6 +325,7 @@ class ProductFinder {
             and(
               eq(tables.productImage.merchantId, merchantId),
               eq(tables.productImage.productId, tables.product.id),
+              eq(tables.productImage.status, "available"),
               syncWindow(tables.productImage.updatedAt, criteria),
             ),
           ),

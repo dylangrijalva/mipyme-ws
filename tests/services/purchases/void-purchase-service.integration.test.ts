@@ -315,6 +315,7 @@ describe("VoidPurchaseService", () => {
       publisher: context.dependencies.publisher,
       collectionFinder: new CollectionFinder(),
       productFinder: new ProductFinder(),
+      productImageStore: { isManagedUrl: () => false },
       user: context.dependencies.user,
     });
 

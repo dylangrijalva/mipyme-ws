@@ -17,6 +17,7 @@ import type { SupplierFinder } from "./finders/supplier-finder.ts";
 import { devGuard } from "./guards/dev-guard.ts";
 import type { EnvVars } from "./infra/config.env.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
+import type { ProductImageStore } from "./integrations/product-image-store.ts";
 import type { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
 import { authorize } from "./middlewares/authorize.ts";
 import { camelCase } from "./middlewares/camel-case.ts";
@@ -51,6 +52,7 @@ type InjectedDependencies = {
   db: Database;
   cache: Redis;
   identity: IdentityProvider;
+  productImageStore: ProductImageStore;
   publisher: RealtimeEventPublisher;
   merchantFinder: MerchantFinder;
   collectionFinder: CollectionFinder;

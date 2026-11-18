@@ -17,6 +17,10 @@ import {
   trackCommittedBroadcasts,
 } from "../../test-utils/realtime-publisher-mock.ts";
 
+// Stands in for the bucket the product image store manages.
+const MANAGED_STORAGE_URL = "https://storage.thousand-sunny.example.com/mipyme/product-images/";
+const productImageStore = { isManagedUrl: (url: string) => url.startsWith(MANAGED_STORAGE_URL) };
+
 async function setup() {
   const db = await prepareDatabase();
   const merchantId = generateId({ model: "merchant" });
@@ -32,6 +36,7 @@ async function setup() {
     db,
     collectionFinder: new CollectionFinder(),
     productFinder: new ProductFinder(),
+    productImageStore,
     logger: pino({ enabled: false }),
     user: {
       id: "luffy",
@@ -83,6 +88,30 @@ describe("CreateProductService", () => {
     expect(await db.select().from(tables.variant)).toEqual([]);
     expect(await db.select().from(tables.inventoryLevel)).toEqual([]);
     expect(await db.select().from(tables.productImage)).toEqual([]);
+  });
+
+  it("rejects an image from managed storage without creating product records or broadcasting", async () => {
+    const { broadcast, db, service } = await setup();
+
+    const result = await service.execute({
+      name: "Sanji's provisions",
+      productType: "item",
+      price: "9.99",
+      unitCost: "5.00",
+      imageUrl: `${MANAGED_STORAGE_URL}uploads/provisions.webp`,
+    });
+
+    expect(result).toEqual(
+      err({
+        code: codes.validationError,
+        message: "Verify a product image upload before using an image from managed storage.",
+        details: [],
+      }),
+    );
+    expect(await db.select().from(tables.product)).toEqual([]);
+    expect(await db.select().from(tables.variant)).toEqual([]);
+    expect(await db.select().from(tables.productImage)).toEqual([]);
+    expect(broadcast).not.toHaveBeenCalled();
   });
 
   it("rejects an item priced below unit cost without creating product records", async () => {

@@ -5,12 +5,13 @@ import { codes, type BusinessError } from "../../../contracts/business-error.ts"
 import type { CurrentUser } from "../../../contracts/current-user.ts";
 import { Decimal, PositiveDecimal } from "../../../contracts/decimal.ts";
 import { ObjectId } from "../../../contracts/object-id.ts";
-import { PRODUCT_IMAGE_URL_MAX_LENGTH } from "../../../contracts/product-image.ts";
+import { ProductImageUrlInput } from "../../../contracts/product-image.ts";
 import type { Product } from "../../../contracts/product.ts";
 import type { Database } from "../../../db/index.ts";
 import { tables } from "../../../db/schema.ts";
 import type { CollectionFinder } from "../../../finders/collection-finder.ts";
 import type { ProductFinder } from "../../../finders/product-finder.ts";
+import type { ProductImageStore } from "../../../integrations/product-image-store.ts";
 import type { RealtimeEventPublisher } from "../../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../../utils/assert-found.ts";
 import { isPositive, lessThan, subtract } from "../../../utils/decimal.ts";
@@ -27,11 +28,7 @@ const UpdateProductRequest = z.object({
   price: PositiveDecimal.optional(),
   unitCost: Decimal.optional(),
   collectionId: ObjectId.nullish(),
-  imageUrl: z
-    .string()
-    .trim()
-    .pipe(z.url({ protocol: /^https?$/ }).max(PRODUCT_IMAGE_URL_MAX_LENGTH))
-    .nullish(),
+  imageUrl: ProductImageUrlInput.nullish(),
 });
 
 type UpdateProductRequest = z.infer<typeof UpdateProductRequest>;
@@ -42,6 +39,7 @@ type InjectedDependencies = {
   publisher: RealtimeEventPublisher;
   collectionFinder: CollectionFinder;
   productFinder: ProductFinder;
+  productImageStore: Pick<ProductImageStore, "isManagedUrl">;
   user: CurrentUser;
 };
 
@@ -50,6 +48,7 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
   private readonly publisher: RealtimeEventPublisher;
   private readonly collectionFinder: CollectionFinder;
   private readonly productFinder: ProductFinder;
+  private readonly productImageStore: Pick<ProductImageStore, "isManagedUrl">;
   private readonly user: CurrentUser;
 
   constructor(
@@ -57,6 +56,7 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
     db: Database,
     collectionFinder: CollectionFinder,
     productFinder: ProductFinder,
+    productImageStore: Pick<ProductImageStore, "isManagedUrl">,
     publisher: RealtimeEventPublisher,
     user: CurrentUser,
   ) {
@@ -65,6 +65,7 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
     this.publisher = publisher;
     this.collectionFinder = collectionFinder;
     this.productFinder = productFinder;
+    this.productImageStore = productImageStore;
     this.user = user;
   }
 
@@ -73,13 +74,22 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
     db,
     collectionFinder,
     productFinder,
+    productImageStore,
     publisher,
     user,
   }: InjectedDependencies): UpdateProductService {
-    return new UpdateProductService(logger, db, collectionFinder, productFinder, publisher, user);
+    return new UpdateProductService(logger, db, collectionFinder, productFinder, productImageStore, publisher, user);
   }
 
   async execute([id, request]: [string, UpdateProductRequest]): Promise<Result<Product, BusinessError>> {
+    if (request.imageUrl && this.productImageStore.isManagedUrl(request.imageUrl)) {
+      return err({
+        code: codes.validationError,
+        message: "Verify a product image upload before using an image from managed storage.",
+        details: [],
+      });
+    }
+
     const product = await this.productFinder.find(this.db, { id, merchantId: this.user.merchantId });
     if (!product) {
       return err({
@@ -173,7 +183,6 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
             and(
               eq(tables.productImage.productId, product.id),
               eq(tables.productImage.merchantId, this.user.merchantId),
-              eq(tables.productImage.status, "available"),
               isNull(tables.productImage.archivedAt),
             ),
           );
@@ -343,7 +352,6 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
             and(
               eq(tables.productImage.productId, product.id),
               eq(tables.productImage.merchantId, this.user.merchantId),
-              eq(tables.productImage.status, "available"),
               isNull(tables.productImage.archivedAt),
             ),
           );
