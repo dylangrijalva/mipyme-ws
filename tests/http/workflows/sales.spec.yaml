@@ -83,6 +83,7 @@ before:
             $.variants.length: 1
             $.variants[0].inventory_levels.length:
               - gt: 0
+            $.variants[0].inventory_levels[0].stock_status: out_of_stock
         captures:
           itemVariantId:
             jsonpath: $.variants[0].id

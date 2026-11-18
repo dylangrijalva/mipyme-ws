@@ -4957,9 +4957,22 @@
             "type": "number",
             "description": "The target stock quantity used when planning replenishment at the location.",
             "examples": [24]
+          },
+          "stock_status": {
+            "$ref": "#/components/schemas/StockStatus",
+            "description": "The stock availability at the location, computed from on_hand and low_stock_threshold.",
+            "examples": ["in_stock"]
           }
         },
-        "required": ["id", "variant_id", "location_id", "on_hand", "low_stock_threshold", "optimal_stock_level"],
+        "required": [
+          "id",
+          "variant_id",
+          "location_id",
+          "on_hand",
+          "low_stock_threshold",
+          "optimal_stock_level",
+          "stock_status"
+        ],
         "additionalProperties": false,
         "description": "The current stock of one product variant at one location.",
         "examples": [
@@ -4969,7 +4982,8 @@
             "location_id": "loc_AGGD8EJA69JRL3UTU79K",
             "on_hand": 18,
             "low_stock_threshold": 5,
-            "optimal_stock_level": 24
+            "optimal_stock_level": 24,
+            "stock_status": "in_stock"
           }
         ]
       },
@@ -5654,6 +5668,12 @@
         "type": "string",
         "enum": ["active", "draft", "archived"]
       },
+      "StockStatus": {
+        "description": "The stock availability of a variant at a location. out_of_stock when on_hand is 0; low_stock when low_stock_threshold is greater than 0 and on_hand is at or below it; otherwise in_stock.",
+        "examples": ["in_stock"],
+        "type": "string",
+        "enum": ["in_stock", "low_stock", "out_of_stock"]
+      },
       "ProductType": {
         "description": "Whether a product is a physical item or a service.",
         "examples": ["item"],
@@ -5766,7 +5786,8 @@
                   "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                   "on_hand": 18,
                   "low_stock_threshold": 5,
-                  "optimal_stock_level": 24
+                  "optimal_stock_level": 24,
+                  "stock_status": "in_stock"
                 }
               ]
             },
@@ -5779,7 +5800,8 @@
                   "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                   "on_hand": 18,
                   "low_stock_threshold": 5,
-                  "optimal_stock_level": 24
+                  "optimal_stock_level": 24,
+                  "stock_status": "in_stock"
                 }
               ]
             ]
@@ -5833,7 +5855,8 @@
                 "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                 "on_hand": 18,
                 "low_stock_threshold": 5,
-                "optimal_stock_level": 24
+                "optimal_stock_level": 24,
+                "stock_status": "in_stock"
               }
             ],
             "created_at": "2026-09-23T09:00:00.000Z",
@@ -6087,7 +6110,8 @@
                       "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                       "on_hand": 18,
                       "low_stock_threshold": 5,
-                      "optimal_stock_level": 24
+                      "optimal_stock_level": 24,
+                      "stock_status": "in_stock"
                     }
                   ],
                   "created_at": "2026-09-23T09:00:00.000Z",
@@ -6120,7 +6144,8 @@
                       "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                       "on_hand": 18,
                       "low_stock_threshold": 5,
-                      "optimal_stock_level": 24
+                      "optimal_stock_level": 24,
+                      "stock_status": "in_stock"
                     }
                   ],
                   "created_at": "2026-09-23T09:00:00.000Z",
@@ -6227,7 +6252,8 @@
                     "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                     "on_hand": 18,
                     "low_stock_threshold": 5,
-                    "optimal_stock_level": 24
+                    "optimal_stock_level": 24,
+                    "stock_status": "in_stock"
                   }
                 ],
                 "created_at": "2026-09-23T09:00:00.000Z",
@@ -6331,7 +6357,8 @@
                           "locationId": "loc_AGGD8EJA69JRL3UTU79K",
                           "onHand": 18,
                           "lowStockThreshold": 5,
-                          "optimalStockLevel": 24
+                          "optimalStockLevel": 24,
+                          "stockStatus": "in_stock"
                         }
                       ],
                       "createdAt": "2026-09-23T09:00:00.000Z",
@@ -6400,7 +6427,8 @@
                           "locationId": "loc_AGGD8EJA69JRL3UTU79K",
                           "onHand": 18,
                           "lowStockThreshold": 5,
-                          "optimalStockLevel": 24
+                          "optimalStockLevel": 24,
+                          "stockStatus": "in_stock"
                         }
                       ],
                       "createdAt": "2026-09-23T09:00:00.000Z",
@@ -6662,7 +6690,8 @@
                         "locationId": "loc_AGGD8EJA69JRL3UTU79K",
                         "onHand": 18,
                         "lowStockThreshold": 5,
-                        "optimalStockLevel": 24
+                        "optimalStockLevel": 24,
+                        "stockStatus": "in_stock"
                       }
                     ],
                     "createdAt": "2026-09-23T09:00:00.000Z",

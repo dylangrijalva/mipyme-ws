@@ -104,6 +104,12 @@ tests:
                 - eq: SANJI-PROVISIONS
               $.variants[0].barcode:
                 - eq: "100000000001"
+              $.variants[0].inventory_levels.length:
+                - gt: 0
+              $.variants[0].inventory_levels[0].on_hand:
+                - eq: 0
+              $.variants[0].inventory_levels[0].stock_status:
+                - eq: out_of_stock
           captures:
             itemId:
               jsonpath: $.id

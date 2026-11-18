@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import type { Product } from "../../src/contracts/product.ts";
 import { tables } from "../../src/db/schema.ts";
 import { ProductFinder } from "../../src/finders/product-finder.ts";
 import { generateId } from "../../src/utils/generate-id.ts";
@@ -268,7 +269,15 @@ describe("ProductFinder", () => {
     ]);
     expect(found?.variants[1].options.map((option) => option.id)).toEqual([lastOptionId]);
     expect(found?.variants[0].inventoryLevels).toEqual([
-      { id: firstInventoryId, variantId, locationId, onHand: 17, lowStockThreshold: 3, optimalStockLevel: 25 },
+      {
+        id: firstInventoryId,
+        variantId,
+        locationId,
+        onHand: 17,
+        lowStockThreshold: 3,
+        optimalStockLevel: 25,
+        stockStatus: "in_stock",
+      },
       {
         id: lastInventoryId,
         variantId,
@@ -276,6 +285,7 @@ describe("ProductFinder", () => {
         onHand: 0,
         lowStockThreshold: 0,
         optimalStockLevel: 0,
+        stockStatus: "out_of_stock",
       },
     ]);
     expect(found?.variants[1].inventoryLevels).toEqual([
@@ -286,8 +296,65 @@ describe("ProductFinder", () => {
         onHand: 99,
         lowStockThreshold: 0,
         optimalStockLevel: 0,
+        stockStatus: "in_stock",
       },
     ]);
+  });
+
+  it("returns the computed stock status of each inventory level from find, paginate, and sync lookups", async () => {
+    const { db, merchantId, productId, variantId } = await setup();
+    const inStockLocationId = "loc_00000000000000000001";
+    const lowStockLocationId = "loc_00000000000000000002";
+    const outOfStockLocationId = "loc_00000000000000000003";
+    await db.insert(tables.location).values([
+      { id: inStockLocationId, merchantId, name: "Thousand Sunny" },
+      { id: lowStockLocationId, merchantId, name: "Water 7" },
+      { id: outOfStockLocationId, merchantId, name: "Sabaody" },
+    ]);
+    await db.insert(tables.inventoryLevel).values([
+      {
+        id: "inv_00000000000000000001",
+        merchantId,
+        variantId,
+        locationId: inStockLocationId,
+        onHand: 6,
+        lowStockThreshold: 5,
+      },
+      {
+        id: "inv_00000000000000000002",
+        merchantId,
+        variantId,
+        locationId: lowStockLocationId,
+        onHand: 5,
+        lowStockThreshold: 5,
+      },
+      {
+        id: "inv_00000000000000000003",
+        merchantId,
+        variantId,
+        locationId: outOfStockLocationId,
+        onHand: 0,
+        lowStockThreshold: 5,
+      },
+    ]);
+    const finder = new ProductFinder();
+    const expectedStockStatuses = [
+      { locationId: inStockLocationId, stockStatus: "in_stock" },
+      { locationId: lowStockLocationId, stockStatus: "low_stock" },
+      { locationId: outOfStockLocationId, stockStatus: "out_of_stock" },
+    ];
+
+    const found = await finder.find(db, { merchantId, id: productId });
+    const page = await finder.paginate(db, { merchantId, limit: 10 });
+    const synced = await finder.findForSync(db, { merchantId, previousSyncedAt: null, currentSyncedAt: new Date() });
+
+    const stockStatusesOf = (product: Product | null | undefined) =>
+      product?.variants[0]?.inventoryLevels.map(({ locationId, stockStatus }) => ({ locationId, stockStatus }));
+    expect(stockStatusesOf(found)).toEqual(expectedStockStatuses);
+    expect(page.results.map((product) => product.id)).toEqual([productId]);
+    expect(stockStatusesOf(page.results[0])).toEqual(expectedStockStatuses);
+    expect(synced.map((product) => product.id)).toEqual([productId]);
+    expect(stockStatusesOf(synced[0])).toEqual(expectedStockStatuses);
   });
 
   it("combines product filters and does not match identifiers on separate variants", async () => {
