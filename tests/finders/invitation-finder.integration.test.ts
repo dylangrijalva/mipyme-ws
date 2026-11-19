@@ -27,19 +27,4 @@ describe("InvitationFinder", () => {
     expect(pendingAsExpired).toBeNull();
     expect(expiredAsPending).toBeNull();
   });
-
-  it("matches the email regardless of case and surrounding spaces", async () => {
-    const { db, merchantId, managerId, cashierId } = await setupEmployees();
-    const id = await insertInvitation(db, {
-      merchantId,
-      employeeId: cashierId,
-      invitedById: managerId,
-      email: "nami@strawhatpirates.example.com",
-      status: "invited",
-    });
-
-    const received = await new InvitationFinder().findReceived(db, { email: "  NAMI@StrawHatPirates.example.com " });
-
-    expect(received.map((invitation) => invitation.id)).toEqual([id]);
-  });
 });

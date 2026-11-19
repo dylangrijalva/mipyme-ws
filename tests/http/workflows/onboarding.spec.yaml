@@ -17,7 +17,8 @@ tests:
               token: ${{env.token}}
           json:
             name: Monkey D. Luffy
-            phone: 201 555 0100
+            phone: "+505 8888 1234"
+            pin: "1234"
             location:
               name: Merry's Shop
           check:
@@ -27,6 +28,8 @@ tests:
             jsonpath:
               $.code:
                 - eq: validation_error
+              $.details[0].field:
+                - eq: phone
       - name: rejects a request without a phone number
         http:
           url: ${{env.baseUrl}}/v1/onboarding
@@ -36,6 +39,7 @@ tests:
               token: ${{env.token}}
           json:
             name: Monkey D. Luffy
+            pin: "1234"
             location:
               name: Merry's Shop
           check:
@@ -45,6 +49,8 @@ tests:
             jsonpath:
               $.code:
                 - eq: validation_error
+              $.details[0].field:
+                - eq: phone
       - name: rejects a phone number from an unsupported country
         http:
           url: ${{env.baseUrl}}/v1/onboarding

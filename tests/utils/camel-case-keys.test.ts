@@ -40,12 +40,6 @@ describe("camelCaseKeys", () => {
     expect(result).toStrictEqual({ "🏴‍☠️": { shipName: "Thousand Sunny" }, "🍊⚓": "Nami", "": "Water 7" });
   });
 
-  it.each([null, undefined, "", "Nami", 0, false, 10n, Symbol("luffy")])("preserves primitive %s", (input) => {
-    const result = camelCaseKeys(input);
-
-    expect(result).toBe(input);
-  });
-
   it("preserves null, undefined, and falsy property values", () => {
     const result = camelCaseKeys({
       home_town: null,

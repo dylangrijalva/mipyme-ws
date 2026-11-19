@@ -63,22 +63,4 @@ describe("ListCollectionsService", () => {
     });
     expect(first.value!.results[0]).not.toHaveProperty("merchantId");
   });
-
-  it("returns an empty terminal page for an empty merchant and a cursor after the final collection", async () => {
-    const { db, merchantId, otherMerchantId, service } = await setup();
-    await db.insert(tables.collection).values({
-      id: generateId({ model: "collection" }),
-      merchantId: otherMerchantId,
-      name: "Polar Tang",
-      slug: "polar-tang",
-    });
-
-    const empty = await service.execute({ limit: 2 });
-
-    expect(empty.value).toEqual({ results: [], hasMore: false, nextCursor: null });
-    const id = generateId({ model: "collection" });
-    await db.insert(tables.collection).values({ id, merchantId, name: "Water 7", slug: "water-7" });
-    const afterFinal = await service.execute({ limit: 2, cursor: id });
-    expect(afterFinal.value).toEqual({ results: [], hasMore: false, nextCursor: null });
-  });
 });

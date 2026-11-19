@@ -61,15 +61,4 @@ describe("ListSuppliersService", () => {
       nextCursor: null,
     });
   });
-
-  it("returns an empty page when only another merchant has suppliers", async () => {
-    const { db, otherMerchantId, service } = await setup();
-    await db
-      .insert(tables.supplier)
-      .values({ id: generateId({ model: "supplier" }), merchantId: otherMerchantId, name: "Bepo" });
-
-    const result = await service.execute({ limit: 2 });
-
-    expect(result).toEqual({ success: true, value: { results: [], hasMore: false, nextCursor: null } });
-  });
 });

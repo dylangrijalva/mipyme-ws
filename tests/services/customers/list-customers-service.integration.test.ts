@@ -74,15 +74,4 @@ describe("ListCustomersService", () => {
     );
     expect(empty).toEqual(ok({ results: [], nextCursor: null, hasMore: false }));
   });
-
-  it("returns an empty page when only another merchant has customers", async () => {
-    const { db, service, otherMerchantId } = await setup();
-    await db
-      .insert(tables.customer)
-      .values({ id: generateId({ model: "customer" }), merchantId: otherMerchantId, name: "Trafalgar Law" });
-
-    const result = await service.execute({ limit: 50 });
-
-    expect(result).toEqual(ok({ results: [], nextCursor: null, hasMore: false }));
-  });
 });

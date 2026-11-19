@@ -109,7 +109,6 @@ async function preparePurchaseReadWorkflow(setupDb: Database, testUserId: string
       purchaseId: context.ids[1],
       newestPurchaseId: context.ids[3],
       secondPurchaseId: context.ids[0],
-      oldestPurchaseId: context.ids[2],
       foreignPurchaseId: context.ids[4],
       purchaseLocationId: context.locationId,
       purchaseSupplierId: context.supplierId,

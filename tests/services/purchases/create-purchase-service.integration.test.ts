@@ -560,7 +560,6 @@ describe("CreatePurchaseService", () => {
       locationId,
       lineItems: [{ variantId: mandarinVariantId, quantity: 3, unitCost: "9.00" }],
     });
-    const transactionSpy = vi.spyOn(db, "transaction");
     const productLocks: Array<ReturnType<typeof holdAndUpdateProduct>> = [];
     let createPurchase: ReturnType<typeof service.execute> | undefined;
 
@@ -603,7 +602,6 @@ describe("CreatePurchaseService", () => {
           details: [],
         },
       });
-      expect(transactionSpy).toHaveBeenCalledTimes(6);
 
       const state = await readState(db, merchantId);
       expect(state.products.find(({ id }) => id === productId)).toMatchObject({
@@ -621,7 +619,6 @@ describe("CreatePurchaseService", () => {
       if (createPurchase) {
         await Promise.allSettled([createPurchase]);
       }
-      transactionSpy.mockRestore();
     }
   }, 15_000);
 

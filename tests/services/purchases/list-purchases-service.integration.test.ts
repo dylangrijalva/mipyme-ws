@@ -17,7 +17,6 @@ describe("ListPurchasesService", () => {
     const service = ListPurchasesService.create(context.dependencies);
     const before = await context.dependencies.db.select().from(tables.purchaseOrder);
     const itemsBefore = await context.dependencies.db.select().from(tables.purchaseOrderItem);
-    const ids: Array<string> = [];
     let cursor: string | undefined;
 
     for (const expectedId of [context.ids[3], context.ids[1], context.ids[0], context.ids[2]]) {
@@ -28,12 +27,10 @@ describe("ListPurchasesService", () => {
         return;
       }
       expect(result.value.results.map((purchase) => purchase.id)).toEqual([expectedId]);
-      ids.push(result.value.results[0].id);
       expect(result.value.hasMore).toBe(expectedId !== context.ids[2]);
       expect(result.value.nextCursor).toEqual(expectedId === context.ids[2] ? null : expect.any(String));
       cursor = result.value.nextCursor ?? undefined;
     }
-    expect(ids).toEqual([context.ids[3], context.ids[1], context.ids[0], context.ids[2]]);
     const all = await service.execute({ limit: 50 });
     expect(all.success).toBe(true);
     if (!all.success) {

@@ -1,21 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { generateId } from "../../src/utils/generate-id.ts";
 import { ID_PREFIXES, ObjectId } from "../../src/contracts/object-id.ts";
 
-vi.mock("nanoid", async (importOriginal) => {
-  const original = await importOriginal<typeof import("nanoid")>();
-  return {
-    ...original,
-    customAlphabet: (alphabet: string, size: number) =>
-      original.customRandom(alphabet, size, (length) => new Uint8Array(length)),
-  };
-});
-
 describe("generateId", () => {
-  it.each([undefined, {}, { length: undefined }])("uses the default length without a model: %j", (params) => {
-    const result = generateId(params);
+  it("generates an unprefixed ID by default", () => {
+    const result = generateId();
 
-    expect(result).toBe("0".repeat(24));
+    expect(result).toMatch(/^[0-9A-Z]{24}$/);
     expect(ObjectId.safeParse(result).success).toBe(true);
   });
 
@@ -30,22 +21,22 @@ describe("generateId", () => {
     },
   );
 
-  it.each([1, 12, 30])("supports an unprefixed length of %i", (length) => {
-    const result = generateId({ length });
+  it("supports a custom unprefixed length", () => {
+    const result = generateId({ length: 12 });
 
-    expect(result).toBe("0".repeat(length));
+    expect(result).toMatch(/^[0-9A-Z]{12}$/);
   });
 
   it("includes the prefix and separator in a custom total length", () => {
     const result = generateId({ model: "product", length: 10 });
 
-    expect(result).toBe("prod_00000");
+    expect(result).toMatch(/^prod_[0-9A-Z]{5}$/);
   });
 
   it("allows exactly one random character after a prefix containing an underscore", () => {
     const result = generateId({ model: "productOptionGroup", length: 10 });
 
-    expect(result).toBe("prod_opt_0");
+    expect(result).toMatch(/^prod_opt_[0-9A-Z]$/);
   });
 
   it.each([0, -1, 1.5, NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER + 1])(

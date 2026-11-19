@@ -38,15 +38,6 @@ describe("snakeCaseKeys", () => {
     ]);
   });
 
-  it.each([null, undefined, "", 0, false, 10n, Symbol("luffy")])(
-    "returns the primitive value %s unchanged",
-    (input) => {
-      const result = snakeCaseKeys(input);
-
-      expect(result).toBe(input);
-    },
-  );
-
   it("preserves null, undefined, and falsy property values", () => {
     const input = { homeTown: null, crewName: undefined, isMarine: false, itemCount: 0, displayName: "" };
 

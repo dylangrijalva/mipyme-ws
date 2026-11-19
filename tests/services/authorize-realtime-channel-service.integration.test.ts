@@ -30,33 +30,22 @@ import { createRealtimeEnv } from "../test-utils/realtime-env.ts";
 import { EmployeeAuthorizationService } from "../../src/services/employee-authorization-service.ts";
 import { SyncTokenStore } from "../../src/services/sync/sync-token-store.ts";
 
-function setup(accountType: CurrentUser["accountType"] = "owner") {
+function setup() {
   const user: CurrentUser = {
     id: "account_luffy",
     employeeId: "employee_luffy",
     merchantId: "merch_STRAWHATPIRATES0000",
     email: "luffy@strawhatpirates.example.com",
-    accountType,
+    accountType: "owner",
   };
   const env = createRealtimeEnv();
   const logger = pino({ enabled: false });
   const publisher = new RealtimeEventPublisher({ env, logger });
   const service = AuthorizeRealtimeChannelService.create({ logger, user, publisher });
-  return { service, publisher, user, env };
+  return { service, publisher };
 }
 
 describe("AuthorizeRealtimeChannelService", () => {
-  it.each(["owner", "staff"] as const)("signs the current merchant's subscription for a %s", async (accountType) => {
-    const { service, user, env } = setup(accountType);
-    const socketId = "123.456";
-    const channelName = `private-${user.merchantId}`;
-    const signature = createHmac("sha256", env.PUSHER_SECRET).update(`${socketId}:${channelName}`).digest("hex");
-
-    const result = await service.execute({ socketId, channelName });
-
-    expect(result).toEqual(ok({ auth: `${env.PUSHER_KEY}:${signature}` }));
-  });
-
   it.each([
     { scenario: "another merchant", channelName: "private-merch_HEARTPIRATES0000000" },
     { scenario: "a public channel", channelName: "merch_STRAWHATPIRATES0000" },
@@ -140,7 +129,7 @@ async function setupRoute(status: "enabled" | "disabled" | null) {
     purchaseFinder: new PurchaseFinder(),
     saleFinder: new SaleFinder(),
   });
-  return { app, merchantId, authorize };
+  return { app, merchantId, authorize, env };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -164,7 +153,8 @@ describe("Realtime subscription membership", () => {
   });
 
   it("signs for the enabled staff merchant from the database despite different token metadata", async () => {
-    const { app, merchantId, authorize } = await setupRoute("enabled");
+    const { app, merchantId, env } = await setupRoute("enabled");
+    const signature = createHmac("sha256", env.PUSHER_SECRET).update(`123.456:private-${merchantId}`).digest("hex");
 
     const response = await app.request("/v1/realtime/subscriptions", {
       method: "POST",
@@ -173,7 +163,6 @@ describe("Realtime subscription membership", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ auth: expect.stringMatching(/^test-key:[a-f0-9]{64}$/) });
-    expect(authorize).toHaveBeenCalledExactlyOnceWith({ socketId: "123.456", channelName: `private-${merchantId}` });
+    expect(await response.json()).toEqual({ auth: `${env.PUSHER_KEY}:${signature}` });
   });
 });

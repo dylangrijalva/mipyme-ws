@@ -39,7 +39,7 @@ describe("ListReceivedInvitationsService", () => {
 
     const result = await ListReceivedInvitationsService.create({
       ...context.dependencies(owner),
-      claims: { sub: "user_nami", email: "Nami@StrawHatPirates.example.com" },
+      claims: { sub: "user_nami", email: "  Nami@StrawHatPirates.example.com  " },
     }).execute();
 
     expect(result).toEqual({
