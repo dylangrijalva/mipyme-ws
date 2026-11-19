@@ -11,6 +11,14 @@
       "description": "Manage merchant locations and their settings. Staff can read assigned locations."
     },
     {
+      "name": "Employees",
+      "description": "Employees are the people who work at a merchant. They unlock shared devices with a PIN, and can optionally be invited to create a personal account."
+    },
+    {
+      "name": "Invitations",
+      "description": "Invitations let a person join a business as an employee by linking their login to it."
+    },
+    {
       "name": "Realtime",
       "description": "Realtime notifications report changes to your merchant's data. Authorize the private channel for your merchant before subscribing."
     },
@@ -112,7 +120,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns account_not_provisioned or forbidden_error.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns account_not_provisioned or forbidden_error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -216,7 +224,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -292,7 +300,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is invited or disabled or is staff (`forbidden_error`), or the merchant already has 3 locations (`location_limit_exceeded`).",
+            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is disabled or archived or is staff (`forbidden_error`), or the merchant already has 3 locations (`location_limit_exceeded`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -382,7 +390,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -479,7 +487,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (`account_not_provisioned`), or its employee is invited, disabled, or staff (`forbidden_error`).",
+            "description": "The account has no provisioned membership (`account_not_provisioned`), or its employee is disabled, archived, or staff (`forbidden_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -507,6 +515,773 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/employees": {
+      "get": {
+        "tags": ["Employees"],
+        "operationId": "listEmployees",
+        "summary": "List all employees",
+        "description": "Lists your merchant's employees ordered by ID, including their PINs, so any member can verify them on a shared device. Archived employees are excluded unless `status` is `archived`. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "The maximum number of employees to return. Defaults to 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The `next_cursor` value returned by the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Return only employees with this status. Omit it to list enabled and disabled employees.",
+            "schema": {
+              "type": "string",
+              "enum": ["enabled", "disabled", "archived"]
+            }
+          }
+        ],
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns a page of employees and pagination information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeePaginationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership (`account_not_provisioned`), or its employee is disabled or archived (`forbidden_error`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the employees from being listed. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Employees"],
+        "operationId": "createEmployee",
+        "summary": "Create an employee",
+        "description": "Creates an employee who can start working right away by unlocking a shared device with their PIN; an account is optional and can be added later with an invitation. Requires the owner or `manage_employees`. The PIN must not be used by another enabled or disabled employee of your merchant.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEmployeeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "201": {
+            "description": "Returns the created employee.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is disabled or archived, or it is neither the owner nor holds `manage_employees` (`forbidden_error`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "One of the `location_ids` does not belong to your merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another enabled or disabled employee already uses the PIN (`pin_already_exists`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented creation. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
+          }
+        }
+      }
+    },
+    "/v1/employees/{id}": {
+      "get": {
+        "tags": ["Employees"],
+        "operationId": "findEmployee",
+        "summary": "Retrieve an employee",
+        "description": "Retrieves an employee of your merchant, whatever its status.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The employee identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns the employee.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership (`account_not_provisioned`), or its employee is disabled or archived (`forbidden_error`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The employee does not exist within your merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the employee from being retrieved. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Employees"],
+        "operationId": "updateEmployee",
+        "summary": "Update an employee",
+        "description": "Updates the supplied fields. Requires the owner or `manage_employees`, except that any account can change only the `pin` of its own employee. Only the owner can update the owner's employee, and only its name and PIN. Archiving frees the PIN, releases the linked account so it can join or create another business, and revokes a pending invitation. An empty body returns the unchanged employee.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The employee identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEmployeeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns the updated employee.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values, or tries to change the owner's status, permissions, discount limit, or locations. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is disabled or archived, or it is neither the owner nor holds `manage_employees` (`forbidden_error`) A staff member with `manage_employees` tried to update the owner's employee (`forbidden_error`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The employee, or one of the `location_ids`, does not exist within your merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another enabled or disabled employee already uses the PIN. Returns `pin_already_exists`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the employee from being updated. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/employees/{id}/invitations": {
+      "post": {
+        "tags": ["Employees"],
+        "operationId": "createEmployeeInvitation",
+        "summary": "Invite an employee to create an account",
+        "description": "Emails the employee an invitation to create a personal account. Signing in with that email and accepting the invitation links the login to the employee. Invitations expire after 7 days; sending a new one revokes the pending one, which is how you resend it. Requires the owner or `manage_employees`. The owner, employees with an account, and archived employees cannot be invited. In staging and production the email is sent after the response, in English for Belize and in Spanish elsewhere; a delivery failure does not fail the request.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The employee identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEmployeeInvitationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "201": {
+            "description": "Returns the pending invitation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeInvitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is disabled or archived, or it is neither the owner nor holds `manage_employees` (`forbidden_error`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The employee does not exist within your merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The employee is the owner, already has an account, or is archived, or the email belongs to another account of your merchant (`conflict_error`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the invitation from being created. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
+          }
+        }
+      }
+    },
+    "/v1/employees/{id}/invitations/{invitation_id}/revoke": {
+      "post": {
+        "tags": ["Employees"],
+        "operationId": "revokeEmployeeInvitation",
+        "summary": "Revoke an employee invitation",
+        "description": "Revokes an invitation so it can no longer be accepted, including one that already expired. Revoking a revoked invitation returns it unchanged. Requires the owner or `manage_employees`.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The employee identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          },
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "description": "The invitation identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          }
+        ],
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns the revoked invitation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeInvitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is disabled or archived, or it is neither the owner nor holds `manage_employees` (`forbidden_error`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The invitation does not exist for this employee of your merchant. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The invitation was already accepted. Returns `conflict_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the invitation from being revoked. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations": {
+      "get": {
+        "tags": ["Invitations"],
+        "operationId": "listReceivedInvitations",
+        "summary": "List invitations for the signed-in login",
+        "description": "Lists the pending, unexpired invitations sent to the email of the signed-in login. Works before the login belongs to a business: call it when another endpoint returns `account_not_provisioned` to offer joining a business instead of onboarding.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns every pending invitation for the login.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceivedInvitationPaginationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the invitations from being listed. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/{id}/accept": {
+      "post": {
+        "tags": ["Invitations"],
+        "operationId": "acceptInvitation",
+        "summary": "Accept an invitation",
+        "description": "Links the signed-in login to the invited employee, creating its account in that business. The login's email must match the invitation, and a login can belong to only one business. Accepting again with the same login returns the employee unchanged, so a failed request can be retried.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The invitation identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/ObjectId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns the employee now linked to the login.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The invitation does not exist or was sent to a different email. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The invitation was revoked, expired, or already used; the employee was archived or already has an account; the login already belongs to a business; or the email belongs to another account of the business (`conflict_error`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the invitation from being accepted. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
           }
         }
       }
@@ -817,7 +1592,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -891,7 +1666,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is invited or disabled (forbidden_error).",
+            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is disabled or archived (forbidden_error).",
             "content": {
               "application/json": {
                 "schema": {
@@ -996,7 +1771,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1091,7 +1866,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1197,7 +1972,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1295,7 +2070,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1407,7 +2182,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1481,7 +2256,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is invited or disabled (forbidden_error).",
+            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is disabled or archived (forbidden_error).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1576,7 +2351,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1671,7 +2446,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1780,7 +2555,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1854,7 +2629,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is invited or disabled (forbidden_error).",
+            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is disabled or archived (forbidden_error).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1942,7 +2717,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2037,7 +2812,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2136,7 +2911,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2210,7 +2985,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is invited or disabled (forbidden_error).",
+            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is disabled or archived (forbidden_error).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2298,7 +3073,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2393,7 +3168,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is invited or disabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2479,7 +3254,7 @@
             }
           },
           "403": {
-            "description": "Membership is not provisioned or the employee is not enabled. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Membership is not provisioned or the employee is not enabled. Returns `account_not_provisioned` or `forbidden_error`. The credited employee is disabled or archived (`forbidden_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2489,7 +3264,7 @@
             }
           },
           "404": {
-            "description": "The location, supplier, or one of the variants does not exist within the authenticated merchant. Returns `resource_not_found`.",
+            "description": "The location, supplier, or one of the variants does not exist within the authenticated merchant. Returns `resource_not_found`. The credited employee does not belong to your merchant (`resource_not_found`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2812,7 +3587,7 @@
             }
           },
           "403": {
-            "description": "Membership, checkout permission, location access, discount permission or discount cap prevents checkout.",
+            "description": "Membership, checkout permission, location access, discount permission or discount cap prevents checkout. The credited employee is disabled or archived (`forbidden_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2822,7 +3597,7 @@
             }
           },
           "404": {
-            "description": "Location, variant or optional customer is not found within this merchant.",
+            "description": "Location, variant or optional customer is not found within this merchant. The credited employee does not belong to your merchant (`resource_not_found`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3069,7 +3844,7 @@
             }
           },
           "403": {
-            "description": "Membership, void permission, employee status, or sale-location access prevents voiding.",
+            "description": "Membership, void permission, employee status, or sale-location access prevents voiding. The credited employee is disabled or archived (`forbidden_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3079,7 +3854,7 @@
             }
           },
           "404": {
-            "description": "The sale does not exist within this merchant.",
+            "description": "The sale does not exist within this merchant. The credited employee does not belong to your merchant (`resource_not_found`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3269,7 +4044,7 @@
             }
           },
           "403": {
-            "description": "Membership, void permission, employee status, or purchase-location access prevents voiding.",
+            "description": "Membership, void permission, employee status, or purchase-location access prevents voiding. The credited employee is disabled or archived (`forbidden_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3279,7 +4054,7 @@
             }
           },
           "404": {
-            "description": "The purchase does not exist within this merchant.",
+            "description": "The purchase does not exist within this merchant. The credited employee does not belong to your merchant (`resource_not_found`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3321,7 +4096,7 @@
       "schema": {
         "$ref": "#/components/schemas/RealtimeChangeEvent"
       },
-      "description": "In staging and production, publishes the primary resource for collection, customer, supplier, or product changes; purchase/sale creation; and sale void. Unchanged updates publish too; publication does not delay or fail HTTP responses."
+      "description": "In staging and production, publishes the primary resource for collection, customer, supplier, or product changes; employee changes and invitations; purchase/sale creation; and sale void. Unchanged updates publish too; publication does not delay or fail HTTP responses."
     }
   },
   "components": {
@@ -3448,7 +4223,7 @@
           "employees": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SyncEmployee"
+              "$ref": "#/components/schemas/Employee"
             },
             "description": "Employees of every status updated inside the inclusive sync window, including each employee's account email. An employee is also returned when its linked account is updated inside the window. Full sync returns every merchant employee. Replace an employee's cached location_ids with the returned list. Owners can access every location regardless of location_ids."
           }
@@ -3898,6 +4673,7 @@
               "payment_insufficient",
               "stock_insufficient",
               "location_limit_exceeded",
+              "pin_already_exists",
               "idempotency_key_mismatch",
               "idempotency_request_in_progress",
               "idempotency_unavailable"
@@ -4279,9 +5055,15 @@
           },
           "status": {
             "type": "string",
-            "enum": ["invited", "enabled", "disabled"],
-            "description": "The access state of the employee at the point of sale: invited, enabled, or disabled.",
+            "enum": ["enabled", "disabled", "archived"],
+            "description": "Whether the employee can work. `enabled` employees can unlock shared devices with their PIN and be credited with sales and purchases. `disabled` employees can't, and their linked account is blocked. `archived` employees no longer work at the business: they are hidden from lists by default, their PIN is free for reuse, and their account was released.",
             "examples": ["enabled"]
+          },
+          "pin": {
+            "type": "string",
+            "pattern": "^\\d{4}$",
+            "description": "The 4-digit PIN the employee enters to unlock a shared device. Unique among the merchant's enabled and disabled employees; archived employees give theirs up. Every member of the merchant can read it, so devices can verify it offline.",
+            "examples": ["4821"]
           },
           "permissions": {
             "type": "array",
@@ -4289,8 +5071,16 @@
               "type": "string"
             },
             "uniqueItems": true,
-            "description": "The distinct point-of-sale capabilities assigned to the employee.",
+            "description": "The distinct point-of-sale capabilities assigned to the employee. Owners have every capability regardless of this list.",
             "examples": [["checkout", "manage_inventory"]]
+          },
+          "location_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The identifiers of the locations the employee is explicitly assigned to, as of the employee's last update. Any change to an employee's location access must also update the employee, otherwise clients are not sent the new list. Owners have access to every location regardless of this list, which is usually empty for them.",
+            "examples": [["loc_AGGD8EJA69JRL3UTU79K"]]
           },
           "account": {
             "default": null,
@@ -4345,6 +5135,44 @@
               }
             ]
           },
+          "invitation": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The identifier of the invitation.",
+                    "examples": ["invt_K7Q4MZ8P2D9XW3LT5R"]
+                  },
+                  "email": {
+                    "type": "string",
+                    "description": "The address the invitation was sent to, in lowercase.",
+                    "examples": ["nami@strawhatpirates.example.com"]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["invited", "accepted", "revoked", "expired"],
+                    "description": "`invited` while the invitation can be accepted, `accepted` once it linked an account, `revoked` when it was replaced, revoked, or the employee was archived, and `expired` when it was not accepted within 7 days.",
+                    "examples": ["invited"]
+                  },
+                  "expires_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "When the invitation stops being acceptable, in RFC 3339 format.",
+                    "examples": ["2026-09-23T09:00:00.000Z"]
+                  }
+                },
+                "required": ["id", "email", "status", "expires_at"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The most recent account invitation sent to the employee, whatever its status. Returns `null` if the employee was never invited."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -4368,8 +5196,11 @@
           "name",
           "is_owner",
           "status",
+          "pin",
           "permissions",
+          "location_ids",
           "account",
+          "invitation",
           "created_at",
           "updated_at",
           "max_discount_rate"
@@ -4382,164 +5213,376 @@
             "name": "Nami",
             "is_owner": false,
             "status": "enabled",
+            "pin": "4821",
             "permissions": ["checkout", "manage_inventory"],
+            "location_ids": ["loc_AGGD8EJA69JRL3UTU79K"],
             "account": {
               "id": "account_RJ9LZ5VTZ4W6P9RR",
               "email": "nami@strawhatpirates.example.com",
               "phone": "+573001234567",
               "phone_verified": false
             },
+            "invitation": {
+              "id": "invt_K7Q4MZ8P2D9XW3LT5R",
+              "email": "nami@strawhatpirates.example.com",
+              "status": "accepted",
+              "expires_at": "2026-09-30T09:00:00.000Z"
+            },
+            "max_discount_rate": "0.00",
             "created_at": "2026-09-23T09:00:00.000Z",
-            "updated_at": "2026-09-23T09:00:00.000Z",
-            "max_discount_rate": "0.00"
+            "updated_at": "2026-09-23T09:00:00.000Z"
           }
         ]
       },
-      "SyncEmployee": {
+      "EmployeeInvitation": {
         "type": "object",
+        "description": "An invitation for an employee to create a personal account and link it to their profile.",
         "properties": {
           "id": {
             "type": "string",
-            "description": "The identifier of the employee.",
+            "description": "The identifier of the invitation.",
+            "examples": ["invt_K7Q4MZ8P2D9XW3LT5R"]
+          },
+          "employee_id": {
+            "type": "string",
+            "description": "The employee the invitation links an account to.",
             "examples": ["empl_YJHP5ULEG3QP1M786T3"]
           },
-          "name": {
+          "email": {
             "type": "string",
-            "description": "The display name of the employee.",
-            "examples": ["Nami"]
-          },
-          "is_owner": {
-            "type": "boolean",
-            "description": "Whether the employee is the owner of the merchant.",
-            "examples": [false]
+            "description": "The address the invitation was sent to, in lowercase. Only a login with this email can accept it.",
+            "examples": ["nami@strawhatpirates.example.com"]
           },
           "status": {
             "type": "string",
-            "enum": ["invited", "enabled", "disabled"],
-            "description": "The access state of the employee at the point of sale: invited, enabled, or disabled.",
-            "examples": ["enabled"]
+            "enum": ["invited", "accepted", "revoked", "expired"],
+            "description": "`invited` while the invitation can be accepted, `accepted` once it linked an account, `revoked` when it was replaced, revoked, or the employee was archived, and `expired` when it was not accepted within 7 days.",
+            "examples": ["invited"]
           },
-          "permissions": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "uniqueItems": true,
-            "description": "The distinct point-of-sale capabilities assigned to the employee.",
-            "examples": [["checkout", "manage_inventory"]]
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the invitation stops being acceptable, 7 days after it was sent, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "account": {
-            "default": null,
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "The identifier of the linked account.",
-                    "examples": ["account_RJ9LZ5VTZ4W6P9RR"]
-                  },
-                  "email": {
-                    "type": "string",
-                    "description": "The email address of the linked account.",
-                    "examples": ["nami@strawhatpirates.example.com"]
-                  },
-                  "phone": {
-                    "type": ["string", "null"],
-                    "pattern": "^\\+[1-9]\\d{7,14}$",
-                    "description": "The personal phone number of the linked account in E.164 format. Collected from owners during onboarding; returns `null` if the account has no phone number.",
-                    "examples": ["+573001234567"]
-                  },
-                  "phone_verified": {
-                    "type": "boolean",
-                    "description": "Whether the phone number of the linked account has been verified. Defaults to `false`.",
-                    "examples": [false]
-                  }
-                },
-                "required": ["id", "email", "phone", "phone_verified"],
-                "additionalProperties": false,
-                "examples": [
-                  {
-                    "id": "account_RJ9LZ5VTZ4W6P9RR",
-                    "email": "nami@strawhatpirates.example.com",
-                    "phone": "+573001234567",
-                    "phone_verified": false
-                  }
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The sign-in account linked to the employee. Returns `null` if no account is linked.",
-            "examples": [
-              {
-                "id": "account_RJ9LZ5VTZ4W6P9RR",
-                "email": "nami@strawhatpirates.example.com",
-                "phone": "+573001234567",
-                "phone_verified": false
-              }
-            ]
+          "accepted_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "When the invitation was accepted. Returns `null` until then.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "revoked_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "When the invitation was revoked. Returns `null` unless revoked.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "description": "The date and time when the employee was created, in RFC 3339 format.",
+            "description": "When the invitation was sent, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
           "updated_at": {
             "type": "string",
             "format": "date-time",
-            "description": "The date and time when the employee was last updated, in RFC 3339 format.",
+            "description": "When the invitation last changed, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
-          },
-          "location_ids": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "The identifiers of the locations the employee is explicitly assigned to, as of the employee's last update. Any change to an employee's location access must also update the employee, otherwise clients are not sent the new list. Owners have access to every location regardless of this list, which is usually empty for them.",
-            "examples": [["loc_AGGD8EJA69JRL3UTU79K"]]
-          },
-          "max_discount_rate": {
-            "type": "string",
-            "pattern": "^\\d+(\\.\\d{1,2})?$",
-            "description": "Maximum effective line discount as a fraction. 0.10 means 10%. Owners are exempt."
           }
         },
         "required": [
           "id",
-          "name",
-          "is_owner",
+          "employee_id",
+          "email",
           "status",
-          "permissions",
-          "account",
+          "expires_at",
+          "accepted_at",
+          "revoked_at",
           "created_at",
-          "updated_at",
-          "location_ids",
-          "max_discount_rate"
+          "updated_at"
         ],
         "additionalProperties": false,
-        "description": "An employee as delivered by sync: the employee plus the locations they are explicitly assigned to.",
         "examples": [
           {
-            "id": "empl_YJHP5ULEG3QP1M786T3",
-            "name": "Nami",
-            "is_owner": false,
-            "status": "enabled",
-            "permissions": ["checkout", "manage_inventory"],
-            "account": {
-              "id": "account_RJ9LZ5VTZ4W6P9RR",
-              "email": "nami@strawhatpirates.example.com",
-              "phone": "+573001234567",
-              "phone_verified": false
-            },
+            "id": "invt_K7Q4MZ8P2D9XW3LT5R",
+            "employee_id": "empl_YJHP5ULEG3QP1M786T3",
+            "email": "nami@strawhatpirates.example.com",
+            "status": "invited",
+            "expires_at": "2026-09-30T09:00:00.000Z",
+            "accepted_at": null,
+            "revoked_at": null,
             "created_at": "2026-09-23T09:00:00.000Z",
-            "updated_at": "2026-09-23T09:00:00.000Z",
-            "location_ids": ["loc_AGGD8EJA69JRL3UTU79K"],
-            "max_discount_rate": "0.00"
+            "updated_at": "2026-09-23T09:00:00.000Z"
           }
         ]
+      },
+      "ReceivedInvitation": {
+        "type": "object",
+        "description": "A pending invitation addressed to the signed-in login, with the business and employee it joins.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier of the invitation.",
+            "examples": ["invt_K7Q4MZ8P2D9XW3LT5R"]
+          },
+          "email": {
+            "type": "string",
+            "description": "The address the invitation was sent to, in lowercase. Only a login with this email can accept it.",
+            "examples": ["nami@strawhatpirates.example.com"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["invited", "accepted", "revoked", "expired"],
+            "description": "Always `invited`: only pending invitations are listed.",
+            "examples": ["invited"]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the invitation stops being acceptable, 7 days after it was sent, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the invitation was sent, in RFC 3339 format.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "merchant": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "name"],
+            "additionalProperties": false,
+            "description": "The business the invitation joins."
+          },
+          "employee": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "name"],
+            "additionalProperties": false,
+            "description": "The employee profile the login will be linked to."
+          }
+        },
+        "required": ["id", "email", "status", "expires_at", "created_at", "merchant", "employee"],
+        "additionalProperties": false,
+        "examples": [
+          {
+            "id": "invt_K7Q4MZ8P2D9XW3LT5R",
+            "email": "nami@strawhatpirates.example.com",
+            "status": "invited",
+            "expires_at": "2026-09-30T09:00:00.000Z",
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "merchant": {
+              "id": "merch_8ZQ1V6M2N4K7P3R9T5",
+              "name": "Baratie Market"
+            },
+            "employee": {
+              "id": "empl_YJHP5ULEG3QP1M786T3",
+              "name": "Nami"
+            }
+          }
+        ]
+      },
+      "CreateEmployeeRequest": {
+        "type": "object",
+        "description": "The profile of a new employee. The employee starts `enabled` and doesn't need an account to work.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The display name of the employee. Surrounding whitespace is removed.",
+            "examples": ["Nami"]
+          },
+          "pin": {
+            "type": "string",
+            "pattern": "^\\d{4}$",
+            "description": "The 4-digit PIN the employee will use to unlock shared devices. Must not be used by another enabled or disabled employee of your merchant.",
+            "examples": ["4821"]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PosPermission"
+            },
+            "description": "The point-of-sale capabilities to grant. Duplicates are ignored.",
+            "examples": [["checkout", "apply_discounts"]],
+            "default": []
+          },
+          "max_discount_rate": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d{1,2})?$",
+            "description": "Maximum effective line discount as a fraction between 0.00 and 1.00. 0.10 means 10%.",
+            "examples": ["0.10"],
+            "default": "0.00"
+          },
+          "location_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ObjectId"
+            },
+            "description": "The locations the employee can work at. Each must belong to your merchant. Duplicates are ignored.",
+            "examples": [["loc_AGGD8EJA69JRL3UTU79K"]],
+            "default": []
+          }
+        },
+        "required": ["name", "pin"],
+        "examples": [
+          {
+            "name": "Nami",
+            "pin": "4821",
+            "permissions": ["checkout", "apply_discounts"],
+            "max_discount_rate": "0.10",
+            "location_ids": ["loc_AGGD8EJA69JRL3UTU79K"]
+          }
+        ]
+      },
+      "UpdateEmployeeRequest": {
+        "type": "object",
+        "description": "The fields to change. Omitted fields stay unchanged, and `location_ids` replaces the whole list. Only the name and PIN of the owner can be changed.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The display name of the employee. Surrounding whitespace is removed.",
+            "examples": ["Nami"]
+          },
+          "pin": {
+            "type": "string",
+            "pattern": "^\\d{4}$",
+            "description": "A new 4-digit PIN. Must not be used by another enabled or disabled employee of your merchant.",
+            "examples": ["4821"]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PosPermission"
+            },
+            "description": "The full list of capabilities, replacing the current one. Duplicates are ignored.",
+            "examples": [["checkout", "apply_discounts"]]
+          },
+          "max_discount_rate": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d{1,2})?$",
+            "description": "Maximum effective line discount as a fraction between 0.00 and 1.00. 0.10 means 10%.",
+            "examples": ["0.10"]
+          },
+          "location_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ObjectId"
+            },
+            "description": "The full list of locations, replacing the current one. Each must belong to your merchant.",
+            "examples": [["loc_AGGD8EJA69JRL3UTU79K"]]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["enabled", "disabled", "archived"],
+            "description": "`disabled` blocks the employee's PIN and account. `archived` also frees the PIN, releases the linked account, and revokes a pending invitation. Restoring an archived employee fails with `pin_already_exists` if another employee took the PIN, unless a new `pin` is sent too.",
+            "examples": ["disabled"]
+          }
+        },
+        "examples": [
+          {
+            "pin": "7319"
+          },
+          {
+            "status": "archived"
+          }
+        ]
+      },
+      "CreateEmployeeInvitationRequest": {
+        "type": "object",
+        "description": "Where to send an invitation for the employee to create a personal account.",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "description": "The address to invite. It is trimmed and stored in lowercase, and must not belong to another account of your merchant.",
+            "examples": ["nami@strawhatpirates.example.com"]
+          }
+        },
+        "required": ["email"],
+        "examples": [
+          {
+            "email": "nami@strawhatpirates.example.com"
+          }
+        ]
+      },
+      "EmployeePaginationResponse": {
+        "type": "object",
+        "description": "A page of employees with the information needed to request the next page.",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Employee"
+            },
+            "description": "The employees returned in this page."
+          },
+          "next_cursor": {
+            "type": ["string", "null"],
+            "description": "The opaque cursor to pass when requesting the next page. Returns `null` on the final page."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether more employees are available after this page."
+          }
+        },
+        "required": ["results", "next_cursor", "has_more"],
+        "examples": [
+          {
+            "results": [],
+            "next_cursor": null,
+            "has_more": false
+          }
+        ],
+        "additionalProperties": false
+      },
+      "ReceivedInvitationPaginationResponse": {
+        "type": "object",
+        "description": "Every pending invitation addressed to the signed-in login. All of them fit in one page.",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceivedInvitation"
+            },
+            "description": "The invitations returned in this page."
+          },
+          "next_cursor": {
+            "type": ["string", "null"],
+            "description": "The opaque cursor to pass when requesting the next page. Returns `null` on the final page."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether more invitations are available after this page."
+          }
+        },
+        "required": ["results", "next_cursor", "has_more"],
+        "examples": [
+          {
+            "results": [],
+            "next_cursor": null,
+            "has_more": false
+          }
+        ],
+        "additionalProperties": false
       },
       "MipymeError": {
         "type": "object",
@@ -4568,6 +5611,7 @@
               "payment_insufficient",
               "stock_insufficient",
               "location_limit_exceeded",
+              "pin_already_exists",
               "idempotency_key_mismatch",
               "idempotency_request_in_progress",
               "idempotency_unavailable"
@@ -5684,7 +6728,7 @@
         "enum": ["cash", "cash_dollar", "non_integrated_card", "wire_transfer"]
       },
       "PosPermission": {
-        "description": "A permission that controls an employee's access to point-of-sale features such as checkout, catalog management, discounts, transaction access, or sale voiding.",
+        "description": "A permission that controls an employee's access to point-of-sale features such as checkout, catalog management, discounts, transaction access, sale voiding, or employee management.",
         "examples": ["checkout"],
         "type": "string",
         "enum": [
@@ -5697,7 +6741,8 @@
           "manage_suppliers",
           "apply_discounts",
           "void_transaction",
-          "refund"
+          "refund",
+          "manage_employees"
         ]
       },
       "ProductImageSource": {
@@ -6883,6 +7928,18 @@
             "maxLength": 256,
             "description": "An optional reason for voiding the sale, up to 256 characters after surrounding whitespace is removed. Omitted, blank, or `null` values return as `null`.",
             "examples": ["Damaged package", null]
+          },
+          "voided_by_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee credited with voiding the sale, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant. Omit or send `null` to credit the signed-in account's employee. It only labels the void: permissions, discount limits, and location access are still checked against the signed-in account.",
+            "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           }
         },
         "additionalProperties": false,
@@ -7431,6 +8488,12 @@
             "description": "The personal phone number of the business owner in E.164 format. Must not belong to another account. The merchant's country is inferred from it, so it must belong to a supported country. Ignored when the account already owns a merchant.",
             "examples": ["+573001234567"]
           },
+          "pin": {
+            "type": "string",
+            "pattern": "^\\d{4}$",
+            "description": "The 4-digit PIN the owner will use to unlock shared devices. Ignored when the account already owns a merchant.",
+            "examples": ["4821"]
+          },
           "location": {
             "type": "object",
             "properties": {
@@ -7450,11 +8513,12 @@
             "description": "Details of the first location to create for the business."
           }
         },
-        "required": ["name", "phone", "location"],
+        "required": ["name", "phone", "pin", "location"],
         "examples": [
           {
             "name": "Monkey D. Luffy",
             "phone": "+573001234567",
+            "pin": "4821",
             "location": {
               "name": "Straw Hat Pirates",
               "business_type": "grocery_store"
@@ -7985,6 +9049,18 @@
             "description": "Optional customer belonging to the authenticated merchant.",
             "examples": ["cust_MJZA01GLEB9SDPU8YQ6", null]
           },
+          "created_by_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee credited with the sale, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant. Omit or send `null` to credit the signed-in account's employee. It only labels the sale: permissions, discount limits, and location access are still checked against the signed-in account.",
+            "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
+          },
           "notes": {
             "type": ["string", "null"],
             "maxLength": 256,
@@ -8075,6 +9151,18 @@
           "location_id": {
             "$ref": "#/components/schemas/ObjectId",
             "description": "The location receiving the inventory. Must belong to the authenticated merchant."
+          },
+          "created_by_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee credited with the purchase, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant. Omit or send `null` to credit the signed-in account's employee. It only labels the purchase: permissions, discount limits, and location access are still checked against the signed-in account.",
+            "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           },
           "notes": {
             "type": ["string", "null"],
@@ -8492,6 +9580,18 @@
             "maxLength": 256,
             "description": "An optional reason for voiding the purchase, up to 256 characters after surrounding whitespace is removed. Omitted, blank, or `null` values return as `null`.",
             "examples": ["Damaged package", null]
+          },
+          "voided_by_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee credited with voiding the purchase, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant. Omit or send `null` to credit the signed-in account's employee. It only labels the void: permissions, discount limits, and location access are still checked against the signed-in account.",
+            "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           }
         },
         "additionalProperties": false,

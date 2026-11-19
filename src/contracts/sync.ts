@@ -2,7 +2,7 @@ import z from "zod";
 import { codes, type BusinessError } from "./business-error.ts";
 import { Collection } from "./collection.ts";
 import { Customer } from "./customer.ts";
-import { SyncEmployee } from "./employee.ts";
+import { Employee } from "./employee.ts";
 import { Location } from "./location.ts";
 import { Merchant } from "./merchant.ts";
 import { Product } from "./product.ts";
@@ -19,7 +19,7 @@ const SyncResources = z.object({
   customers: Customer.array(),
   suppliers: Supplier.array(),
   locations: Location.array(),
-  employees: SyncEmployee.array(),
+  employees: Employee.array(),
 });
 
 const SyncResponse = SyncResources.extend({

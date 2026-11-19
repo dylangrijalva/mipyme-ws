@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 import z from "zod";
 import { codes, type BusinessError } from "../../contracts/business-error.ts";
 import type { CurrentUser } from "../../contracts/current-user.ts";
+import { ObjectId } from "../../contracts/object-id.ts";
 import type { Sale } from "../../contracts/sale.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
@@ -16,6 +17,7 @@ import { now } from "../../utils/now.ts";
 import { err, ok, type Result } from "../../utils/result.ts";
 import { splitDistinct } from "../../utils/split-distinct.ts";
 import { BaseService } from "../base-service.ts";
+import type { EmployeeManagement } from "../staff/employees/employee-management.ts";
 
 const VoidSaleRequest = z.object({
   reason: z
@@ -25,6 +27,7 @@ const VoidSaleRequest = z.object({
     .nullish()
     .transform((reason) => reason || null)
     .optional(),
+  voidedById: ObjectId.nullish(),
 });
 
 type VoidSaleRequest = z.infer<typeof VoidSaleRequest>;
@@ -51,10 +54,12 @@ type InjectedDependencies = {
   publisher: RealtimeEventPublisher;
   saleFinder: SaleFinder;
   user: CurrentUser;
+  employeeManagement: EmployeeManagement;
 };
 
 class VoidSaleService extends BaseService<string, Sale> {
   private readonly db: Database;
+  private readonly employeeManagement: EmployeeManagement;
   private readonly publisher: RealtimeEventPublisher;
   private readonly saleFinder: SaleFinder;
   private readonly user: CurrentUser;
@@ -65,20 +70,30 @@ class VoidSaleService extends BaseService<string, Sale> {
     saleFinder: SaleFinder,
     publisher: RealtimeEventPublisher,
     user: CurrentUser,
+    employeeManagement: EmployeeManagement,
   ) {
     super(logger);
     this.db = db;
+    this.employeeManagement = employeeManagement;
     this.publisher = publisher;
     this.saleFinder = saleFinder;
     this.user = user;
   }
 
-  static create({ logger, db, saleFinder, publisher, user }: InjectedDependencies): VoidSaleService {
-    return new VoidSaleService(logger, db, saleFinder, publisher, user);
+  static create({
+    logger,
+    db,
+    saleFinder,
+    publisher,
+    user,
+    employeeManagement,
+  }: InjectedDependencies): VoidSaleService {
+    return new VoidSaleService(logger, db, saleFinder, publisher, user, employeeManagement);
   }
 
   async execute(id: string, request: VoidSaleRequest = {}): Promise<Result<Sale, BusinessError>> {
-    const voidSaleWithRetry = () => VOID_SALE_RETRY_POLICY.execute(() => this.voidSale(id, request.reason ?? null));
+    const voidSaleWithRetry = () =>
+      VOID_SALE_RETRY_POLICY.execute(() => this.voidSale(id, request.reason ?? null, request.voidedById));
     const result = await VOID_SALE_FALLBACK_POLICY.execute(voidSaleWithRetry);
     if (result.success) {
       this.publisher.broadcast({
@@ -90,7 +105,11 @@ class VoidSaleService extends BaseService<string, Sale> {
     return result;
   }
 
-  private async voidSale(id: string, reason: string | null): Promise<Result<Sale, BusinessError>> {
+  private async voidSale(
+    id: string,
+    reason: string | null,
+    voidedById: string | null | undefined,
+  ): Promise<Result<Sale, BusinessError>> {
     const [employee] = await this.db
       .select()
       .from(tables.employee)
@@ -152,6 +171,15 @@ class VoidSaleService extends BaseService<string, Sale> {
 
     if (sale.status === "voided") {
       return ok(await assertFound(this.saleFinder.find(this.db, { id: sale.id, merchantId: this.user.merchantId })));
+    }
+
+    const creditedEmployee = await this.employeeManagement.resolveCreditedEmployeeId(this.db, {
+      merchantId: this.user.merchantId,
+      requestedEmployeeId: voidedById,
+      defaultEmployeeId: employee.id,
+    });
+    if (!creditedEmployee.success) {
+      return creditedEmployee;
     }
 
     if (sale.status !== "fulfilled") {
@@ -301,7 +329,13 @@ class VoidSaleService extends BaseService<string, Sale> {
 
         const [updatedSale] = await trx
           .update(tables.sale)
-          .set({ status: "voided", voidReason: reason, voidedById: employee.id, voidedAt, updatedAt: voidedAt })
+          .set({
+            status: "voided",
+            voidReason: reason,
+            voidedById: creditedEmployee.value,
+            voidedAt,
+            updatedAt: voidedAt,
+          })
           .where(
             and(
               eq(tables.sale.id, sale.id),
@@ -327,7 +361,7 @@ class VoidSaleService extends BaseService<string, Sale> {
               toState: "in_stock" as const,
               quantityDelta: line.quantity,
               unitCost: line.unitCost,
-              createdById: employee.id,
+              createdById: creditedEmployee.value,
               occurredAt: voidedAt,
               createdAt: voidedAt,
               updatedAt: voidedAt,

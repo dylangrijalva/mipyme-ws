@@ -22,13 +22,14 @@ async function setup() {
     { id: otherMerchantId, name: "Heart Pirates" },
   ]);
   await db.insert(tables.employee).values([
-    { id: ownerId, merchantId, name: "Monkey D. Luffy", isOwner: true, status: "enabled" },
+    { id: ownerId, merchantId, name: "Monkey D. Luffy", isOwner: true, status: "enabled", pin: "0001" },
     {
       id: employeeId,
       merchantId,
       name: "Nami",
       isOwner: false,
       status: "enabled",
+      pin: "4821",
       permissions: "checkout view_transactions",
     },
     {
@@ -37,6 +38,7 @@ async function setup() {
       name: "Roronoa Zoro",
       isOwner: false,
       status: "enabled",
+      pin: "1111",
       permissions: "checkout",
     },
     {
@@ -45,6 +47,7 @@ async function setup() {
       name: "Sanji",
       isOwner: false,
       status: "disabled",
+      pin: "2222",
       permissions: "checkout",
     },
     {
@@ -53,6 +56,7 @@ async function setup() {
       name: "Trafalgar Law",
       isOwner: false,
       status: "enabled",
+      pin: "4821",
       permissions: "checkout",
     },
   ]);

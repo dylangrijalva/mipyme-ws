@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 import z from "zod";
 import { codes, type BusinessError } from "../../contracts/business-error.ts";
 import type { CurrentUser } from "../../contracts/current-user.ts";
+import { ObjectId } from "../../contracts/object-id.ts";
 import type { Purchase } from "../../contracts/purchase.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
@@ -15,6 +16,7 @@ import { generateId } from "../../utils/generate-id.ts";
 import { now } from "../../utils/now.ts";
 import { err, ok, type Result } from "../../utils/result.ts";
 import { BaseService } from "../base-service.ts";
+import type { EmployeeManagement } from "../staff/employees/employee-management.ts";
 import { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
 
 const VoidPurchaseRequest = z.object({
@@ -25,6 +27,7 @@ const VoidPurchaseRequest = z.object({
     .nullish()
     .transform((reason) => reason || null)
     .optional(),
+  voidedById: ObjectId.nullish(),
 });
 
 type VoidPurchaseRequest = z.infer<typeof VoidPurchaseRequest>;
@@ -35,6 +38,7 @@ type InjectedDependencies = {
   publisher: RealtimeEventPublisher;
   purchaseFinder: PurchaseFinder;
   user: CurrentUser;
+  employeeManagement: EmployeeManagement;
 };
 
 const VOID_PURCHASE_RETRY_POLICY = retry(handleWhen(isConcurrentUpdateError), {
@@ -52,25 +56,34 @@ const VOID_PURCHASE_FALLBACK_POLICY = fallback(handleWhen(isConcurrentUpdateErro
 
 class VoidPurchaseService extends BaseService<string, Purchase> {
   private readonly db: Database;
+  private readonly employeeManagement: EmployeeManagement;
   private readonly publisher: RealtimeEventPublisher;
   private readonly purchaseFinder: PurchaseFinder;
   private readonly user: CurrentUser;
 
-  constructor({ logger, db, publisher, purchaseFinder, user }: InjectedDependencies) {
+  constructor({ logger, db, publisher, purchaseFinder, user, employeeManagement }: InjectedDependencies) {
     super(logger);
     this.db = db;
+    this.employeeManagement = employeeManagement;
     this.publisher = publisher;
     this.purchaseFinder = purchaseFinder;
     this.user = user;
   }
 
-  static create({ logger, db, publisher, purchaseFinder, user }: InjectedDependencies): VoidPurchaseService {
-    return new VoidPurchaseService({ logger, db, publisher, purchaseFinder, user });
+  static create({
+    logger,
+    db,
+    publisher,
+    purchaseFinder,
+    user,
+    employeeManagement,
+  }: InjectedDependencies): VoidPurchaseService {
+    return new VoidPurchaseService({ logger, db, publisher, purchaseFinder, user, employeeManagement });
   }
 
   async execute(id: string, request: VoidPurchaseRequest = {}): Promise<Result<Purchase, BusinessError>> {
     const voidPurchaseWithRetry = () =>
-      VOID_PURCHASE_RETRY_POLICY.execute(() => this.voidPurchase(id, request.reason ?? null));
+      VOID_PURCHASE_RETRY_POLICY.execute(() => this.voidPurchase(id, request.reason ?? null, request.voidedById));
 
     const result = await VOID_PURCHASE_FALLBACK_POLICY.execute(voidPurchaseWithRetry);
     if (result.success) {
@@ -83,7 +96,11 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
     return result;
   }
 
-  private async voidPurchase(id: string, reason: string | null): Promise<Result<Purchase, BusinessError>> {
+  private async voidPurchase(
+    id: string,
+    reason: string | null,
+    voidedById: string | null | undefined,
+  ): Promise<Result<Purchase, BusinessError>> {
     const employeeAuthorization = EmployeeAuthorizationService.create({ db: this.db });
 
     const authorization = await employeeAuthorization.authorizePermission({
@@ -125,6 +142,15 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
 
     if (purchase.status === "voided") {
       return ok(await assertFound(this.purchaseFinder.find(this.db, { id, merchantId: this.user.merchantId })));
+    }
+
+    const creditedEmployee = await this.employeeManagement.resolveCreditedEmployeeId(this.db, {
+      merchantId: this.user.merchantId,
+      requestedEmployeeId: voidedById,
+      defaultEmployeeId: employee.id,
+    });
+    if (!creditedEmployee.success) {
+      return creditedEmployee;
     }
 
     if (purchase.status !== "fulfilled") {
@@ -326,7 +352,13 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
 
         const [updatedPurchase] = await trx
           .update(tables.purchaseOrder)
-          .set({ status: "voided", voidReason: reason, voidedById: employee.id, voidedAt, updatedAt: voidedAt })
+          .set({
+            status: "voided",
+            voidReason: reason,
+            voidedById: creditedEmployee.value,
+            voidedAt,
+            updatedAt: voidedAt,
+          })
           .where(
             and(
               eq(tables.purchaseOrder.id, id),
@@ -350,7 +382,7 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
             toState: "none" as const,
             quantityDelta: -item.quantity,
             unitCost: item.unitCost,
-            createdById: employee.id,
+            createdById: creditedEmployee.value,
             occurredAt: voidedAt,
             createdAt: voidedAt,
             updatedAt: voidedAt,

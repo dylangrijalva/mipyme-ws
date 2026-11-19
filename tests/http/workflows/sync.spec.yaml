@@ -49,6 +49,7 @@ before:
         json:
           name: Monkey D. Luffy
           phone: "+50588881234"
+          pin: "1234"
           location:
             name: Merry's Shop
             business_type: electronics_store

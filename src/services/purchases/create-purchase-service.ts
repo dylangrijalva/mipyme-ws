@@ -17,6 +17,7 @@ import { generateId } from "../../utils/generate-id.ts";
 import { now } from "../../utils/now.ts";
 import { err, ok, type Result } from "../../utils/result.ts";
 import { BaseService } from "../base-service.ts";
+import type { EmployeeManagement } from "../staff/employees/employee-management.ts";
 
 const shouldRetryCreatePurchaseResult = (result: unknown): boolean => {
   if (typeof result !== "object" || result === null) {
@@ -41,6 +42,7 @@ const CREATE_PURCHASE_RETRY_POLICY = retry(handleWhenResult(shouldRetryCreatePur
 const CreatePurchaseRequest = z.object({
   supplierId: ObjectId,
   locationId: ObjectId,
+  createdById: ObjectId.nullish(),
   notes: z.string().trim().max(256).nullish(),
   lineItems: z
     .array(
@@ -61,6 +63,7 @@ type InjectedDependencies = {
   publisher: RealtimeEventPublisher;
   purchaseFinder: PurchaseFinder;
   user: CurrentUser;
+  employeeManagement: EmployeeManagement;
 };
 
 type ProductPurchase = {
@@ -73,6 +76,7 @@ type ProductPurchase = {
 
 class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase> {
   private readonly db: Database;
+  private readonly employeeManagement: EmployeeManagement;
   private readonly publisher: RealtimeEventPublisher;
   private readonly purchaseFinder: PurchaseFinder;
   private readonly user: CurrentUser;
@@ -83,16 +87,25 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
     purchaseFinder: PurchaseFinder,
     publisher: RealtimeEventPublisher,
     user: CurrentUser,
+    employeeManagement: EmployeeManagement,
   ) {
     super(logger);
     this.db = db;
+    this.employeeManagement = employeeManagement;
     this.publisher = publisher;
     this.purchaseFinder = purchaseFinder;
     this.user = user;
   }
 
-  static create({ logger, db, purchaseFinder, publisher, user }: InjectedDependencies): CreatePurchaseService {
-    return new CreatePurchaseService(logger, db, purchaseFinder, publisher, user);
+  static create({
+    logger,
+    db,
+    purchaseFinder,
+    publisher,
+    user,
+    employeeManagement,
+  }: InjectedDependencies): CreatePurchaseService {
+    return new CreatePurchaseService(logger, db, purchaseFinder, publisher, user, employeeManagement);
   }
 
   async execute(request: CreatePurchaseRequest): Promise<Result<Purchase, BusinessError>> {
@@ -113,6 +126,15 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
         message: "Each variant can only appear once in a purchase.",
         details: [],
       });
+    }
+
+    const creditedEmployee = await this.employeeManagement.resolveCreditedEmployeeId(this.db, {
+      merchantId: this.user.merchantId,
+      requestedEmployeeId: request.createdById,
+      defaultEmployeeId: this.user.employeeId,
+    });
+    if (!creditedEmployee.success) {
+      return creditedEmployee;
     }
 
     const runTransaction = () =>
@@ -358,7 +380,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
           supplierId: request.supplierId,
           merchantId: this.user.merchantId,
           locationId: request.locationId,
-          createdById: this.user.employeeId,
+          createdById: creditedEmployee.value,
           createdAt,
           updatedAt: createdAt,
         });
@@ -404,7 +426,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
             quantityDelta: purchaseLine.quantity,
             unitCost: purchaseLine.unitCost,
             referenceId: purchaseId,
-            createdById: this.user.employeeId,
+            createdById: creditedEmployee.value,
             inventoryLevelId,
             merchantId: this.user.merchantId,
             occurredAt: createdAt,

@@ -21,6 +21,7 @@ import { now } from "../../utils/now.ts";
 import { err, ok, type Result } from "../../utils/result.ts";
 import { splitDistinct } from "../../utils/split-distinct.ts";
 import { BaseService } from "../base-service.ts";
+import type { EmployeeManagement } from "../staff/employees/employee-management.ts";
 import { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
 
 const CreateSaleRequest = z.object({
@@ -28,6 +29,7 @@ const CreateSaleRequest = z.object({
   locationId: ObjectId,
   businessDate: z.iso.datetime({ offset: true }).transform((value) => new Date(value)),
   customerId: ObjectId.nullish(),
+  createdById: ObjectId.nullish(),
   notes: z.string().trim().max(256).nullish(),
   discountRate: Decimal.pipe(
     z.string().refine((value) => new Big(value).lte(1), "Discount rate must be between 0.00 and 1.00."),
@@ -67,10 +69,12 @@ type InjectedDependencies = {
   publisher: RealtimeEventPublisher;
   saleFinder: SaleFinder;
   user: CurrentUser;
+  employeeManagement: EmployeeManagement;
 };
 
 class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
   private readonly db: Database;
+  private readonly employeeManagement: EmployeeManagement;
   private readonly publisher: RealtimeEventPublisher;
   private readonly saleFinder: SaleFinder;
   private readonly user: CurrentUser;
@@ -81,16 +85,25 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
     saleFinder: SaleFinder,
     publisher: RealtimeEventPublisher,
     user: CurrentUser,
+    employeeManagement: EmployeeManagement,
   ) {
     super(logger);
     this.db = db;
+    this.employeeManagement = employeeManagement;
     this.publisher = publisher;
     this.saleFinder = saleFinder;
     this.user = user;
   }
 
-  static create({ logger, db, saleFinder, publisher, user }: InjectedDependencies): CreateSaleService {
-    return new CreateSaleService(logger, db, saleFinder, publisher, user);
+  static create({
+    logger,
+    db,
+    saleFinder,
+    publisher,
+    user,
+    employeeManagement,
+  }: InjectedDependencies): CreateSaleService {
+    return new CreateSaleService(logger, db, saleFinder, publisher, user, employeeManagement);
   }
 
   async execute(request: CreateSaleRequest): Promise<Result<Sale, BusinessError>> {
@@ -155,6 +168,15 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
         message: "You do not have access to this location.",
         details: [],
       });
+    }
+
+    const creditedEmployee = await this.employeeManagement.resolveCreditedEmployeeId(this.db, {
+      merchantId: this.user.merchantId,
+      requestedEmployeeId: request.createdById,
+      defaultEmployeeId: employee.id,
+    });
+    if (!creditedEmployee.success) {
+      return creditedEmployee;
     }
 
     const variants = await this.db
@@ -384,7 +406,7 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
           discountRate: request.discountRate ?? null,
           notes: request.notes ?? null,
           customerId: request.customerId ?? null,
-          createdById: employee.id,
+          createdById: creditedEmployee.value,
           createdAt,
           updatedAt: createdAt,
         });
@@ -431,7 +453,7 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
               toState: "sold" as const,
               quantityDelta: -line.quantity,
               unitCost: line.product.unitCost,
-              createdById: employee.id,
+              createdById: creditedEmployee.value,
               occurredAt: createdAt,
               createdAt,
               updatedAt: createdAt,

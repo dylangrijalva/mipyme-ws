@@ -27,6 +27,7 @@ const IDENTITY_ACCOUNT: IdentityAccount = {
 const REQUEST_BODY = {
   name: "Monkey D. Luffy",
   phone: "+573001234567",
+  pin: "4821",
   location: { name: "Straw Hat Pirates", businessType: "restaurant" },
 };
 
@@ -93,6 +94,7 @@ async function seedBusiness(db: Database, isOwner = true, externalId = "user_law
     name: externalId === IDENTITY_ACCOUNT.id ? IDENTITY_ACCOUNT.name : "Trafalgar Law",
     isOwner,
     status: "enabled",
+    pin: "1111",
     permissions: "sales:read",
   });
   await db.insert(tables.location).values({
@@ -142,6 +144,7 @@ describe("ProvisionAccountService", () => {
       name: "Monkey D. Luffy",
       isOwner: true,
       status: "enabled",
+      pin: "4821",
     });
     expect(location).toMatchObject({ name: "Straw Hat Pirates", businessType: "restaurant" });
     expect(identity.find).toHaveBeenCalledExactlyOnceWith("user_luffy");
@@ -169,6 +172,7 @@ describe("ProvisionAccountService", () => {
       OnboardAccountRequest.parse({
         name: "Captain Luffy",
         phone: "+525512345678",
+        pin: "9999",
         location: { name: "Thousand Sunny", businessType: "grocery_store" },
       }),
     );
@@ -397,6 +401,18 @@ describe("ProvisionAccountService", () => {
       ]);
     }
   }, 15_000);
+
+  it.each([
+    ["missing", undefined],
+    ["shorter than 4 digits", "482"],
+    ["longer than 4 digits", "48210"],
+    ["not numeric", "48a1"],
+  ])("rejects an owner PIN that is %s", (_, pin) => {
+    const result = OnboardAccountRequest.safeParse({ ...REQUEST_BODY, pin });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([["pin"]]);
+  });
 });
 
 describe("OnboardAccountRequest", () => {

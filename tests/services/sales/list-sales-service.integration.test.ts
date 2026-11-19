@@ -28,8 +28,15 @@ async function setup() {
     { id: otherMerchantId, name: "Heart Pirates", country: "ni" },
   ]);
   await db.insert(tables.employee).values([
-    { id: employeeId, merchantId, name: "Nami", isOwner: true, status: "enabled" },
-    { id: otherEmployeeId, merchantId: otherMerchantId, name: "Trafalgar Law", isOwner: true, status: "enabled" },
+    { id: employeeId, merchantId, name: "Nami", isOwner: true, status: "enabled", pin: "4821" },
+    {
+      id: otherEmployeeId,
+      merchantId: otherMerchantId,
+      name: "Trafalgar Law",
+      isOwner: true,
+      status: "enabled",
+      pin: "4821",
+    },
   ]);
   await db.insert(tables.location).values([
     { id: locationId, merchantId, name: "Water 7" },

@@ -21,6 +21,7 @@ before:
         json:
           name: Monkey D. Luffy
           phone: "+50588881234"
+          pin: "1234"
           location:
             name: Thousand Sunny
             business_type: electronics_store

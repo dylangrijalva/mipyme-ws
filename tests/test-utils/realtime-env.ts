@@ -25,6 +25,9 @@ function createRealtimeEnv(environment: Environment = "test"): EnvVars {
     BUCKET_STORAGE_BUCKET_NAME: "strawhatpirates",
     BUCKET_STORAGE_FORCE_PATH_STYLE: "true",
     BUCKET_STORAGE_PUBLIC_BASE_URL: "https://storage.example.com",
+    RESEND_API_KEY: "test-resend-key",
+    EMAIL_FROM: "Mipyme <hello@strawhatpirates.example.com>",
+    APP_URL: "https://app.strawhatpirates.example.com",
   });
 }
 

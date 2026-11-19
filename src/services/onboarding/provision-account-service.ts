@@ -3,6 +3,7 @@ import type { Logger } from "pino";
 import z from "zod";
 import { codes, type BusinessError } from "../../contracts/business-error.ts";
 import { BusinessType } from "../../contracts/business-type.ts";
+import { EmployeePin } from "../../contracts/employee-pin.ts";
 import type { IdentityAccount } from "../../contracts/identity-account.ts";
 import type { JsonWebTokenPayload } from "../../contracts/json-web-token-payload.ts";
 import type { Merchant } from "../../contracts/merchant.ts";
@@ -40,6 +41,7 @@ const OnboardAccountRequest = z
       .string()
       .trim()
       .regex(PHONE_NUMBER_REGEX, "The phone number must be in E.164 format, for example +573001234567."),
+    pin: EmployeePin,
     location: z.object({
       name: z.string().trim().nonempty().max(64),
       businessType: BusinessType.default("other"),
@@ -219,6 +221,7 @@ class ProvisionAccountService extends BaseService<OnboardAccountRequest, Merchan
         accountId: account.id,
         isOwner: true,
         status: "enabled",
+        pin: request.pin,
       });
 
       await trx.insert(tables.location).values({

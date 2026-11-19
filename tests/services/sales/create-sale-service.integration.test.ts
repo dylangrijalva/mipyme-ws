@@ -9,6 +9,7 @@ import { PurchaseFinder } from "../../../src/finders/purchase-finder.ts";
 import { SaleFinder } from "../../../src/finders/sale-finder.ts";
 import { CreatePurchaseService } from "../../../src/services/purchases/create-purchase-service.ts";
 import { CreateSaleRequest, CreateSaleService } from "../../../src/services/sales/create-sale-service.ts";
+import { EmployeeManagement } from "../../../src/services/staff/employees/employee-management.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
 import {
@@ -31,7 +32,7 @@ async function setup() {
   await db.insert(tables.merchant).values({ id: merchantId, name: "Straw Hat Pirates" });
   await db
     .insert(tables.employee)
-    .values({ id: employeeId, merchantId, name: "Nami", isOwner: true, status: "enabled" });
+    .values({ id: employeeId, merchantId, name: "Nami", isOwner: true, status: "enabled", pin: "4821" });
   await db.insert(tables.location).values([
     { id: locationId, merchantId, name: "Water 7", exchangeRate: "36.50", nextSaleNumber: 42 },
     { id: otherLocationId, merchantId, name: "Dressrosa" },
@@ -76,6 +77,7 @@ async function setup() {
   };
   const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const service = CreateSaleService.create({
+    employeeManagement: new EmployeeManagement(),
     publisher,
     db,
     user,
@@ -925,6 +927,7 @@ describe("CreateSaleService", () => {
     const context = await setup();
     const missingEmployeeId = generateId({ model: "employee" });
     const service = CreateSaleService.create({
+      employeeManagement: new EmployeeManagement(),
       publisher: createRealtimeEventPublisherMock().publisher,
       db: context.db,
       user: { ...context.user, id: missingEmployeeId, employeeId: missingEmployeeId },
@@ -1104,6 +1107,7 @@ describe("CreateSaleService", () => {
     const supplierId = generateId({ model: "supplier" });
     await db.insert(tables.supplier).values({ id: supplierId, merchantId, name: "Baratie" });
     const purchaseService = CreatePurchaseService.create({
+      employeeManagement: new EmployeeManagement(),
       publisher: createRealtimeEventPublisherMock().publisher,
       db,
       user,
@@ -1127,5 +1131,102 @@ describe("CreateSaleService", () => {
       .where(and(eq(tables.inventoryLevel.locationId, locationId), eq(tables.inventoryLevel.variantId, variantId)));
     expect(level?.onHand).toBe(5);
     expect(await db.select().from(tables.inventoryMovement)).toHaveLength(2);
+  });
+
+  it("credits the sale and its stock movements to the requested employee while the signed-in owner's limits apply", async () => {
+    const context = await setup();
+    const usoppId = generateId({ model: "employee" });
+    await context.db.insert(tables.employee).values({
+      id: usoppId,
+      merchantId: context.merchantId,
+      name: "Usopp",
+      status: "enabled",
+      pin: "3333",
+      permissions: "checkout",
+    });
+
+    const result = await context.service.execute({
+      ...context.request,
+      createdById: usoppId,
+      discountRate: "0.20",
+      payments: [{ method: "cash", amount: "160.00" }],
+    });
+
+    expect(result).toMatchObject({ success: true, value: { createdBy: { id: usoppId, name: "Usopp" } } });
+    const [sale] = await context.db.select().from(tables.sale).where(eq(tables.sale.id, result.value!.id));
+    expect(sale.createdById).toBe(usoppId);
+    const movements = await context.db
+      .select()
+      .from(tables.inventoryMovement)
+      .where(eq(tables.inventoryMovement.referenceId, sale.id));
+    expect(movements.length).toBeGreaterThan(0);
+    expect(movements.every((movement) => movement.createdById === usoppId)).toBe(true);
+  });
+
+  it("keeps the signed-in staff member's limits when crediting an employee who may discount", async () => {
+    const context = await setup();
+    await enableStaff(context, "checkout", "0.00");
+    const sanjiId = generateId({ model: "employee" });
+    await context.db.insert(tables.employee).values({
+      id: sanjiId,
+      merchantId: context.merchantId,
+      name: "Sanji",
+      status: "enabled",
+      pin: "2222",
+      permissions: "checkout apply_discounts",
+      maxDiscountRate: "0.50",
+    });
+    await context.db.insert(tables.locationAccess).values({
+      id: generateId({ model: "locationAccess" }),
+      merchantId: context.merchantId,
+      employeeId: sanjiId,
+      locationId: context.locationId,
+    });
+    const before = await checkoutState(context.db);
+
+    const result = await context.service.execute({
+      ...context.request,
+      createdById: sanjiId,
+      discountRate: "0.10",
+      payments: [{ method: "cash", amount: "180.00" }],
+    });
+
+    expect(result).toMatchObject({ success: false, error: { code: codes.forbiddenError } });
+    expect(await checkoutState(context.db)).toEqual(before);
+  });
+
+  it("credits the signed-in account's employee when no employee is requested", async () => {
+    const context = await setup();
+
+    const result = await context.service.execute({ ...context.request, createdById: null });
+
+    expect(result).toMatchObject({ success: true, value: { createdBy: { id: context.employeeId } } });
+  });
+
+  it.each([
+    ["a disabled", "disabled", codes.forbiddenError],
+    ["an archived", "archived", codes.forbiddenError],
+    ["another merchant's", "foreign", codes.resourceNotFound],
+  ] as const)("rejects crediting %s employee without effects", async (_, scenario, code) => {
+    const context = await setup();
+    const creditedId = generateId({ model: "employee" });
+    const merchantId = scenario === "foreign" ? generateId({ model: "merchant" }) : context.merchantId;
+    if (scenario === "foreign") {
+      await context.db.insert(tables.merchant).values({ id: merchantId, name: "Heart Pirates" });
+    }
+    await context.db.insert(tables.employee).values({
+      id: creditedId,
+      merchantId,
+      name: "Usopp",
+      status: scenario === "foreign" ? "enabled" : scenario,
+      pin: "3333",
+    });
+    const before = await checkoutState(context.db);
+
+    const result = await context.service.execute({ ...context.request, createdById: creditedId });
+
+    expect(result).toMatchObject({ success: false, error: { code } });
+    expect(await checkoutState(context.db)).toEqual(before);
+    expect(context.broadcast).not.toHaveBeenCalled();
   });
 });

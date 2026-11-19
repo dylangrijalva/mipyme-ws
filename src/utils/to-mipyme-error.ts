@@ -20,6 +20,7 @@ const ERROR_STATUS_CODES: Record<ErrorCode, number> = Object.freeze({
   [codes.stockInsufficient]: 409,
   [codes.resourceNotFound]: 404,
   [codes.locationLimitExceeded]: 403,
+  [codes.pinAlreadyExists]: 409,
   [codes.concurrentUpdateConflict]: 409,
   [codes.idempotencyKeyMismatch]: 409,
   [codes.idempotencyRequestInProgress]: 409,

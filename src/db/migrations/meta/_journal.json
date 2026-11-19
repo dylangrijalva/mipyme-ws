@@ -8,6 +8,13 @@
       "when": 1795051895348,
       "tag": "0000_slippery_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1795062031449,
+      "tag": "0001_special_red_ghost",
+      "breakpoints": true
     }
   ]
 }

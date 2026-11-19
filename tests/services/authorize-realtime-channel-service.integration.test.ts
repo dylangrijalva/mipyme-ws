@@ -7,18 +7,21 @@ import { tables } from "../../src/db/schema.ts";
 import { CollectionFinder } from "../../src/finders/collection-finder.ts";
 import { CustomerFinder } from "../../src/finders/customer-finder.ts";
 import { EmployeeFinder } from "../../src/finders/employee-finder.ts";
+import { InvitationFinder } from "../../src/finders/invitation-finder.ts";
 import { LocationFinder } from "../../src/finders/location-finder.ts";
 import { MerchantFinder } from "../../src/finders/merchant-finder.ts";
 import { ProductFinder } from "../../src/finders/product-finder.ts";
 import { PurchaseFinder } from "../../src/finders/purchase-finder.ts";
 import { SaleFinder } from "../../src/finders/sale-finder.ts";
 import { SupplierFinder } from "../../src/finders/supplier-finder.ts";
+import { EmailSender } from "../../src/integrations/email-sender.ts";
 import { IdentityProvider } from "../../src/integrations/identity-provider.ts";
 import { ProductImageStore } from "../../src/integrations/product-image-store.ts";
 import { generateId } from "../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../prepare-db.ts";
 import type { CurrentUser } from "../../src/contracts/current-user.ts";
 import { RealtimeEventPublisher } from "../../src/integrations/realtime-event-publisher.ts";
+import { EmployeeManagement } from "../../src/services/staff/employees/employee-management.ts";
 import { AuthorizeRealtimeChannelService } from "../../src/services/authorize-realtime-channel-service.ts";
 import { err, ok } from "../../src/utils/result.ts";
 import { createRealtimeEnv } from "../test-utils/realtime-env.ts";
@@ -94,9 +97,15 @@ async function setupRoute(status: "enabled" | "disabled" | null) {
     await db
       .insert(tables.account)
       .values({ id: accountId, externalId, merchantId, email: "luffy@strawhatpirates.example.com" });
-    await db
-      .insert(tables.employee)
-      .values({ id: generateId({ model: "employee" }), accountId, merchantId, name: "Luffy", isOwner: false, status });
+    await db.insert(tables.employee).values({
+      id: generateId({ model: "employee" }),
+      accountId,
+      merchantId,
+      name: "Luffy",
+      isOwner: false,
+      status,
+      pin: "4821",
+    });
   }
   const cache = new Redis(env.REDIS_URL, { lazyConnect: true });
   vi.spyOn(cache, "eval").mockResolvedValue(1);
@@ -108,12 +117,15 @@ async function setupRoute(status: "enabled" | "disabled" | null) {
     db,
     cache,
     identity,
+    emailSender: new EmailSender({ env, logger }),
+    employeeManagement: new EmployeeManagement(),
     productImageStore: new ProductImageStore({ env, logger }),
     publisher,
     merchantFinder: new MerchantFinder(),
     collectionFinder: new CollectionFinder(),
     customerFinder: new CustomerFinder(),
     employeeFinder: new EmployeeFinder(),
+    invitationFinder: new InvitationFinder(),
     locationFinder: new LocationFinder(),
     supplierFinder: new SupplierFinder(),
     productFinder: new ProductFinder(),

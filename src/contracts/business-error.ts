@@ -23,6 +23,7 @@ const codes = {
   paymentInsufficient: "payment_insufficient",
   stockInsufficient: "stock_insufficient",
   locationLimitExceeded: "location_limit_exceeded",
+  pinAlreadyExists: "pin_already_exists",
 } as const;
 
 type ErrorCode = (typeof codes)[keyof typeof codes];

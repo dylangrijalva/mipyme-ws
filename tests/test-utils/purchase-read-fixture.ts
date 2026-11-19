@@ -25,7 +25,7 @@ async function seedPurchaseReads(db: Database, reader?: { merchantId: string; em
     await db.insert(tables.merchant).values({ id: merchantId, name: "Straw Hat Pirates", country: "ni" });
     await db
       .insert(tables.employee)
-      .values({ id: employeeId, merchantId, name: "Nami", isOwner: true, status: "enabled" });
+      .values({ id: employeeId, merchantId, name: "Nami", isOwner: true, status: "enabled", pin: "4821" });
   }
   await db.insert(tables.merchant).values({ id: otherMerchantId, name: "Heart Pirates", country: "ni" });
   await db.insert(tables.employee).values({
@@ -34,6 +34,7 @@ async function seedPurchaseReads(db: Database, reader?: { merchantId: string; em
     name: "Trafalgar Law",
     isOwner: true,
     status: "enabled",
+    pin: "4821",
   });
   await db.insert(tables.location).values([
     { id: locationId, merchantId, name: "Water 7" },

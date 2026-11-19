@@ -6,6 +6,7 @@ import { createDrizzle } from "./db/index.ts";
 import { CollectionFinder } from "./finders/collection-finder.ts";
 import { CustomerFinder } from "./finders/customer-finder.ts";
 import { EmployeeFinder } from "./finders/employee-finder.ts";
+import { InvitationFinder } from "./finders/invitation-finder.ts";
 import { LocationFinder } from "./finders/location-finder.ts";
 import { MerchantFinder } from "./finders/merchant-finder.ts";
 import { ProductFinder } from "./finders/product-finder.ts";
@@ -14,9 +15,11 @@ import { SaleFinder } from "./finders/sale-finder.ts";
 import { SupplierFinder } from "./finders/supplier-finder.ts";
 import { Environment, loadEnvironmentVariables } from "./infra/config.env.ts";
 import { createLogger, noopLogger } from "./infra/config.logger.ts";
+import { EmailSender } from "./integrations/email-sender.ts";
 import { IdentityProvider } from "./integrations/identity-provider.ts";
 import { ProductImageStore } from "./integrations/product-image-store.ts";
 import { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
+import { EmployeeManagement } from "./services/staff/employees/employee-management.ts";
 
 async function run() {
   console.clear();
@@ -37,11 +40,14 @@ async function run() {
   const identity = new IdentityProvider(logger, env);
   const productImageStore = new ProductImageStore({ env, logger });
   const publisher = new RealtimeEventPublisher({ logger, env });
+  const emailSender = new EmailSender({ logger, env });
+  const employeeManagement = new EmployeeManagement();
 
   const merchantFinder = new MerchantFinder();
   const collectionFinder = new CollectionFinder();
   const customerFinder = new CustomerFinder();
   const employeeFinder = new EmployeeFinder();
+  const invitationFinder = new InvitationFinder();
   const locationFinder = new LocationFinder();
   const supplierFinder = new SupplierFinder();
   const productFinder = new ProductFinder();
@@ -54,12 +60,15 @@ async function run() {
     db,
     cache,
     identity,
+    emailSender,
+    employeeManagement,
     productImageStore,
     publisher,
     merchantFinder,
     collectionFinder,
     customerFinder,
     employeeFinder,
+    invitationFinder,
     locationFinder,
     supplierFinder,
     productFinder,

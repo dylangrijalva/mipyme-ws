@@ -9,6 +9,7 @@ import {
   CreatePurchaseRequest,
   CreatePurchaseService,
 } from "../../../src/services/purchases/create-purchase-service.ts";
+import { EmployeeManagement } from "../../../src/services/staff/employees/employee-management.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
 import {
@@ -29,7 +30,7 @@ async function setup() {
   const seafoodVariantId = generateId({ model: "variant" });
 
   await db.insert(tables.merchant).values({ id: merchantId, name: "Straw Hat Pirates", country: "ni" });
-  await db.insert(tables.employee).values({ id: employeeId, merchantId, name: "Sanji", isOwner: true });
+  await db.insert(tables.employee).values({ id: employeeId, merchantId, name: "Sanji", isOwner: true, pin: "2222" });
   await db.insert(tables.supplier).values({ id: supplierId, merchantId, name: "Baratie" });
   await db.insert(tables.location).values([
     { id: locationId, merchantId, name: "Water 7", nextPurchaseOrderNumber: 42 },
@@ -80,6 +81,7 @@ async function setup() {
 
   const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const service = CreatePurchaseService.create({
+    employeeManagement: new EmployeeManagement(),
     publisher,
     db,
     purchaseFinder: new PurchaseFinder(),
@@ -737,4 +739,59 @@ describe("CreatePurchaseService", () => {
     );
     expect(state.inventoryMovements.map(({ quantityDelta }) => quantityDelta).sort()).toEqual([2, 3]);
   }, 15_000);
+
+  it("credits the purchase and its receiving movements to the requested employee", async () => {
+    const context = await setup();
+    const usoppId = generateId({ model: "employee" });
+    await context.db.insert(tables.employee).values({
+      id: usoppId,
+      merchantId: context.merchantId,
+      name: "Usopp",
+      status: "enabled",
+      pin: "3333",
+    });
+
+    const result = await context.service.execute({
+      supplierId: context.supplierId,
+      locationId: context.locationId,
+      createdById: usoppId,
+      lineItems: [{ variantId: context.mandarinVariantId, quantity: 2, unitCost: "10.00" }],
+    });
+
+    expect(result).toMatchObject({ success: true, value: { createdBy: { id: usoppId, name: "Usopp" } } });
+    const state = await readState(context.db, context.merchantId);
+    expect(state.purchases).toEqual([expect.objectContaining({ id: result.value!.id, createdById: usoppId })]);
+    expect(state.inventoryMovements).toEqual([expect.objectContaining({ reason: "purchase", createdById: usoppId })]);
+  });
+
+  it.each([
+    ["a disabled", "disabled", codes.forbiddenError],
+    ["another merchant's", "foreign", codes.resourceNotFound],
+  ] as const)("rejects crediting %s employee without receiving stock", async (_, scenario, code) => {
+    const context = await setup();
+    const creditedId = generateId({ model: "employee" });
+    const merchantId = scenario === "foreign" ? generateId({ model: "merchant" }) : context.merchantId;
+    if (scenario === "foreign") {
+      await context.db.insert(tables.merchant).values({ id: merchantId, name: "Heart Pirates" });
+    }
+    await context.db.insert(tables.employee).values({
+      id: creditedId,
+      merchantId,
+      name: "Usopp",
+      status: scenario === "foreign" ? "enabled" : "disabled",
+      pin: "3333",
+    });
+    const before = await readState(context.db, context.merchantId);
+
+    const result = await context.service.execute({
+      supplierId: context.supplierId,
+      locationId: context.locationId,
+      createdById: creditedId,
+      lineItems: [{ variantId: context.mandarinVariantId, quantity: 2, unitCost: "10.00" }],
+    });
+
+    expect(result).toMatchObject({ success: false, error: { code } });
+    expect(await readState(context.db, context.merchantId)).toEqual(before);
+    expect(context.broadcast).not.toHaveBeenCalled();
+  });
 });

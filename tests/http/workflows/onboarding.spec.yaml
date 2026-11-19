@@ -55,6 +55,7 @@ tests:
           json:
             name: Monkey D. Luffy
             phone: "+593987654321"
+            pin: "1234"
             location:
               name: Merry's Shop
           check:
@@ -66,6 +67,28 @@ tests:
                 - eq: validation_error
               $.details[0].field:
                 - eq: phone
+      - name: rejects an owner PIN that is not exactly four digits
+        http:
+          url: ${{env.baseUrl}}/v1/onboarding
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Monkey D. Luffy
+            phone: "+50588881234"
+            pin: "12345"
+            location:
+              name: Merry's Shop
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.details[0].field:
+                - eq: pin
       - name: POST /v1/onboarding
         http:
           url: ${{env.baseUrl}}/v1/onboarding
@@ -76,6 +99,7 @@ tests:
           json:
             name: Monkey D. Luffy
             phone: "+50588881234"
+            pin: "1234"
             location:
               name: "  Merry's Shop  "
               business_type: electronics_store
@@ -106,6 +130,7 @@ tests:
           json:
             name: Monkey D. Luffy
             phone: "+50588881234"
+            pin: "1234"
             location:
               name: "  Merry's Shop  "
               business_type: electronics_store

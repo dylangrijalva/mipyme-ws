@@ -14,6 +14,7 @@ import { CreatePurchaseService } from "../../../src/services/purchases/create-pu
 import { VoidPurchaseService } from "../../../src/services/purchases/void-purchase-service.ts";
 import { CreateSaleService } from "../../../src/services/sales/create-sale-service.ts";
 import { VoidSaleService } from "../../../src/services/sales/void-sale-service.ts";
+import { EmployeeManagement } from "../../../src/services/staff/employees/employee-management.ts";
 import { ConcurrentUpdateError } from "../../../src/utils/concurrent-update-error.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
@@ -39,7 +40,7 @@ async function setup() {
   await db.insert(tables.merchant).values({ id: merchantId, name: "Straw Hat Pirates", country: "ni" });
   await db
     .insert(tables.employee)
-    .values({ id: employeeId, merchantId, name: "Nami", isOwner: true, status: "enabled" });
+    .values({ id: employeeId, merchantId, name: "Nami", isOwner: true, status: "enabled", pin: "4821" });
   await db.insert(tables.location).values([
     { id: locationId, merchantId, name: "Water 7" },
     { id: otherLocationId, merchantId, name: "Dressrosa" },
@@ -77,7 +78,14 @@ async function setup() {
     email: "nami@strawhatpirates.example.com",
   };
   const { broadcast, publisher } = createRealtimeEventPublisherMock();
-  const dependencies = { db, user, logger: pino({ enabled: false }), publisher, purchaseFinder: new PurchaseFinder() };
+  const dependencies = {
+    db,
+    user,
+    logger: pino({ enabled: false }),
+    publisher,
+    purchaseFinder: new PurchaseFinder(),
+    employeeManagement: new EmployeeManagement(),
+  };
   const purchaseService = CreatePurchaseService.create({
     ...dependencies,
     publisher: createRealtimeEventPublisherMock().publisher,
@@ -706,7 +714,7 @@ describe("VoidPurchaseService", () => {
     await context.db.insert(tables.merchant).values({ id: merchantId, name: "Heart Pirates", country: "ni" });
     await context.db
       .insert(tables.employee)
-      .values({ id: employeeId, merchantId, name: "Trafalgar Law", status: "enabled", isOwner: true });
+      .values({ id: employeeId, merchantId, name: "Trafalgar Law", status: "enabled", isOwner: true, pin: "4821" });
     const service = VoidPurchaseService.create({
       ...context.dependencies,
       user: { ...context.dependencies.user, merchantId, employeeId },
@@ -789,5 +797,47 @@ describe("VoidPurchaseService", () => {
     expect(after.products[0]).toMatchObject({ unitCost: "8.00" });
     expect(after.levels.find((level) => level.locationId === context.locationId)?.onHand).toBe(6);
     expect(after.movements.filter((movement) => movement.reason === "purchase_void")).toHaveLength(1);
+  });
+
+  it("credits the void and its reversing movements to the requested employee", async () => {
+    const context = await setup();
+    const purchase = await createPurchase(context);
+    const usoppId = generateId({ model: "employee" });
+    await context.db.insert(tables.employee).values({
+      id: usoppId,
+      merchantId: context.merchantId,
+      name: "Usopp",
+      status: "enabled",
+      pin: "3333",
+    });
+
+    const result = await context.voidService.execute(purchase.id, { voidedById: usoppId });
+
+    expect(result).toMatchObject({
+      success: true,
+      value: { voidedBy: { id: usoppId, name: "Usopp" }, createdBy: { id: context.employeeId } },
+    });
+    const reversals = (await readState(context.db)).movements.filter((movement) => movement.reason === "purchase_void");
+    expect(reversals.length).toBeGreaterThan(0);
+    expect(reversals.every((movement) => movement.createdById === usoppId)).toBe(true);
+  });
+
+  it("rejects crediting an archived employee without voiding the purchase", async () => {
+    const context = await setup();
+    const purchase = await createPurchase(context);
+    const usoppId = generateId({ model: "employee" });
+    await context.db.insert(tables.employee).values({
+      id: usoppId,
+      merchantId: context.merchantId,
+      name: "Usopp",
+      status: "archived",
+      pin: "3333",
+    });
+    const before = await readState(context.db);
+
+    const result = await context.voidService.execute(purchase.id, { voidedById: usoppId });
+
+    expect(result).toMatchObject({ success: false, error: { code: codes.forbiddenError } });
+    expect(await readState(context.db)).toEqual(before);
   });
 });

@@ -89,6 +89,7 @@ async function preparePendingSaleWorkflow(setupDb: Database, testUserId: string,
       name: "Nami",
       isOwner: true,
       status: "enabled",
+      pin: "4821",
     });
   }
 

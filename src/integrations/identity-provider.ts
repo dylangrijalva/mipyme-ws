@@ -154,6 +154,35 @@ class IdentityProvider {
     return ok(account);
   }
 
+  async removeFromMerchant(accountId: string): Promise<Result<IdentityAccount, BusinessError>> {
+    const response = await fetch(`${CLERK_API_BASE_URL}/users/${accountId}/metadata`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${this.env.CLERK_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        snakeCaseKeys({
+          publicMetadata: { merchantId: null, employeeId: null, accountType: null },
+        }),
+      ),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      const clerkError = ClerkErrorResponse.parse(camelCaseKeys(data));
+      const error = this.asError(clerkError);
+
+      return err(error);
+    }
+
+    const data = await response.json();
+    const clerkUser = ClerkUser.parse(camelCaseKeys(data));
+    const account = this.asDomain(clerkUser);
+
+    return ok(account);
+  }
+
   private asDomain(user: ClerkUser): IdentityAccount {
     return {
       id: user.id,

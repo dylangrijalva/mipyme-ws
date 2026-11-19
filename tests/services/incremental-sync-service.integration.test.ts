@@ -10,14 +10,17 @@ import { ProductFinder } from "../../src/finders/product-finder.ts";
 import { CollectionFinder } from "../../src/finders/collection-finder.ts";
 import { CustomerFinder } from "../../src/finders/customer-finder.ts";
 import { EmployeeFinder } from "../../src/finders/employee-finder.ts";
+import { InvitationFinder } from "../../src/finders/invitation-finder.ts";
 import { LocationFinder } from "../../src/finders/location-finder.ts";
 import { MerchantFinder } from "../../src/finders/merchant-finder.ts";
 import { PurchaseFinder } from "../../src/finders/purchase-finder.ts";
 import { SaleFinder } from "../../src/finders/sale-finder.ts";
 import { SupplierFinder } from "../../src/finders/supplier-finder.ts";
+import { EmailSender } from "../../src/integrations/email-sender.ts";
 import { IdentityProvider } from "../../src/integrations/identity-provider.ts";
 import { ProductImageStore } from "../../src/integrations/product-image-store.ts";
 import { RealtimeEventPublisher } from "../../src/integrations/realtime-event-publisher.ts";
+import { EmployeeManagement } from "../../src/services/staff/employees/employee-management.ts";
 import { IncrementalSyncService } from "../../src/services/sync/incremental-sync-service.ts";
 import { generateId } from "../../src/utils/generate-id.ts";
 import { ok } from "../../src/utils/result.ts";
@@ -79,7 +82,9 @@ async function setup() {
       { id: otherLocationId, merchantId: ownerId, name: "Loguetown" },
     ]);
     const employeeId = generateId({ model: "employee" });
-    await db.insert(tables.employee).values({ id: employeeId, merchantId: ownerId, name: "Nami", status: "enabled" });
+    await db
+      .insert(tables.employee)
+      .values({ id: employeeId, merchantId: ownerId, name: "Nami", status: "enabled", pin: "4821" });
     await db.insert(tables.locationAccess).values({
       id: generateId({ model: "locationAccess" }),
       merchantId: ownerId,
@@ -720,6 +725,7 @@ describe("IncrementalSyncService", () => {
         name: "Nami",
         status: "enabled",
         isOwner: false,
+        pin: "4821",
       });
       const identity = new IdentityProvider(logger, env);
       vi.spyOn(identity, "verifyToken").mockResolvedValue(
@@ -738,11 +744,14 @@ describe("IncrementalSyncService", () => {
         ...fixture.dependencies,
         cache: dependency === "redis" ? unavailableCache : fixture.dependencies.cache,
         identity,
+        emailSender: new EmailSender({ env, logger }),
+        employeeManagement: new EmployeeManagement(),
         productImageStore: new ProductImageStore({ env, logger }),
         publisher: new RealtimeEventPublisher({ env, logger }),
         merchantFinder: new MerchantFinder(),
         collectionFinder: new CollectionFinder(),
         customerFinder: new CustomerFinder(),
+        invitationFinder: new InvitationFinder(),
         locationFinder: new LocationFinder(),
         supplierFinder: new SupplierFinder(),
         productFinder: new ProductFinder(),

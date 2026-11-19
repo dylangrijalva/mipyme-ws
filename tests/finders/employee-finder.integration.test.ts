@@ -4,6 +4,7 @@ import { tables } from "../../src/db/schema.ts";
 import { EmployeeFinder } from "../../src/finders/employee-finder.ts";
 import { generateId } from "../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../prepare-db.ts";
+import { insertEmployee } from "../test-utils/employee-fixture.ts";
 
 const PREVIOUS_SYNCED_AT = new Date("2026-03-01T00:00:00Z");
 const CURRENT_SYNCED_AT = new Date("2026-03-02T00:00:00Z");
@@ -39,13 +40,13 @@ async function setup() {
 }
 
 describe("EmployeeFinder", () => {
-  it("returns every status ordered by id with account details and the ids of their assigned locations", async () => {
+  it("returns every status ordered by id with PINs, account details, and the ids of their assigned locations", async () => {
     const { db, merchantId, waterSevenId, loguetownId, accountId } = await setup();
     const finder = new EmployeeFinder();
     const timestamp = new Date("2026-01-01T00:00:00Z");
     const ownerId = "empl_0000000000000000001";
     const staffId = "empl_0000000000000000002";
-    const invitedId = "empl_0000000000000000003";
+    const archivedId = "empl_0000000000000000003";
     const disabledId = "empl_0000000000000000004";
     const phonelessAccountId = generateId({ model: "account" });
     await db.insert(tables.account).values({
@@ -60,16 +61,26 @@ describe("EmployeeFinder", () => {
         merchantId,
         name: "Sanji",
         status: "disabled",
+        pin: "2222",
         accountId: phonelessAccountId,
         createdAt: timestamp,
         updatedAt: timestamp,
       },
-      { id: invitedId, merchantId, name: "Usopp", status: "invited", createdAt: timestamp, updatedAt: timestamp },
+      {
+        id: archivedId,
+        merchantId,
+        name: "Usopp",
+        status: "archived",
+        pin: "3333",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
       {
         id: staffId,
         merchantId,
         name: "Nami",
         status: "enabled",
+        pin: "4821",
         permissions: "checkout view_transactions",
         maxDiscountRate: "0.15",
         accountId,
@@ -82,6 +93,7 @@ describe("EmployeeFinder", () => {
         name: "Monkey D. Luffy",
         isOwner: true,
         status: "enabled",
+        pin: "0001",
         createdAt: timestamp,
         updatedAt: timestamp,
       },
@@ -103,10 +115,12 @@ describe("EmployeeFinder", () => {
         id: ownerId,
         name: "Monkey D. Luffy",
         isOwner: true,
+        pin: "0001",
         maxDiscountRate: "0.00",
         status: "enabled",
         permissions: [],
         account: null,
+        invitation: null,
         locationIds: [],
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -115,6 +129,7 @@ describe("EmployeeFinder", () => {
         id: staffId,
         name: "Nami",
         isOwner: false,
+        pin: "4821",
         maxDiscountRate: "0.15",
         status: "enabled",
         permissions: ["checkout", "view_transactions"],
@@ -124,11 +139,12 @@ describe("EmployeeFinder", () => {
           phone: "+593987654321",
           phoneVerified: true,
         },
+        invitation: null,
         locationIds: [waterSevenId, loguetownId].sort(),
         createdAt: timestamp,
         updatedAt: timestamp,
       },
-      expect.objectContaining({ id: invitedId, status: "invited", locationIds: [] }),
+      expect.objectContaining({ id: archivedId, status: "archived", pin: "3333", locationIds: [] }),
       expect.objectContaining({
         id: disabledId,
         status: "disabled",
@@ -149,8 +165,8 @@ describe("EmployeeFinder", () => {
     const employeeId = generateId({ model: "employee" });
     const foreignEmployeeId = generateId({ model: "employee" });
     await db.insert(tables.employee).values([
-      { id: employeeId, merchantId, name: "Nami", status: "enabled" },
-      { id: foreignEmployeeId, merchantId: otherMerchantId, name: "Trafalgar Law", status: "enabled" },
+      { id: employeeId, merchantId, name: "Nami", status: "enabled", pin: "4821" },
+      { id: foreignEmployeeId, merchantId: otherMerchantId, name: "Trafalgar Law", status: "enabled", pin: "4821" },
     ]);
     await db.insert(tables.locationAccess).values([
       { id: generateId({ model: "locationAccess" }), merchantId, employeeId, locationId: waterSevenId },
@@ -179,10 +195,10 @@ describe("EmployeeFinder", () => {
     const staleId = generateId({ model: "employee" });
     const futureId = generateId({ model: "employee" });
     await db.insert(tables.employee).values([
-      { id: lowerId, merchantId, name: "Nami", updatedAt: PREVIOUS_SYNCED_AT },
-      { id: upperId, merchantId, name: "Zoro", updatedAt: CURRENT_SYNCED_AT },
-      { id: staleId, merchantId, name: "Sanji", updatedAt: BEFORE_WINDOW },
-      { id: futureId, merchantId, name: "Usopp", updatedAt: new Date(CURRENT_SYNCED_AT.getTime() + 1) },
+      { id: lowerId, merchantId, name: "Nami", pin: "4821", updatedAt: PREVIOUS_SYNCED_AT },
+      { id: upperId, merchantId, name: "Zoro", pin: "1111", updatedAt: CURRENT_SYNCED_AT },
+      { id: staleId, merchantId, name: "Sanji", pin: "2222", updatedAt: BEFORE_WINDOW },
+      { id: futureId, merchantId, name: "Usopp", pin: "3333", updatedAt: new Date(CURRENT_SYNCED_AT.getTime() + 1) },
     ]);
     await db.insert(tables.locationAccess).values([
       { id: generateId({ model: "locationAccess" }), merchantId, employeeId: lowerId, locationId: waterSevenId },
@@ -208,7 +224,7 @@ describe("EmployeeFinder", () => {
     const employeeId = generateId({ model: "employee" });
     await db
       .insert(tables.employee)
-      .values({ id: employeeId, merchantId, name: "Nami", accountId, updatedAt: BEFORE_WINDOW });
+      .values({ id: employeeId, merchantId, name: "Nami", pin: "4821", accountId, updatedAt: BEFORE_WINDOW });
     await db.update(tables.account).set({ updatedAt: INSIDE_WINDOW }).where(eq(tables.account.id, accountId));
 
     const employees = await new EmployeeFinder().findForSync(db, {
@@ -222,9 +238,13 @@ describe("EmployeeFinder", () => {
 
   it("returns an empty list when no employee changed in the window", async () => {
     const { db, merchantId } = await setup();
-    await db
-      .insert(tables.employee)
-      .values({ id: generateId({ model: "employee" }), merchantId, name: "Nami", updatedAt: INSIDE_WINDOW });
+    await db.insert(tables.employee).values({
+      id: generateId({ model: "employee" }),
+      merchantId,
+      name: "Nami",
+      pin: "4821",
+      updatedAt: INSIDE_WINDOW,
+    });
 
     const employees = await new EmployeeFinder().findForSync(db, {
       merchantId,
@@ -247,8 +267,14 @@ describe("EmployeeFinder", () => {
       phone: "+573001234567",
     });
     await db.insert(tables.employee).values([
-      { id: generateId({ model: "employee" }), merchantId, name: "Nami", accountId },
-      { id: generateId({ model: "employee" }), merchantId: otherMerchantId, name: "Law", accountId: lawAccountId },
+      { id: generateId({ model: "employee" }), merchantId, name: "Nami", pin: "4821", accountId },
+      {
+        id: generateId({ model: "employee" }),
+        merchantId: otherMerchantId,
+        name: "Law",
+        pin: "4821",
+        accountId: lawAccountId,
+      },
     ]);
 
     const [namiPhone, lawPhone, unknownPhone] = await Promise.all([
@@ -269,5 +295,62 @@ describe("EmployeeFinder", () => {
     const exists = await finder.exists(db, { phone: "+593987654321" });
 
     expect(exists).toBe(false);
+  });
+
+  it("finds a PIN holder by combining the merchant, PIN, status, and excluded-id filters", async () => {
+    const { db, merchantId, otherMerchantId } = await setup();
+    const finder = new EmployeeFinder();
+    const namiId = await insertEmployee(db, { merchantId, name: "Nami", status: "enabled", pin: "4821" });
+    await insertEmployee(db, { merchantId, name: "Usopp", status: "archived", pin: "3333" });
+    await insertEmployee(db, { merchantId: otherMerchantId, name: "Law", status: "enabled", pin: "7777" });
+    const holding: Array<"enabled" | "disabled"> = ["enabled", "disabled"];
+
+    const [held, heldOnlyBySelf, archived, foreign] = await Promise.all([
+      finder.exists(db, { merchantId, pin: "4821", statuses: holding }),
+      finder.exists(db, { merchantId, pin: "4821", statuses: holding, excludedId: namiId }),
+      finder.exists(db, { merchantId, pin: "3333", statuses: holding }),
+      finder.exists(db, { merchantId, pin: "7777", statuses: holding }),
+    ]);
+
+    expect(held).toBe(true);
+    expect(heldOnlyBySelf).toBe(false);
+    expect(archived).toBe(false);
+    expect(foreign).toBe(false);
+  });
+
+  it("embeds each employee's most recent invitation and reports it expired once its deadline passes", async () => {
+    const { db, merchantId } = await setup();
+    const finder = new EmployeeFinder();
+    const ownerId = await insertEmployee(db, { merchantId, name: "Luffy", isOwner: true, pin: "0001" });
+    const namiId = await insertEmployee(db, { merchantId, name: "Nami", pin: "4821" });
+    const zoroId = await insertEmployee(db, { merchantId, name: "Zoro", pin: "1111" });
+    const invitation = (employeeId: string, id: string, createdAt: Date, expiresAt: Date) => ({
+      id,
+      merchantId,
+      employeeId,
+      invitedById: ownerId,
+      email: "crew@strawhatpirates.example.com",
+      status: "invited" as const,
+      expiresAt,
+      createdAt,
+      updatedAt: createdAt,
+    });
+    const olderId = generateId({ model: "employeeInvitation" });
+    const latestId = generateId({ model: "employeeInvitation" });
+    const expiredId = generateId({ model: "employeeInvitation" });
+    await db
+      .insert(tables.employeeInvitation)
+      .values([
+        invitation(namiId, olderId, new Date("2026-03-01T00:00:00Z"), new Date("2999-01-01T00:00:00Z")),
+        invitation(namiId, latestId, new Date("2026-03-02T00:00:00Z"), new Date("2999-01-01T00:00:00Z")),
+        invitation(zoroId, expiredId, new Date("2026-03-02T00:00:00Z"), new Date("2000-01-01T00:00:00Z")),
+      ]);
+
+    const employees = await finder.paginate(db, { merchantId, limit: 10 });
+
+    const invitationsById = new Map(employees.results.map((employee) => [employee.id, employee.invitation]));
+    expect(invitationsById.get(ownerId)).toBeNull();
+    expect(invitationsById.get(namiId)).toMatchObject({ id: latestId, status: "invited" });
+    expect(invitationsById.get(zoroId)).toMatchObject({ id: expiredId, status: "expired" });
   });
 });

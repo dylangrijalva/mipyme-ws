@@ -1,0 +1,191 @@
+version: "1.1"
+name: Invitations API
+components:
+  schemas:
+    Employee:
+      $ref: ./src/openapi.json#/components/schemas/Employee
+    EmployeePaginationResponse:
+      $ref: ./src/openapi.json#/components/schemas/EmployeePaginationResponse
+    EmployeeInvitation:
+      $ref: ./src/openapi.json#/components/schemas/EmployeeInvitation
+    ReceivedInvitationPaginationResponse:
+      $ref: ./src/openapi.json#/components/schemas/ReceivedInvitationPaginationResponse
+    MipymeError:
+      $ref: ./src/openapi.json#/components/schemas/MipymeError
+    Merchant:
+      $ref: ./src/openapi.json#/components/schemas/Merchant
+config:
+  concurrency: 1
+before:
+  name: provisions the authenticated account
+  steps:
+    - name: checks whether onboarding is required
+      http:
+        url: ${{env.baseUrl}}/v1/employees
+        method: GET
+        auth:
+          bearer:
+            token: ${{env.token}}
+        check:
+          status:
+            - match: ^(200|403)$
+          schema:
+            anyOf:
+              - $ref: "#/components/schemas/EmployeePaginationResponse"
+              - allOf:
+                  - $ref: "#/components/schemas/MipymeError"
+                  - type: object
+                    properties:
+                      code:
+                        const: account_not_provisioned
+                      status:
+                        const: 403
+        captures:
+          membershipError:
+            jsonpath: $.code
+    - name: completes onboarding
+      http:
+        url: ${{env.baseUrl}}/v1/onboarding
+        method: POST
+        auth:
+          bearer:
+            token: ${{env.token}}
+        json:
+          name: Monkey D. Luffy
+          phone: "+50588881234"
+          pin: "1234"
+          location:
+            name: Merry's Shop
+            business_type: electronics_store
+        check:
+          status: 200
+          schema:
+            $ref: "#/components/schemas/Merchant"
+      if: captures.membershipError == "account_not_provisioned"
+tests:
+  invitee:
+    name: lists and accepts only invitations addressed to the signed-in login
+    steps:
+      - name: reads the email of the signed-in login
+        http:
+          url: ${{env.baseUrl}}/me
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+          captures:
+            loginEmail:
+              jsonpath: $.email
+      - name: creates an employee to invite
+        http:
+          url: ${{env.baseUrl}}/v1/employees
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Usopp
+            pin: "3690"
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Employee"
+          captures:
+            employeeId:
+              jsonpath: $.id
+      - name: invites the employee at another address
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}/invitations
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            email: usopp@sogeking.example.com
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/EmployeeInvitation"
+          captures:
+            invitationId:
+              jsonpath: $.id
+      - name: does not list an invitation sent to a different email
+        http:
+          url: ${{env.baseUrl}}/v1/invitations
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/ReceivedInvitationPaginationResponse"
+            jsonpath:
+              $.results.length:
+                - eq: 0
+              $.next_cursor:
+                - isNull: true
+              $.has_more:
+                - eq: false
+      - name: reports an invitation sent to a different email as not found
+        http:
+          url: ${{env.baseUrl}}/v1/invitations/${{captures.invitationId}}/accept
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: resource_not_found
+      - name: reports an unknown invitation as not found
+        http:
+          url: ${{env.baseUrl}}/v1/invitations/invt_ZZZZZZZZZZZZZZZZZZZ/accept
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: resource_not_found
+      - name: refuses to invite an address that already belongs to an account of the business
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}/invitations
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            email: ${{captures.loginEmail}}
+          check:
+            status: 409
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: conflict_error
+      - name: keeps the pending invitation after the refused one
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Employee"
+            jsonpath:
+              $.invitation.id:
+                - eq: ${{captures.invitationId}}
+              $.invitation.status:
+                - eq: invited

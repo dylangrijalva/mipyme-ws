@@ -1,0 +1,472 @@
+version: "1.1"
+name: Employees API
+components:
+  schemas:
+    Employee:
+      $ref: ./src/openapi.json#/components/schemas/Employee
+    EmployeePaginationResponse:
+      $ref: ./src/openapi.json#/components/schemas/EmployeePaginationResponse
+    EmployeeInvitation:
+      $ref: ./src/openapi.json#/components/schemas/EmployeeInvitation
+    LocationPaginationResponse:
+      $ref: ./src/openapi.json#/components/schemas/LocationPaginationResponse
+    MipymeError:
+      $ref: ./src/openapi.json#/components/schemas/MipymeError
+    Merchant:
+      $ref: ./src/openapi.json#/components/schemas/Merchant
+config:
+  concurrency: 1
+before:
+  name: provisions the authenticated account
+  steps:
+    - name: checks whether onboarding is required
+      http:
+        url: ${{env.baseUrl}}/v1/employees
+        method: GET
+        auth:
+          bearer:
+            token: ${{env.token}}
+        check:
+          status:
+            - match: ^(200|403)$
+          schema:
+            anyOf:
+              - $ref: "#/components/schemas/EmployeePaginationResponse"
+              - allOf:
+                  - $ref: "#/components/schemas/MipymeError"
+                  - type: object
+                    properties:
+                      code:
+                        const: account_not_provisioned
+                      status:
+                        const: 403
+        captures:
+          membershipError:
+            jsonpath: $.code
+    - name: completes onboarding
+      http:
+        url: ${{env.baseUrl}}/v1/onboarding
+        method: POST
+        auth:
+          bearer:
+            token: ${{env.token}}
+        json:
+          name: Monkey D. Luffy
+          phone: "+50588881234"
+          pin: "1234"
+          location:
+            name: Merry's Shop
+            business_type: electronics_store
+        check:
+          status: 200
+          schema:
+            $ref: "#/components/schemas/Merchant"
+      if: captures.membershipError == "account_not_provisioned"
+tests:
+  lifecycle:
+    name: creates, updates, invites, and archives employees while keeping PINs unique
+    steps:
+      - name: lists the owner created during onboarding
+        http:
+          url: ${{env.baseUrl}}/v1/employees
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/EmployeePaginationResponse"
+            jsonpath:
+              $.results[?(@.is_owner == true)].status:
+                - eq: [enabled]
+              $.results[?(@.is_owner == true)].pin:
+                - eq: ["1234"]
+          captures:
+            ownerId:
+              jsonpath: $.results[?(@.is_owner == true)].id
+      - name: finds a location to assign
+        http:
+          url: ${{env.baseUrl}}/v1/locations
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/LocationPaginationResponse"
+          captures:
+            locationId:
+              jsonpath: $.results[0].id
+      - name: creates an enabled employee without an account
+        http:
+          url: ${{env.baseUrl}}/v1/employees
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: "  Roronoa Zoro  "
+            pin: "4821"
+            permissions: [checkout, apply_discounts, checkout]
+            max_discount_rate: "0.10"
+            location_ids:
+              - ${{captures.locationId}}
+            is_owner: true
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Employee"
+            jsonpath:
+              $.name:
+                - eq: Roronoa Zoro
+              $.is_owner:
+                - eq: false
+              $.status:
+                - eq: enabled
+              $.pin:
+                - eq: "4821"
+              $.permissions:
+                - eq: [checkout, apply_discounts]
+              $.max_discount_rate:
+                - eq: "0.10"
+              $.location_ids.length:
+                - eq: 1
+              $.location_ids[0]:
+                - eq: ${{captures.locationId}}
+              $.account:
+                - isNull: true
+              $.invitation:
+                - isNull: true
+          captures:
+            employeeId:
+              jsonpath: $.id
+            employee:
+              body: true
+      - name: reloads the created employee
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Employee"
+            body:
+              - eq: ${{captures.employee}}
+      - name: rejects a second employee with the same PIN
+        http:
+          url: ${{env.baseUrl}}/v1/employees
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Sanji
+            pin: "4821"
+          check:
+            status: 409
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: pin_already_exists
+      - name: rejects a PIN that is not exactly four digits
+        http:
+          url: ${{env.baseUrl}}/v1/employees
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Sanji
+            pin: "482"
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+      - name: replaces the permissions and clears the locations
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            permissions: [checkout, void_transaction]
+            location_ids: []
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Employee"
+            jsonpath:
+              $.name:
+                - eq: Roronoa Zoro
+              $.pin:
+                - eq: "4821"
+              $.permissions:
+                - eq: [checkout, void_transaction]
+              $.location_ids.length:
+                - eq: 0
+      - name: lets the owner change their own PIN
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.ownerId.0}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            pin: "5678"
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Employee"
+            jsonpath:
+              $.pin:
+                - eq: "5678"
+              $.is_owner:
+                - eq: true
+      - name: refuses to disable the owner
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.ownerId.0}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            status: disabled
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+      - name: invites the employee to create an account
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}/invitations
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            email: "  Zoro@StrawHatPirates.example.com  "
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/EmployeeInvitation"
+            jsonpath:
+              $.employee_id:
+                - eq: ${{captures.employeeId}}
+              $.email:
+                - eq: zoro@strawhatpirates.example.com
+              $.status:
+                - eq: invited
+              $.accepted_at:
+                - isNull: true
+          captures:
+            firstInvitationId:
+              jsonpath: $.id
+      - name: resends the invitation, replacing the pending one
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}/invitations
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            email: zoro@strawhatpirates.example.com
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/EmployeeInvitation"
+            jsonpath:
+              $.id:
+                - ne: ${{captures.firstInvitationId}}
+              $.status:
+                - eq: invited
+          captures:
+            invitationId:
+              jsonpath: $.id
+      - name: shows the latest invitation on the employee
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Employee"
+            jsonpath:
+              $.invitation.id:
+                - eq: ${{captures.invitationId}}
+              $.invitation.status:
+                - eq: invited
+      - name: revokes the pending invitation
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}/invitations/${{captures.invitationId}}/revoke
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/EmployeeInvitation"
+            jsonpath:
+              $.status:
+                - eq: revoked
+              $.revoked_at:
+                - isString: true
+          captures:
+            revokedInvitation:
+              body: true
+      - name: returns a revoked invitation unchanged when it is revoked again
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}/invitations/${{captures.invitationId}}/revoke
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            body:
+              - eq: ${{captures.revokedInvitation}}
+      - name: refuses to invite the owner
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.ownerId.0}}/invitations
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            email: luffy@strawhatpirates.example.com
+          check:
+            status: 409
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: conflict_error
+      - name: archives the employee
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            status: archived
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Employee"
+            jsonpath:
+              $.status:
+                - eq: archived
+              $.account:
+                - isNull: true
+      - name: leaves the archived employee out of the default list
+        http:
+          url: ${{env.baseUrl}}/v1/employees
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/EmployeePaginationResponse"
+            jsonpath:
+              $.results[*].id:
+                - nin: ${{captures.employeeId}}
+      - name: lists the archived employee when asked for archived employees
+        http:
+          url: ${{env.baseUrl}}/v1/employees?status=archived
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/EmployeePaginationResponse"
+            jsonpath:
+              $.results[*].id:
+                - in: ${{captures.employeeId}}
+              $.results[*].status:
+                - nin: enabled
+      - name: gives the archived employee's PIN to a new hire
+        http:
+          url: ${{env.baseUrl}}/v1/employees
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Sanji
+            pin: "4821"
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Employee"
+            jsonpath:
+              $.pin:
+                - eq: "4821"
+      - name: refuses to restore the archived employee while the PIN is taken
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            status: enabled
+          check:
+            status: 409
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: pin_already_exists
+      - name: restores the archived employee with a new PIN
+        http:
+          url: ${{env.baseUrl}}/v1/employees/${{captures.employeeId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            status: enabled
+            pin: "9753"
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Employee"
+            jsonpath:
+              $.status:
+                - eq: enabled
+              $.pin:
+                - eq: "9753"
+      - name: reports an unknown employee as not found
+        http:
+          url: ${{env.baseUrl}}/v1/employees/empl_ZZZZZZZZZZZZZZZZZZZ
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: resource_not_found

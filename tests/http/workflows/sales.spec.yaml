@@ -55,6 +55,7 @@ before:
         json:
           name: Monkey D. Luffy
           phone: "+50588881234"
+          pin: "1234"
           location:
             name: Water 7
             business_type: electronics_store
@@ -365,6 +366,21 @@ tests:
             jsonpath:
               $.code: resource_not_found
               $.status: 404
+      - name: rejects crediting an employee outside the business
+        http:
+          url: ${{env.baseUrl}}/v1/sales
+          method: POST
+          auth: *auth
+          json:
+            <<: *checkout
+            created_by_id: empl_ZZZZZZZZZZZZZZZZZZZ
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code: resource_not_found
+              $.message: The employee has not been found.
       - name: rejects a missing variant
         http:
           url: ${{env.baseUrl}}/v1/sales

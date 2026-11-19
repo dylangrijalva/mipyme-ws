@@ -18,7 +18,7 @@ async function setup() {
     { id: otherMerchantId, name: "Heart Pirates", country: "ni" },
   ]);
   await db.insert(tables.supplier).values({ id: supplierId, merchantId, name: "Baratie" });
-  await db.insert(tables.employee).values({ id: employeeId, merchantId, name: "Sanji" });
+  await db.insert(tables.employee).values({ id: employeeId, merchantId, name: "Sanji", pin: "4821" });
   await db.insert(tables.location).values({ id: locationId, merchantId, name: "Thousand Sunny" });
   await db.insert(tables.product).values({
     id: productId,

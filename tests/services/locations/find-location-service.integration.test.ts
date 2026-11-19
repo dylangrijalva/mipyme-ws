@@ -54,7 +54,9 @@ describe("FindLocationService", () => {
       }
       if (scenario === "assigned to another employee") {
         const employeeId = generateId({ model: "employee" });
-        await db.insert(tables.employee).values({ id: employeeId, merchantId, name: "Sanji", status: "enabled" });
+        await db
+          .insert(tables.employee)
+          .values({ id: employeeId, merchantId, name: "Sanji", status: "enabled", pin: "2222" });
         await db
           .insert(tables.locationAccess)
           .values({ id: generateId({ model: "locationAccess" }), merchantId, employeeId, locationId: id });

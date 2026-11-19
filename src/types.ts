@@ -7,6 +7,7 @@ import type { Database } from "./db/index.ts";
 import type { CollectionFinder } from "./finders/collection-finder.ts";
 import type { CustomerFinder } from "./finders/customer-finder.ts";
 import type { EmployeeFinder } from "./finders/employee-finder.ts";
+import type { InvitationFinder } from "./finders/invitation-finder.ts";
 import type { LocationFinder } from "./finders/location-finder.ts";
 import type { MerchantFinder } from "./finders/merchant-finder.ts";
 import type { PurchaseFinder } from "./finders/purchase-finder.ts";
@@ -14,9 +15,11 @@ import type { SaleFinder } from "./finders/sale-finder.ts";
 import type { ProductFinder } from "./finders/product-finder.ts";
 import type { SupplierFinder } from "./finders/supplier-finder.ts";
 import type { EnvVars } from "./infra/config.env.ts";
+import type { EmailSender } from "./integrations/email-sender.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
 import type { ProductImageStore } from "./integrations/product-image-store.ts";
 import type { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
+import type { EmployeeManagement } from "./services/staff/employees/employee-management.ts";
 
 type MipymeEnv = {
   Variables: {
@@ -26,12 +29,15 @@ type MipymeEnv = {
     db: Database;
     cache: Redis;
     identity: IdentityProvider;
+    emailSender: EmailSender;
+    employeeManagement: EmployeeManagement;
     productImageStore: ProductImageStore;
     publisher: RealtimeEventPublisher;
     merchantFinder: MerchantFinder;
     collectionFinder: CollectionFinder;
     customerFinder: CustomerFinder;
     employeeFinder: EmployeeFinder;
+    invitationFinder: InvitationFinder;
     locationFinder: LocationFinder;
     supplierFinder: SupplierFinder;
     productFinder: ProductFinder;

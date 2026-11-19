@@ -11,6 +11,7 @@ const PosPermission = z.union([
   z.literal("apply_discounts"),
   z.literal("void_transaction"),
   z.literal("refund"),
+  z.literal("manage_employees"),
 ]);
 
 type PosPermission = z.infer<typeof PosPermission>;

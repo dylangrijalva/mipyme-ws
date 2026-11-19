@@ -15,9 +15,14 @@ async function setupLocations(accountType: CurrentUser["accountType"] = "owner")
     { id: merchantId, name: "Straw Hat Pirates", country: "ni" },
     { id: otherMerchantId, name: "Heart Pirates", country: "ni" },
   ]);
-  await db
-    .insert(tables.employee)
-    .values({ id: employeeId, merchantId, name: "Nami", isOwner: accountType === "owner", status: "enabled" });
+  await db.insert(tables.employee).values({
+    id: employeeId,
+    merchantId,
+    name: "Nami",
+    isOwner: accountType === "owner",
+    status: "enabled",
+    pin: "4821",
+  });
   const user: CurrentUser = {
     id: generateId({ model: "account" }),
     employeeId,

@@ -1,6 +1,8 @@
 import z from "zod";
 import { splitDistinct } from "../utils/split-distinct.ts";
 import { Decimal } from "./decimal.ts";
+import { EmployeeInvitationSummary } from "./employee-invitation.ts";
+import { EmployeeStatus } from "./employee-status.ts";
 
 const PERMISSIONS_DELIMITER = " " as const;
 
@@ -8,25 +10,23 @@ const Employee = z.object({
   id: z.string(),
   name: z.string(),
   isOwner: z.boolean(),
+  pin: z.string(),
   maxDiscountRate: Decimal,
-  status: z.union([z.literal("invited"), z.literal("enabled"), z.literal("disabled")]),
+  status: EmployeeStatus,
   permissions: z
     .string()
     .nullish()
     .transform((value) => splitDistinct(value, PERMISSIONS_DELIMITER)),
+  locationIds: z.string().array(),
   account: z
     .object({ id: z.string(), email: z.string(), phone: z.string().nullable(), phoneVerified: z.boolean() })
     .nullable()
     .default(null),
+  invitation: EmployeeInvitationSummary.nullable().default(null),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
 
-const SyncEmployee = Employee.extend({
-  locationIds: z.string().array(),
-});
-
 type Employee = z.infer<typeof Employee>;
-type SyncEmployee = z.infer<typeof SyncEmployee>;
 
-export { Employee, SyncEmployee };
+export { Employee, PERMISSIONS_DELIMITER };

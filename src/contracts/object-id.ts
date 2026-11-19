@@ -9,6 +9,7 @@ const ID_PREFIXES = {
   account: "account",
   request: "req",
   employee: "empl",
+  employeeInvitation: "invt",
   location: "loc",
   locationAccess: "loca",
   collection: "coll",

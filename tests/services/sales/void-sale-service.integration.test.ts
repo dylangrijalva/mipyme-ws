@@ -13,6 +13,7 @@ import {
 } from "../../../src/services/purchases/create-purchase-service.ts";
 import { CreateSaleRequest, CreateSaleService } from "../../../src/services/sales/create-sale-service.ts";
 import { VoidSaleRequest, VoidSaleService } from "../../../src/services/sales/void-sale-service.ts";
+import { EmployeeManagement } from "../../../src/services/staff/employees/employee-management.ts";
 import { ConcurrentUpdateError } from "../../../src/utils/concurrent-update-error.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
@@ -41,6 +42,7 @@ async function setup() {
     name: "Nami",
     isOwner: true,
     status: "enabled",
+    pin: "4821",
   });
   await db.insert(tables.supplier).values({ id: supplierId, merchantId, name: "Baratie" });
   await db.insert(tables.location).values([
@@ -100,6 +102,7 @@ async function setup() {
   };
   const logger = pino({ enabled: false });
   const saleService = CreateSaleService.create({
+    employeeManagement: new EmployeeManagement(),
     publisher: createRealtimeEventPublisherMock().publisher,
     db,
     user,
@@ -107,6 +110,7 @@ async function setup() {
     saleFinder: new SaleFinder(),
   });
   const purchaseService = CreatePurchaseService.create({
+    employeeManagement: new EmployeeManagement(),
     publisher: createRealtimeEventPublisherMock().publisher,
     db,
     user,
@@ -115,6 +119,7 @@ async function setup() {
   });
   const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const voidService = VoidSaleService.create({
+    employeeManagement: new EmployeeManagement(),
     publisher,
     db,
     user,
@@ -160,6 +165,7 @@ async function createSale(context: Awaited<ReturnType<typeof setup>>, request = 
 
 function createVoidService(context: Awaited<ReturnType<typeof setup>>, user = context.user) {
   return VoidSaleService.create({
+    employeeManagement: new EmployeeManagement(),
     publisher: createRealtimeEventPublisherMock().publisher,
     db: context.db,
     user,
@@ -396,6 +402,7 @@ describe("VoidSaleService", () => {
       name: "Nico Robin",
       isOwner: false,
       status: "enabled",
+      pin: "3333",
       permissions: "void_transaction",
     });
     await context.db.insert(tables.locationAccess).values({
@@ -431,6 +438,7 @@ describe("VoidSaleService", () => {
       name: "Sanji",
       isOwner: false,
       status,
+      pin: "2222",
       permissions,
     });
     await context.db.insert(tables.locationAccess).values({
@@ -466,6 +474,7 @@ describe("VoidSaleService", () => {
       name: "Trafalgar Law",
       isOwner: true,
       status: "enabled",
+      pin: "4821",
     });
     const foreignUser: CurrentUser = {
       id: foreignEmployeeId,
@@ -488,6 +497,7 @@ describe("VoidSaleService", () => {
     const saleFinder = new SaleFinder();
     vi.spyOn(saleFinder, "find").mockRejectedValueOnce(new ConcurrentUpdateError());
     const service = VoidSaleService.create({
+      employeeManagement: new EmployeeManagement(),
       publisher: createRealtimeEventPublisherMock().publisher,
       db: context.db,
       user: context.user,
@@ -512,6 +522,7 @@ describe("VoidSaleService", () => {
     const saleFinder = new SaleFinder();
     vi.spyOn(saleFinder, "find").mockRejectedValue(new ConcurrentUpdateError());
     const service = VoidSaleService.create({
+      employeeManagement: new EmployeeManagement(),
       publisher: createRealtimeEventPublisherMock().publisher,
       db: context.db,
       user: context.user,
@@ -659,6 +670,51 @@ describe("VoidSaleService", () => {
     const result = await context.voidService.execute(sale.id);
 
     expect(result).toMatchObject({ success: false, error: { code: codes.validationError } });
+    expect(await readState(context.db, context.merchantId)).toEqual(before);
+  });
+
+  it("credits the void and its restocking movements to the requested employee", async () => {
+    const context = await setup();
+    const sale = await createSale(context);
+    const usoppId = generateId({ model: "employee" });
+    await context.db.insert(tables.employee).values({
+      id: usoppId,
+      merchantId: context.merchantId,
+      name: "Usopp",
+      status: "enabled",
+      pin: "3333",
+    });
+
+    const result = await context.voidService.execute(sale.id, { voidedById: usoppId });
+
+    expect(result).toMatchObject({
+      success: true,
+      value: { voidedBy: { id: usoppId, name: "Usopp" }, createdBy: { id: context.employeeId } },
+    });
+    const restocks = await context.db
+      .select()
+      .from(tables.inventoryMovement)
+      .where(and(eq(tables.inventoryMovement.referenceId, sale.id), eq(tables.inventoryMovement.reason, "sale_void")));
+    expect(restocks.length).toBeGreaterThan(0);
+    expect(restocks.every((movement) => movement.createdById === usoppId)).toBe(true);
+  });
+
+  it("rejects crediting a disabled employee without voiding the sale", async () => {
+    const context = await setup();
+    const sale = await createSale(context);
+    const usoppId = generateId({ model: "employee" });
+    await context.db.insert(tables.employee).values({
+      id: usoppId,
+      merchantId: context.merchantId,
+      name: "Usopp",
+      status: "disabled",
+      pin: "3333",
+    });
+    const before = await readState(context.db, context.merchantId);
+
+    const result = await context.voidService.execute(sale.id, { voidedById: usoppId });
+
+    expect(result).toMatchObject({ success: false, error: { code: codes.forbiddenError } });
     expect(await readState(context.db, context.merchantId)).toEqual(before);
   });
 });

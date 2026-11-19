@@ -11,7 +11,9 @@ import {
   varchar,
 } from "drizzle-orm/mysql-core";
 import type { BusinessType } from "../contracts/business-type.ts";
-import type { Employee } from "../contracts/employee.ts";
+import type { EmployeeStatus } from "../contracts/employee-status.ts";
+import { PIN_LENGTH } from "../contracts/employee-pin.ts";
+import type { StoredInvitationStatus } from "../contracts/invitation-status.ts";
 import type { InventoryMovementReason } from "../contracts/inventory-movement-reason.ts";
 import type { InventoryState } from "../contracts/inventory-state.ts";
 import { ID_LENGTH } from "../contracts/object-id.ts";
@@ -78,7 +80,8 @@ export const employee = mysqlTable(
       .notNull()
       .references(() => merchant.id),
     isOwner: boolean().notNull().default(false),
-    status: varchar({ length: 24 }).notNull().default("invited").$type<Employee["status"]>(),
+    status: varchar({ length: 24 }).notNull().default("enabled").$type<EmployeeStatus>(),
+    pin: char({ length: PIN_LENGTH }).notNull(),
     permissions: varchar({ length: 256 }),
     maxDiscountRate: decimal({ precision: 3, scale: 2, mode: "string", unsigned: true }).notNull().default("0.00"),
     accountId: char({ length: ID_LENGTH }).references(() => account.id),
@@ -97,6 +100,50 @@ export const employee = mysqlTable(
       columns: [table.merchantId, table.accountId],
       foreignColumns: [account.merchantId, account.id],
       name: "employees_merchant_accountId_fk",
+    }).onDelete("restrict"),
+  ],
+);
+
+export const employeeInvitation = mysqlTable(
+  "employee_invitations",
+  {
+    id: char({ length: ID_LENGTH }).primaryKey(),
+    email: varchar({ length: 320 }).notNull(),
+    status: varchar({ length: 24 }).notNull().default("invited").$type<StoredInvitationStatus>(),
+    expiresAt: datetime({ mode: "date", fsp: 6 }).notNull(),
+    acceptedAt: datetime({ mode: "date", fsp: 6 }),
+    revokedAt: datetime({ mode: "date", fsp: 6 }),
+    createdAt: datetime({ mode: "date", fsp: 6 })
+      .notNull()
+      .$defaultFn(() => now()),
+    updatedAt: datetime({ mode: "date", fsp: 6 })
+      .notNull()
+      .$defaultFn(() => now())
+      .$onUpdateFn(() => now()),
+    employeeId: char({ length: ID_LENGTH })
+      .references(() => employee.id)
+      .notNull(),
+    invitedById: char({ length: ID_LENGTH })
+      .references(() => employee.id)
+      .notNull(),
+    merchantId: char({ length: ID_LENGTH })
+      .references(() => merchant.id)
+      .notNull(),
+  },
+  (table) => [
+    index("employee_invitations_email_status_idx").on(table.email, table.status),
+    index("employee_invitations_employee_id_idx").on(table.employeeId),
+    index("employee_invitations_merchant_id_idx").on(table.merchantId),
+    unique("employee_invitations_merchant_id_unique").on(table.merchantId, table.id),
+    foreignKey({
+      columns: [table.merchantId, table.employeeId],
+      foreignColumns: [employee.merchantId, employee.id],
+      name: "employee_invitations_merchant_employeeId_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.merchantId, table.invitedById],
+      foreignColumns: [employee.merchantId, employee.id],
+      name: "employee_invitations_merchant_invitedById_fk",
     }).onDelete("restrict"),
   ],
 );
@@ -886,6 +933,7 @@ const tables = Object.freeze({
   merchant,
   account,
   employee,
+  employeeInvitation,
   location,
   locationAccess,
   customer,
