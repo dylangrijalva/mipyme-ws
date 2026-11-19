@@ -2,6 +2,7 @@ import { eq, ne } from "drizzle-orm";
 import pino from "pino";
 import { describe, expect, it } from "vitest";
 import { codes } from "../../../src/contracts/business-error.ts";
+import type { Database } from "../../../src/db/index.ts";
 import { tables } from "../../../src/db/schema.ts";
 import { CollectionFinder } from "../../../src/finders/collection-finder.ts";
 import {
@@ -22,20 +23,21 @@ async function setup() {
   ]);
   const collectionFinder = new CollectionFinder();
   const { broadcast, publisher } = createRealtimeEventPublisherMock();
-  const service = UpdateCollectionService.create({
-    publisher,
-    db,
-    collectionFinder,
-    logger: pino({ enabled: false }),
-    user: {
-      id: "luffy",
-      employeeId: "sanji",
-      email: "sanji@strawhatpirates.example.com",
-      accountType: "owner",
-      merchantId,
-    },
-  });
-  return { broadcast, db, merchantId, otherMerchantId, service, collectionFinder };
+  const createService = (database: Database) =>
+    UpdateCollectionService.create({
+      publisher,
+      db: database,
+      collectionFinder,
+      logger: pino({ enabled: false }),
+      user: {
+        id: "luffy",
+        employeeId: "sanji",
+        email: "sanji@strawhatpirates.example.com",
+        accountType: "owner",
+        merchantId,
+      },
+    });
+  return { broadcast, db, merchantId, otherMerchantId, service: createService(db), createService };
 }
 
 describe("UpdateCollectionService", () => {
@@ -71,19 +73,27 @@ describe("UpdateCollectionService", () => {
     ).toEqual(before);
   });
 
-  it("rejects a conflicting rename without changing either collection", async () => {
-    const { db, merchantId, service } = await setup();
+  it("rejects a rename claimed after the request's snapshot without changing either collection or publishing", async () => {
+    const { db, merchantId, createService, broadcast } = await setup();
     const id = generateId({ model: "collection" });
-    await db.insert(tables.collection).values([
-      { id, merchantId, name: "Water 7", slug: "water-7" },
-      { id: generateId({ model: "collection" }), merchantId, name: "Alabasta", slug: "alabasta" },
-    ]);
-    const before = await db.select().from(tables.collection).orderBy(tables.collection.id);
+    await db.insert(tables.collection).values({ id, merchantId, name: "Water 7", slug: "water-7" });
+    const winner = { id: generateId({ model: "collection" }), merchantId, name: "Alabasta", slug: "alabasta" };
 
-    const result = await service.execute([id, { name: "ALABASTA" }]);
+    const { result, before } = await db.transaction(
+      async (transaction) => {
+        // A consistent read establishes the snapshot before the competing request commits.
+        await transaction.select({ id: tables.collection.id }).from(tables.collection).limit(1);
+        await db.insert(tables.collection).values(winner);
+        const before = await db.select().from(tables.collection).orderBy(tables.collection.id);
+        const result = await createService(transaction).execute([id, { name: "ALABASTA" }]);
+        return { result, before };
+      },
+      { isolationLevel: "repeatable read" },
+    );
 
     expect(result).toMatchObject({ success: false, error: { code: codes.collectionNameAlreadyExists } });
     expect(await db.select().from(tables.collection).orderBy(tables.collection.id)).toEqual(before);
+    expect(broadcast).not.toHaveBeenCalled();
   });
 
   it("allows its existing slug and leaves an empty patch unchanged", async () => {

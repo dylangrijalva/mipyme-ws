@@ -1,6 +1,6 @@
 import type { Logger } from "pino";
 import z from "zod";
-import { codes, type BusinessError } from "../../../contracts/business-error.ts";
+import type { BusinessError } from "../../../contracts/business-error.ts";
 import { Collection } from "../../../contracts/collection.ts";
 import type { CurrentUser } from "../../../contracts/current-user.ts";
 import type { Database } from "../../../db/index.ts";
@@ -8,9 +8,10 @@ import { tables } from "../../../db/schema.ts";
 import type { CollectionFinder } from "../../../finders/collection-finder.ts";
 import type { RealtimeEventPublisher } from "../../../integrations/realtime-event-publisher.ts";
 import { generateId } from "../../../utils/generate-id.ts";
-import { err, ok, type Result } from "../../../utils/result.ts";
+import { ok, type Result } from "../../../utils/result.ts";
 import { slugify } from "../../../utils/slugify.ts";
 import { BaseService } from "../../base-service.ts";
+import { handleCollectionWriteError } from "./collection-write-error.ts";
 
 const CollectionName = z
   .string()
@@ -73,22 +74,20 @@ class CreateCollectionService extends BaseService<CreateCollectionRequest, Colle
   private async createCollection(request: CreateCollectionRequest): Promise<Result<Collection, BusinessError>> {
     const slug = slugify(request.name);
 
-    if (await this.collectionFinder.exists(this.db, { merchantId: this.user.merchantId, slug })) {
-      return err({
-        code: codes.collectionNameAlreadyExists,
-        message: "A collection with this name already exists. Choose another name.",
-        details: [],
-      });
-    }
-
     const id = generateId({ model: "collection" });
 
-    await this.db.insert(tables.collection).values({
-      id,
-      merchantId: this.user.merchantId,
-      name: request.name,
-      slug,
-    });
+    const conflict = await this.db
+      .insert(tables.collection)
+      .values({
+        id,
+        merchantId: this.user.merchantId,
+        name: request.name,
+        slug,
+      })
+      .then(() => undefined, handleCollectionWriteError);
+    if (conflict) {
+      return conflict;
+    }
 
     const collection = await this.collectionFinder.find(this.db, { id, merchantId: this.user.merchantId });
 

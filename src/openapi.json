@@ -2270,7 +2270,7 @@
             }
           },
           "409": {
-            "description": "The collection name creates a slug already used in this merchant (`collection_name_already_exists`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
+            "description": "The collection name creates a slug already used in this merchant, including one claimed by a concurrent request (`collection_name_already_exists`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2470,7 +2470,7 @@
             }
           },
           "409": {
-            "description": "Another collection in this merchant has a name that produces the same slug. Returns `collection_name_already_exists`.",
+            "description": "Another collection in this merchant has claimed the same slug, including through a concurrent request. Returns `collection_name_already_exists`.",
             "content": {
               "application/json": {
                 "schema": {

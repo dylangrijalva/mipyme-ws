@@ -12,6 +12,7 @@ import { hasDefinedValues } from "../../../utils/has-defined-values.ts";
 import { err, ok, type Result } from "../../../utils/result.ts";
 import { slugify } from "../../../utils/slugify.ts";
 import { BaseService } from "../../base-service.ts";
+import { handleCollectionWriteError } from "./collection-write-error.ts";
 
 type InjectedDependencies = {
   logger: Logger;
@@ -91,19 +92,14 @@ class UpdateCollectionService extends BaseService<[string, UpdateCollectionReque
 
     const slug = slugify(request.name ?? collection.name);
 
-    const duplicate = await this.collectionFinder.find(this.db, { merchantId: this.user.merchantId, slug });
-    if (duplicate && duplicate.id !== id) {
-      return err({
-        code: codes.collectionNameAlreadyExists,
-        message: "A collection with this name already exists. Choose another name.",
-        details: [],
-      });
-    }
-
-    await this.db
+    const conflict = await this.db
       .update(tables.collection)
       .set({ name: request.name, slug })
-      .where(and(eq(tables.collection.id, id), eq(tables.collection.merchantId, this.user.merchantId)));
+      .where(and(eq(tables.collection.id, id), eq(tables.collection.merchantId, this.user.merchantId)))
+      .then(() => undefined, handleCollectionWriteError);
+    if (conflict) {
+      return conflict;
+    }
 
     const updatedCollection = await this.collectionFinder.find(this.db, { id, merchantId: this.user.merchantId });
 
