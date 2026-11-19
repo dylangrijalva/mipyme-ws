@@ -3,7 +3,6 @@ import type { Logger } from "pino";
 import z from "zod";
 import { codes, type BusinessError } from "../../contracts/business-error.ts";
 import { BusinessType } from "../../contracts/business-type.ts";
-import { CountryIsoCode } from "../../contracts/country-iso-code.ts";
 import type { IdentityAccount } from "../../contracts/identity-account.ts";
 import type { JsonWebTokenPayload } from "../../contracts/json-web-token-payload.ts";
 import type { Merchant } from "../../contracts/merchant.ts";
@@ -15,6 +14,7 @@ import type { MerchantFinder } from "../../finders/merchant-finder.ts";
 import type { IdentityProvider } from "../../integrations/identity-provider.ts";
 import { assertFound } from "../../utils/assert-found.ts";
 import { generateId } from "../../utils/generate-id.ts";
+import { resolvePhoneNumberCountry } from "../../utils/resolve-phone-number-country.ts";
 import { err, ok, type Result } from "../../utils/result.ts";
 import { BaseService } from "../base-service.ts";
 
@@ -33,18 +33,32 @@ const PHONE_NUMBER_ALREADY_EXISTS: BusinessError = Object.freeze({
   details: [],
 });
 
-const OnboardAccountRequest = z.object({
-  name: z.string().trim().nonempty().max(64),
-  phone: z
-    .string()
-    .trim()
-    .regex(PHONE_NUMBER_REGEX, "The phone number must be in E.164 format, for example +593987654321."),
-  country: CountryIsoCode,
-  location: z.object({
+const OnboardAccountRequest = z
+  .object({
     name: z.string().trim().nonempty().max(64),
-    businessType: BusinessType.default("other"),
-  }),
-});
+    phone: z
+      .string()
+      .trim()
+      .regex(PHONE_NUMBER_REGEX, "The phone number must be in E.164 format, for example +573001234567."),
+    location: z.object({
+      name: z.string().trim().nonempty().max(64),
+      businessType: BusinessType.default("other"),
+    }),
+  })
+  .transform((request, ctx) => {
+    const country = resolvePhoneNumberCountry(request.phone);
+    if (!country) {
+      ctx.issues.push({
+        code: "custom",
+        message: "The phone number must belong to a supported country.",
+        input: request.phone,
+        path: ["phone"],
+      });
+      return z.NEVER;
+    }
+
+    return { ...request, country };
+  });
 
 type OnboardAccountRequest = z.infer<typeof OnboardAccountRequest>;
 

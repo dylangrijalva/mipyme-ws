@@ -48,8 +48,7 @@ before:
             token: ${{env.token}}
         json:
           name: Monkey D. Luffy
-          phone: "+12015550100"
-          country: ni
+          phone: "+50588881234"
           location:
             name: Merry's Shop
             business_type: electronics_store

@@ -24,12 +24,13 @@ const IDENTITY_ACCOUNT: IdentityAccount = {
   publicMetadata: {},
 };
 
-const REQUEST: OnboardAccountRequest = {
+const REQUEST_BODY = {
   name: "Monkey D. Luffy",
-  phone: "+593987654321",
-  country: "ni",
+  phone: "+573001234567",
   location: { name: "Straw Hat Pirates", businessType: "restaurant" },
 };
+
+const REQUEST = OnboardAccountRequest.parse(REQUEST_BODY);
 
 const PHONE_NUMBER_ALREADY_EXISTS: BusinessError = {
   code: codes.phoneNumberAlreadyExists,
@@ -129,11 +130,11 @@ describe("ProvisionAccountService", () => {
     const employee = after.employees.find((record) => record.merchantId === merchant.id)!;
     const location = after.locations.find((record) => record.merchantId === merchant.id)!;
     expect(result).toEqual(ok(merchant));
-    expect(merchant).toMatchObject({ name: "Straw Hat Pirates", country: "ni" });
+    expect(merchant).toMatchObject({ name: "Straw Hat Pirates", country: "co" });
     expect(account).toMatchObject({
       externalId: "user_luffy",
       email: IDENTITY_ACCOUNT.email,
-      phone: "+593987654321",
+      phone: "+573001234567",
       phoneVerified: false,
     });
     expect(employee).toMatchObject({
@@ -164,12 +165,13 @@ describe("ProvisionAccountService", () => {
 
     vi.mocked(Date.now).mockReturnValue(new Date("2026-01-16T12:00:00Z").getTime());
 
-    const result = await service.execute({
-      name: "Captain Luffy",
-      phone: "+573001234567",
-      country: "cr",
-      location: { name: "Thousand Sunny", businessType: "grocery_store" },
-    });
+    const result = await service.execute(
+      OnboardAccountRequest.parse({
+        name: "Captain Luffy",
+        phone: "+525512345678",
+        location: { name: "Thousand Sunny", businessType: "grocery_store" },
+      }),
+    );
 
     expect(result).toEqual(first);
     expect(await readState(db)).toEqual(before);
@@ -399,32 +401,61 @@ describe("ProvisionAccountService", () => {
 
 describe("OnboardAccountRequest", () => {
   it.each([
-    ["the shortest E.164 number", "+12345678"],
-    ["the longest E.164 number", "+123456789012345"],
-    ["an Ecuadorian mobile number", "+593987654321"],
-  ])("accepts %s", (_scenario, phone) => {
-    const result = OnboardAccountRequest.safeParse({ ...REQUEST, phone });
+    ["+573001234567", "co"],
+    ["+525512345678", "mx"],
+    ["+50588881234", "ni"],
+  ])("accepts %s and resolves the merchant country to %s", (phone, country) => {
+    const result = OnboardAccountRequest.safeParse({ ...REQUEST_BODY, phone });
 
-    expect(result.data?.phone).toBe(phone);
+    expect(result.data).toMatchObject({ phone, country });
   });
 
   it("trims whitespace around the phone number", () => {
-    const result = OnboardAccountRequest.safeParse({ ...REQUEST, phone: " +593987654321 " });
+    const result = OnboardAccountRequest.safeParse({ ...REQUEST_BODY, phone: " +573001234567 " });
 
-    expect(result.data?.phone).toBe("+593987654321");
+    expect(result.data).toMatchObject({ phone: "+573001234567", country: "co" });
+  });
+
+  it("ignores a country sent by the client", () => {
+    const result = OnboardAccountRequest.safeParse({ ...REQUEST_BODY, country: "ni" });
+
+    expect(result.data?.country).toBe("co");
+  });
+
+  it("rejects a request without a phone number", () => {
+    const result = OnboardAccountRequest.safeParse({ ...REQUEST_BODY, phone: undefined });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([expect.objectContaining({ path: ["phone"], code: "invalid_type" })]);
   });
 
   it.each([
-    ["is missing", undefined],
     ["is a national number", "0987654321"],
-    ["contains spaces", "+593 98 765 4321"],
-    ["starts the country code with zero", "+0593987654321"],
+    ["contains spaces", "+57 300 123 4567"],
+    ["starts the country code with zero", "+0573001234567"],
     ["is too short", "+1234567"],
     ["is too long", "+1234567890123456"],
-  ])("rejects a phone number that %s", (_scenario, phone) => {
-    const result = OnboardAccountRequest.safeParse({ ...REQUEST, phone });
+  ])("rejects a phone number that %s as not E.164", (_scenario, phone) => {
+    const result = OnboardAccountRequest.safeParse({ ...REQUEST_BODY, phone });
 
     expect(result.success).toBe(false);
-    expect(result.error?.issues).toEqual([expect.objectContaining({ path: ["phone"] })]);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["phone"],
+        message: "The phone number must be in E.164 format, for example +573001234567.",
+      }),
+    ]);
+  });
+
+  it.each([
+    ["an unsupported country", "+593987654321"],
+    ["no country at all", "+80012345678"],
+  ])("rejects a well-formed phone number from %s", (_scenario, phone) => {
+    const result = OnboardAccountRequest.safeParse({ ...REQUEST_BODY, phone });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({ path: ["phone"], message: "The phone number must belong to a supported country." }),
+    ]);
   });
 });

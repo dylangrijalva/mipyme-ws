@@ -661,7 +661,7 @@
         "tags": ["Onboarding"],
         "operationId": "onboardAccount",
         "summary": "Create a merchant",
-        "description": "Creates a merchant and its first location, then makes the authenticated account its owner. If the account already owns a merchant, the endpoint returns it. Staff accounts cannot create a merchant.",
+        "description": "Creates a merchant and its first location, then makes the authenticated account its owner. The merchant's country is inferred from the owner's phone number. If the account already owns a merchant, the endpoint returns it. Staff accounts cannot create a merchant.",
         "security": [
           {
             "bearerAuth": []
@@ -689,7 +689,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or one or more invalid values. Returns `validation_error`.",
+            "description": "The request contains invalid JSON or one or more invalid values, including a phone number that is not in E.164 format or does not belong to a supported country. Returns `validation_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4119,31 +4119,7 @@
         "description": "A country code in lowercase ISO 3166-1 alpha-2 format. The value `zz` means unspecified.",
         "examples": ["ni"],
         "type": "string",
-        "enum": [
-          "zz",
-          "ar",
-          "bo",
-          "br",
-          "bz",
-          "cl",
-          "co",
-          "cr",
-          "cu",
-          "do",
-          "ec",
-          "gt",
-          "hn",
-          "ht",
-          "mx",
-          "ni",
-          "pa",
-          "pe",
-          "pr",
-          "py",
-          "sv",
-          "uy",
-          "ve"
-        ]
+        "enum": ["zz", "bz", "co", "cr", "gt", "hn", "mx", "ni", "pa", "sv", "ve"]
       },
       "CurrencyCode": {
         "description": "A currency code in lowercase ISO 4217 format. The value `xxx` means unspecified.",
@@ -4336,7 +4312,7 @@
                     "type": ["string", "null"],
                     "pattern": "^\\+[1-9]\\d{7,14}$",
                     "description": "The personal phone number of the linked account in E.164 format. Collected from owners during onboarding; returns `null` if the account has no phone number.",
-                    "examples": ["+593987654321"]
+                    "examples": ["+573001234567"]
                   },
                   "phone_verified": {
                     "type": "boolean",
@@ -4350,7 +4326,7 @@
                   {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
                     "email": "nami@strawhatpirates.example.com",
-                    "phone": "+593987654321",
+                    "phone": "+573001234567",
                     "phone_verified": false
                   }
                 ]
@@ -4364,7 +4340,7 @@
               {
                 "id": "account_RJ9LZ5VTZ4W6P9RR",
                 "email": "nami@strawhatpirates.example.com",
-                "phone": "+593987654321",
+                "phone": "+573001234567",
                 "phone_verified": false
               }
             ]
@@ -4410,7 +4386,7 @@
             "account": {
               "id": "account_RJ9LZ5VTZ4W6P9RR",
               "email": "nami@strawhatpirates.example.com",
-              "phone": "+593987654321",
+              "phone": "+573001234567",
               "phone_verified": false
             },
             "created_at": "2026-09-23T09:00:00.000Z",
@@ -4472,7 +4448,7 @@
                     "type": ["string", "null"],
                     "pattern": "^\\+[1-9]\\d{7,14}$",
                     "description": "The personal phone number of the linked account in E.164 format. Collected from owners during onboarding; returns `null` if the account has no phone number.",
-                    "examples": ["+593987654321"]
+                    "examples": ["+573001234567"]
                   },
                   "phone_verified": {
                     "type": "boolean",
@@ -4486,7 +4462,7 @@
                   {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
                     "email": "nami@strawhatpirates.example.com",
-                    "phone": "+593987654321",
+                    "phone": "+573001234567",
                     "phone_verified": false
                   }
                 ]
@@ -4500,7 +4476,7 @@
               {
                 "id": "account_RJ9LZ5VTZ4W6P9RR",
                 "email": "nami@strawhatpirates.example.com",
-                "phone": "+593987654321",
+                "phone": "+573001234567",
                 "phone_verified": false
               }
             ]
@@ -4555,7 +4531,7 @@
             "account": {
               "id": "account_RJ9LZ5VTZ4W6P9RR",
               "email": "nami@strawhatpirates.example.com",
-              "phone": "+593987654321",
+              "phone": "+573001234567",
               "phone_verified": false
             },
             "created_at": "2026-09-23T09:00:00.000Z",
@@ -6617,7 +6593,7 @@
                   "account": {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
                     "email": "nami@strawhatpirates.example.com",
-                    "phone": "+593987654321",
+                    "phone": "+573001234567",
                     "phone_verified": false
                   },
                   "createdAt": "2026-09-23T09:00:00.000Z",
@@ -6637,7 +6613,7 @@
                   "account": {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
                     "email": "nami@strawhatpirates.example.com",
-                    "phone": "+593987654321",
+                    "phone": "+573001234567",
                     "phone_verified": false
                   },
                   "createdAt": "2026-09-23T09:00:00.000Z",
@@ -6844,7 +6820,7 @@
                 "account": {
                   "id": "account_RJ9LZ5VTZ4W6P9RR",
                   "email": "nami@strawhatpirates.example.com",
-                  "phone": "+593987654321",
+                  "phone": "+573001234567",
                   "phone_verified": false
                 },
                 "createdAt": "2026-09-23T09:00:00.000Z",
@@ -7452,12 +7428,8 @@
           "phone": {
             "type": "string",
             "pattern": "^\\+[1-9]\\d{7,14}$",
-            "description": "The personal phone number of the business owner in E.164 format. Must not belong to another account. Ignored when the account already owns a merchant.",
-            "examples": ["+593987654321"]
-          },
-          "country": {
-            "$ref": "#/components/schemas/CountryIsoCode",
-            "description": "The country where the business operates, expressed as a supported lowercase country code."
+            "description": "The personal phone number of the business owner in E.164 format. Must not belong to another account. The merchant's country is inferred from it, so it must belong to a supported country. Ignored when the account already owns a merchant.",
+            "examples": ["+573001234567"]
           },
           "location": {
             "type": "object",
@@ -7478,12 +7450,11 @@
             "description": "Details of the first location to create for the business."
           }
         },
-        "required": ["name", "phone", "country", "location"],
+        "required": ["name", "phone", "location"],
         "examples": [
           {
             "name": "Monkey D. Luffy",
-            "phone": "+593987654321",
-            "country": "ni",
+            "phone": "+573001234567",
             "location": {
               "name": "Straw Hat Pirates",
               "business_type": "grocery_store"

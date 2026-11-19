@@ -18,7 +18,6 @@ tests:
           json:
             name: Monkey D. Luffy
             phone: 201 555 0100
-            country: ni
             location:
               name: Merry's Shop
           check:
@@ -37,7 +36,6 @@ tests:
               token: ${{env.token}}
           json:
             name: Monkey D. Luffy
-            country: ni
             location:
               name: Merry's Shop
           check:
@@ -47,6 +45,27 @@ tests:
             jsonpath:
               $.code:
                 - eq: validation_error
+      - name: rejects a phone number from an unsupported country
+        http:
+          url: ${{env.baseUrl}}/v1/onboarding
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Monkey D. Luffy
+            phone: "+593987654321"
+            location:
+              name: Merry's Shop
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+              $.details[0].field:
+                - eq: phone
       - name: POST /v1/onboarding
         http:
           url: ${{env.baseUrl}}/v1/onboarding
@@ -56,8 +75,7 @@ tests:
               token: ${{env.token}}
           json:
             name: Monkey D. Luffy
-            phone: "+12015550100"
-            country: ni
+            phone: "+50588881234"
             location:
               name: "  Merry's Shop  "
               business_type: electronics_store
@@ -87,8 +105,7 @@ tests:
               token: ${{env.token}}
           json:
             name: Monkey D. Luffy
-            phone: "+12015550100"
-            country: ni
+            phone: "+50588881234"
             location:
               name: "  Merry's Shop  "
               business_type: electronics_store
