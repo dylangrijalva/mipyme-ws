@@ -14,6 +14,7 @@ const ERROR_STATUS_CODES: Record<ErrorCode, number> = Object.freeze({
   [codes.collectionNameAlreadyExists]: 409,
   [codes.skuAlreadyExists]: 409,
   [codes.barcodeAlreadyExists]: 409,
+  [codes.phoneNumberAlreadyExists]: 409,
   [codes.priceBelowUnitCost]: 400,
   [codes.paymentInsufficient]: 400,
   [codes.stockInsufficient]: 409,

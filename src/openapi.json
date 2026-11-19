@@ -719,7 +719,7 @@
             }
           },
           "409": {
-            "description": "The account is a staff member, or a conflicting change prevents the update (`conflict_error`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
+            "description": "The account is a staff member, or a conflicting change prevents the update (`conflict_error`). The phone number already belongs to another account (`phone_number_already_exists`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3893,6 +3893,7 @@
               "collection_name_already_exists",
               "sku_already_exists",
               "barcode_already_exists",
+              "phone_number_already_exists",
               "price_below_unit_cost",
               "payment_insufficient",
               "stock_insufficient",
@@ -4330,14 +4331,21 @@
                     "type": "string",
                     "description": "The email address of the linked account.",
                     "examples": ["nami@strawhatpirates.example.com"]
+                  },
+                  "phone": {
+                    "type": ["string", "null"],
+                    "pattern": "^\\+[1-9]\\d{7,14}$",
+                    "description": "The personal phone number of the linked account in E.164 format. Collected from owners during onboarding; returns `null` if the account has no phone number.",
+                    "examples": ["+593987654321"]
                   }
                 },
-                "required": ["id", "email"],
+                "required": ["id", "email", "phone"],
                 "additionalProperties": false,
                 "examples": [
                   {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
-                    "email": "nami@strawhatpirates.example.com"
+                    "email": "nami@strawhatpirates.example.com",
+                    "phone": "+593987654321"
                   }
                 ]
               },
@@ -4349,7 +4357,8 @@
             "examples": [
               {
                 "id": "account_RJ9LZ5VTZ4W6P9RR",
-                "email": "nami@strawhatpirates.example.com"
+                "email": "nami@strawhatpirates.example.com",
+                "phone": "+593987654321"
               }
             ]
           },
@@ -4393,7 +4402,8 @@
             "permissions": ["checkout", "manage_inventory"],
             "account": {
               "id": "account_RJ9LZ5VTZ4W6P9RR",
-              "email": "nami@strawhatpirates.example.com"
+              "email": "nami@strawhatpirates.example.com",
+              "phone": "+593987654321"
             },
             "created_at": "2026-09-23T09:00:00.000Z",
             "updated_at": "2026-09-23T09:00:00.000Z",
@@ -4449,14 +4459,21 @@
                     "type": "string",
                     "description": "The email address of the linked account.",
                     "examples": ["nami@strawhatpirates.example.com"]
+                  },
+                  "phone": {
+                    "type": ["string", "null"],
+                    "pattern": "^\\+[1-9]\\d{7,14}$",
+                    "description": "The personal phone number of the linked account in E.164 format. Collected from owners during onboarding; returns `null` if the account has no phone number.",
+                    "examples": ["+593987654321"]
                   }
                 },
-                "required": ["id", "email"],
+                "required": ["id", "email", "phone"],
                 "additionalProperties": false,
                 "examples": [
                   {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
-                    "email": "nami@strawhatpirates.example.com"
+                    "email": "nami@strawhatpirates.example.com",
+                    "phone": "+593987654321"
                   }
                 ]
               },
@@ -4468,7 +4485,8 @@
             "examples": [
               {
                 "id": "account_RJ9LZ5VTZ4W6P9RR",
-                "email": "nami@strawhatpirates.example.com"
+                "email": "nami@strawhatpirates.example.com",
+                "phone": "+593987654321"
               }
             ]
           },
@@ -4521,7 +4539,8 @@
             "permissions": ["checkout", "manage_inventory"],
             "account": {
               "id": "account_RJ9LZ5VTZ4W6P9RR",
-              "email": "nami@strawhatpirates.example.com"
+              "email": "nami@strawhatpirates.example.com",
+              "phone": "+593987654321"
             },
             "created_at": "2026-09-23T09:00:00.000Z",
             "updated_at": "2026-09-23T09:00:00.000Z",
@@ -4552,6 +4571,7 @@
               "collection_name_already_exists",
               "sku_already_exists",
               "barcode_already_exists",
+              "phone_number_already_exists",
               "price_below_unit_cost",
               "payment_insufficient",
               "stock_insufficient",
@@ -6580,7 +6600,8 @@
                   "permissions": ["checkout", "manage_inventory"],
                   "account": {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
-                    "email": "nami@strawhatpirates.example.com"
+                    "email": "nami@strawhatpirates.example.com",
+                    "phone": "+593987654321"
                   },
                   "createdAt": "2026-09-23T09:00:00.000Z",
                   "updatedAt": "2026-09-23T09:00:00.000Z"
@@ -6598,7 +6619,8 @@
                   "permissions": ["checkout", "manage_inventory"],
                   "account": {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
-                    "email": "nami@strawhatpirates.example.com"
+                    "email": "nami@strawhatpirates.example.com",
+                    "phone": "+593987654321"
                   },
                   "createdAt": "2026-09-23T09:00:00.000Z",
                   "updatedAt": "2026-09-23T09:00:00.000Z"
@@ -6803,7 +6825,8 @@
                 "permissions": ["checkout", "manage_inventory"],
                 "account": {
                   "id": "account_RJ9LZ5VTZ4W6P9RR",
-                  "email": "nami@strawhatpirates.example.com"
+                  "email": "nami@strawhatpirates.example.com",
+                  "phone": "+593987654321"
                 },
                 "createdAt": "2026-09-23T09:00:00.000Z",
                 "updatedAt": "2026-09-23T09:00:00.000Z"
@@ -7407,6 +7430,12 @@
             "maxLength": 64,
             "description": "The name of the business owner."
           },
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$",
+            "description": "The personal phone number of the business owner in E.164 format. Must not belong to another account. Ignored when the account already owns a merchant.",
+            "examples": ["+593987654321"]
+          },
           "country": {
             "$ref": "#/components/schemas/CountryIsoCode",
             "description": "The country where the business operates, expressed as a supported lowercase country code."
@@ -7430,10 +7459,11 @@
             "description": "Details of the first location to create for the business."
           }
         },
-        "required": ["name", "country", "location"],
+        "required": ["name", "phone", "country", "location"],
         "examples": [
           {
             "name": "Monkey D. Luffy",
+            "phone": "+593987654321",
             "country": "ni",
             "location": {
               "name": "Straw Hat Pirates",

@@ -18,6 +18,7 @@ const codes = {
   collectionNameAlreadyExists: "collection_name_already_exists",
   skuAlreadyExists: "sku_already_exists",
   barcodeAlreadyExists: "barcode_already_exists",
+  phoneNumberAlreadyExists: "phone_number_already_exists",
   priceBelowUnitCost: "price_below_unit_cost",
   paymentInsufficient: "payment_insufficient",
   stockInsufficient: "stock_insufficient",

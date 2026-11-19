@@ -7,7 +7,10 @@ import { type SyncCriteria, syncWindow } from "./sync-criteria.ts";
 class EmployeeFinder {
   async findForSync(db: Database, criteria: SyncCriteria): Promise<Array<SyncEmployee>> {
     const records = await db
-      .select({ employee: tables.employee, account: { id: tables.account.id, email: tables.account.email } })
+      .select({
+        employee: tables.employee,
+        account: { id: tables.account.id, email: tables.account.email, phone: tables.account.phone },
+      })
       .from(tables.employee)
       .leftJoin(
         tables.account,

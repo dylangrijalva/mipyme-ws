@@ -48,6 +48,7 @@ before:
             token: ${{env.token}}
         json:
           name: Monkey D. Luffy
+          phone: "+12015550100"
           country: ni
           location:
             name: Merry's Shop
@@ -162,6 +163,9 @@ tests:
                     - Monkey D. Luffy
               $.employees[?(@.is_owner == true)].location_ids.length:
                 - gte: 0
+              $.employees[?(@.is_owner == true)].account.phone:
+                - eq:
+                    - "+12015550100"
               $.merchant.id:
                 - match: ^merch_[A-Z0-9]+$
           captures:

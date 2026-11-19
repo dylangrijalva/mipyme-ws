@@ -47,6 +47,7 @@ export const account = mysqlTable(
   {
     id: char({ length: ID_LENGTH }).primaryKey(),
     email: varchar({ length: 320 }).notNull(),
+    phone: varchar({ length: 32 }),
     externalId: varchar({ length: 128 }).notNull(),
     merchantId: char({ length: ID_LENGTH })
       .references(() => merchant.id)
@@ -61,6 +62,7 @@ export const account = mysqlTable(
   },
   (table) => [
     unique("accounts_external_id_unique").on(table.externalId),
+    unique("accounts_phone_unique").on(table.phone),
     unique("accounts_merchant_id_email_unique").on(table.merchantId, table.email),
     unique("accounts_merchant_id_unique").on(table.merchantId, table.id),
   ],

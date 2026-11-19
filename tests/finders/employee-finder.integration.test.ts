@@ -32,6 +32,7 @@ async function setup() {
     merchantId,
     externalId: `user_${accountId}`,
     email: "nami@strawhatpirates.example.com",
+    phone: "+593987654321",
   });
   return { db, merchantId, otherMerchantId, waterSevenId, loguetownId, foreignLocationId, accountId };
 }
@@ -45,8 +46,23 @@ describe("EmployeeFinder", () => {
     const staffId = "empl_0000000000000000002";
     const invitedId = "empl_0000000000000000003";
     const disabledId = "empl_0000000000000000004";
+    const phonelessAccountId = generateId({ model: "account" });
+    await db.insert(tables.account).values({
+      id: phonelessAccountId,
+      merchantId,
+      externalId: `user_${phonelessAccountId}`,
+      email: "sanji@strawhatpirates.example.com",
+    });
     await db.insert(tables.employee).values([
-      { id: disabledId, merchantId, name: "Sanji", status: "disabled", createdAt: timestamp, updatedAt: timestamp },
+      {
+        id: disabledId,
+        merchantId,
+        name: "Sanji",
+        status: "disabled",
+        accountId: phonelessAccountId,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
       { id: invitedId, merchantId, name: "Usopp", status: "invited", createdAt: timestamp, updatedAt: timestamp },
       {
         id: staffId,
@@ -101,13 +117,18 @@ describe("EmployeeFinder", () => {
         maxDiscountRate: "0.15",
         status: "enabled",
         permissions: ["checkout", "view_transactions"],
-        account: { id: accountId, email: "nami@strawhatpirates.example.com" },
+        account: { id: accountId, email: "nami@strawhatpirates.example.com", phone: "+593987654321" },
         locationIds: [waterSevenId, loguetownId].sort(),
         createdAt: timestamp,
         updatedAt: timestamp,
       },
       expect.objectContaining({ id: invitedId, status: "invited", locationIds: [] }),
-      expect.objectContaining({ id: disabledId, status: "disabled", locationIds: [waterSevenId] }),
+      expect.objectContaining({
+        id: disabledId,
+        status: "disabled",
+        account: { id: phonelessAccountId, email: "sanji@strawhatpirates.example.com", phone: null },
+        locationIds: [waterSevenId],
+      }),
     ]);
   });
 

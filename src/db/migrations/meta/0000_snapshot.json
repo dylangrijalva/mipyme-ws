@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "ca1a52c8-8bb0-4b1f-9d64-fd68439e68f5",
+  "id": "62e95f29-f596-4e9c-814b-1da7fcb37231",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "accounts": {
@@ -19,6 +19,13 @@
           "type": "varchar(320)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "externalId": {
@@ -72,6 +79,10 @@
         "accounts_external_id_unique": {
           "name": "accounts_external_id_unique",
           "columns": ["externalId"]
+        },
+        "accounts_phone_unique": {
+          "name": "accounts_phone_unique",
+          "columns": ["phone"]
         },
         "accounts_merchant_id_email_unique": {
           "name": "accounts_merchant_id_email_unique",
@@ -292,6 +303,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "maxDiscountRate": {
+          "name": "maxDiscountRate",
+          "type": "decimal(3,2) unsigned",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'0.00'"
+        },
         "accountId": {
           "name": "accountId",
           "type": "char(24)",
@@ -395,6 +414,27 @@
           "notNull": true,
           "autoincrement": false,
           "default": 0
+        },
+        "lastSoldAt": {
+          "name": "lastSoldAt",
+          "type": "datetime(6)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lastRestockAt": {
+          "name": "lastRestockAt",
+          "type": "datetime(6)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lastInventoryAdjustmentAt": {
+          "name": "lastInventoryAdjustmentAt",
+          "type": "datetime(6)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "createdAt": {
           "name": "createdAt",
@@ -879,6 +919,14 @@
           "autoincrement": false,
           "default": false
         },
+        "exchangeRate": {
+          "name": "exchangeRate",
+          "type": "decimal(12,2) unsigned",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'0.00'"
+        },
         "receiptHeaderText": {
           "name": "receiptHeaderText",
           "type": "varchar(256)",
@@ -1348,6 +1396,20 @@
           "notNull": true,
           "autoincrement": false
         },
+        "lastRestockAt": {
+          "name": "lastRestockAt",
+          "type": "datetime(6)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lastSoldAt": {
+          "name": "lastSoldAt",
+          "type": "datetime(6)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "status": {
           "name": "status",
           "type": "varchar(24)",
@@ -1782,6 +1844,27 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "voidedById": {
+          "name": "voidedById",
+          "type": "char(24)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "voidedAt": {
+          "name": "voidedAt",
+          "type": "datetime(6)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "voidReason": {
+          "name": "voidReason",
+          "type": "varchar(256)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -1798,6 +1881,11 @@
         "purchase_orders_created_by_id_idx": {
           "name": "purchase_orders_created_by_id_idx",
           "columns": ["createdById"],
+          "isUnique": false
+        },
+        "purchase_orders_voided_by_id_idx": {
+          "name": "purchase_orders_voided_by_id_idx",
+          "columns": ["voidedById"],
           "isUnique": false
         }
       },
@@ -1838,6 +1926,15 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "purchase_orders_voidedById_employees_id_fk": {
+          "name": "purchase_orders_voidedById_employees_id_fk",
+          "tableFrom": "purchase_orders",
+          "tableTo": "employees",
+          "columnsFrom": ["voidedById"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "purchase_orders_merchant_supplierId_fk": {
           "name": "purchase_orders_merchant_supplierId_fk",
           "tableFrom": "purchase_orders",
@@ -1861,6 +1958,15 @@
           "tableFrom": "purchase_orders",
           "tableTo": "employees",
           "columnsFrom": ["merchantId", "createdById"],
+          "columnsTo": ["merchantId", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "purchase_orders_merchant_voidedById_fk": {
+          "name": "purchase_orders_merchant_voidedById_fk",
+          "tableFrom": "purchase_orders",
+          "tableTo": "employees",
+          "columnsFrom": ["merchantId", "voidedById"],
           "columnsTo": ["merchantId", "id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
@@ -1920,6 +2026,13 @@
           "type": "decimal(12,2) unsigned",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "previousUnitCost": {
+          "name": "previousUnitCost",
+          "type": "decimal(12,2) unsigned",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "createdAt": {
@@ -2067,6 +2180,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "businessDate": {
+          "name": "businessDate",
+          "type": "datetime(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "discountRate": {
           "name": "discountRate",
           "type": "decimal(12,2) unsigned",
@@ -2126,6 +2246,20 @@
         "voidedById": {
           "name": "voidedById",
           "type": "char(24)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "voidedAt": {
+          "name": "voidedAt",
+          "type": "datetime(6)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "voidReason": {
+          "name": "voidReason",
+          "type": "varchar(256)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

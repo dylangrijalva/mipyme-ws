@@ -5,6 +5,7 @@ const IdentityAccount = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string().nullable(),
+  phoneNumbers: z.array(z.string()),
   pictureUrl: z.url(),
   publicMetadata: z.object({
     merchantId: z.string().optional(),

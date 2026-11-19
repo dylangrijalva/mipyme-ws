@@ -2,12 +2,14 @@ START TRANSACTION;--> statement-breakpoint
 CREATE TABLE `accounts` (
 	`id` char(24) NOT NULL,
 	`email` varchar(320) NOT NULL,
+	`phone` varchar(32),
 	`externalId` varchar(128) NOT NULL,
 	`merchantId` char(24) NOT NULL,
 	`createdAt` datetime(6) NOT NULL,
 	`updatedAt` datetime(6) NOT NULL,
 	CONSTRAINT `accounts_id` PRIMARY KEY(`id`),
 	CONSTRAINT `accounts_external_id_unique` UNIQUE(`externalId`),
+	CONSTRAINT `accounts_phone_unique` UNIQUE(`phone`),
 	CONSTRAINT `accounts_merchant_id_email_unique` UNIQUE(`merchantId`,`email`),
 	CONSTRAINT `accounts_merchant_id_unique` UNIQUE(`merchantId`,`id`)
 );
@@ -43,6 +45,7 @@ CREATE TABLE `employees` (
 	`isOwner` boolean NOT NULL DEFAULT false,
 	`status` varchar(24) NOT NULL DEFAULT 'invited',
 	`permissions` varchar(256),
+	`maxDiscountRate` decimal(3,2) unsigned NOT NULL DEFAULT '0.00',
 	`accountId` char(24),
 	`createdAt` datetime(6) NOT NULL,
 	`updatedAt` datetime(6) NOT NULL,
@@ -56,6 +59,9 @@ CREATE TABLE `inventory_levels` (
 	`onHand` int unsigned NOT NULL DEFAULT 0,
 	`lowStockThreshold` int unsigned NOT NULL DEFAULT 0,
 	`optimalStockLevel` int unsigned NOT NULL DEFAULT 0,
+	`lastSoldAt` datetime(6),
+	`lastRestockAt` datetime(6),
+	`lastInventoryAdjustmentAt` datetime(6),
 	`createdAt` datetime(6) NOT NULL,
 	`updatedAt` datetime(6) NOT NULL,
 	`locationId` char(24) NOT NULL,
@@ -105,6 +111,7 @@ CREATE TABLE `locations` (
 	`taxId` char(32),
 	`businessType` varchar(24) NOT NULL DEFAULT 'other',
 	`allowBackorders` boolean NOT NULL DEFAULT false,
+	`exchangeRate` decimal(12,2) unsigned NOT NULL DEFAULT '0.00',
 	`receiptHeaderText` varchar(256),
 	`receiptFooterText` varchar(256),
 	`taxRate` decimal(12,2) unsigned DEFAULT '0.00',
@@ -165,6 +172,8 @@ CREATE TABLE `products` (
 	`slug` varchar(128) NOT NULL,
 	`price` decimal(12,2) unsigned NOT NULL,
 	`unitCost` decimal(12,2) unsigned NOT NULL,
+	`lastRestockAt` datetime(6),
+	`lastSoldAt` datetime(6),
 	`status` varchar(24) NOT NULL DEFAULT 'draft',
 	`type` varchar(24) NOT NULL DEFAULT 'item',
 	`createdAt` datetime(6) NOT NULL,
@@ -217,6 +226,9 @@ CREATE TABLE `purchase_orders` (
 	`merchantId` char(24) NOT NULL,
 	`locationId` char(24) NOT NULL,
 	`createdById` char(24) NOT NULL,
+	`voidedById` char(24),
+	`voidedAt` datetime(6),
+	`voidReason` varchar(256),
 	CONSTRAINT `purchase_orders_id` PRIMARY KEY(`id`),
 	CONSTRAINT `purchase_orders_location_transaction_unique` UNIQUE(`locationId`,`transactionNumber`),
 	CONSTRAINT `purchase_orders_merchant_id_unique` UNIQUE(`merchantId`,`id`)
@@ -228,6 +240,7 @@ CREATE TABLE `purchase_order_items` (
 	`quantity` int unsigned NOT NULL,
 	`price` decimal(12,2) unsigned NOT NULL,
 	`unitCost` decimal(12,2) unsigned NOT NULL,
+	`previousUnitCost` decimal(12,2) unsigned,
 	`createdAt` datetime(6) NOT NULL,
 	`updatedAt` datetime(6) NOT NULL,
 	`purchaseOrderId` char(24) NOT NULL,
@@ -242,6 +255,7 @@ CREATE TABLE `sales` (
 	`status` varchar(24) NOT NULL,
 	`transactionNumber` int unsigned NOT NULL,
 	`source` varchar(24) NOT NULL,
+	`businessDate` datetime(3) NOT NULL,
 	`discountRate` decimal(12,2) unsigned,
 	`notes` varchar(256),
 	`createdAt` datetime(6) NOT NULL,
@@ -251,6 +265,8 @@ CREATE TABLE `sales` (
 	`locationId` char(24) NOT NULL,
 	`createdById` char(24) NOT NULL,
 	`voidedById` char(24),
+	`voidedAt` datetime(6),
+	`voidReason` varchar(256),
 	CONSTRAINT `sales_id` PRIMARY KEY(`id`),
 	CONSTRAINT `sales_location_id_transaction_number_unique` UNIQUE(`locationId`,`transactionNumber`),
 	CONSTRAINT `sales_merchant_id_unique` UNIQUE(`merchantId`,`id`)
@@ -379,9 +395,11 @@ ALTER TABLE `purchase_orders` ADD CONSTRAINT `purchase_orders_supplierId_supplie
 ALTER TABLE `purchase_orders` ADD CONSTRAINT `purchase_orders_merchantId_merchants_id_fk` FOREIGN KEY (`merchantId`) REFERENCES `merchants`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `purchase_orders` ADD CONSTRAINT `purchase_orders_locationId_locations_id_fk` FOREIGN KEY (`locationId`) REFERENCES `locations`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `purchase_orders` ADD CONSTRAINT `purchase_orders_createdById_employees_id_fk` FOREIGN KEY (`createdById`) REFERENCES `employees`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `purchase_orders` ADD CONSTRAINT `purchase_orders_voidedById_employees_id_fk` FOREIGN KEY (`voidedById`) REFERENCES `employees`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `purchase_orders` ADD CONSTRAINT `purchase_orders_merchant_supplierId_fk` FOREIGN KEY (`merchantId`,`supplierId`) REFERENCES `suppliers`(`merchantId`,`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `purchase_orders` ADD CONSTRAINT `purchase_orders_merchant_locationId_fk` FOREIGN KEY (`merchantId`,`locationId`) REFERENCES `locations`(`merchantId`,`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `purchase_orders` ADD CONSTRAINT `purchase_orders_merchant_createdById_fk` FOREIGN KEY (`merchantId`,`createdById`) REFERENCES `employees`(`merchantId`,`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `purchase_orders` ADD CONSTRAINT `purchase_orders_merchant_voidedById_fk` FOREIGN KEY (`merchantId`,`voidedById`) REFERENCES `employees`(`merchantId`,`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `purchase_order_items` ADD CONSTRAINT `purchase_order_items_purchaseOrderId_purchase_orders_id_fk` FOREIGN KEY (`purchaseOrderId`) REFERENCES `purchase_orders`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `purchase_order_items` ADD CONSTRAINT `purchase_order_items_variantId_variants_id_fk` FOREIGN KEY (`variantId`) REFERENCES `variants`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `purchase_order_items` ADD CONSTRAINT `purchase_order_items_merchantId_merchants_id_fk` FOREIGN KEY (`merchantId`) REFERENCES `merchants`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -441,6 +459,7 @@ CREATE INDEX `product_option_groups_merchant_id_idx` ON `product_option_groups` 
 CREATE INDEX `purchase_orders_supplier_id_idx` ON `purchase_orders` (`supplierId`);--> statement-breakpoint
 CREATE INDEX `purchase_orders_merchant_id_idx` ON `purchase_orders` (`merchantId`);--> statement-breakpoint
 CREATE INDEX `purchase_orders_created_by_id_idx` ON `purchase_orders` (`createdById`);--> statement-breakpoint
+CREATE INDEX `purchase_orders_voided_by_id_idx` ON `purchase_orders` (`voidedById`);--> statement-breakpoint
 CREATE INDEX `purchase_order_items_order_id_idx` ON `purchase_order_items` (`purchaseOrderId`);--> statement-breakpoint
 CREATE INDEX `purchase_order_items_variant_id_idx` ON `purchase_order_items` (`variantId`);--> statement-breakpoint
 CREATE INDEX `purchase_order_items_merchant_id_idx` ON `purchase_order_items` (`merchantId`);--> statement-breakpoint

@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 import z from "zod";
 import { codes, type BusinessError } from "../../contracts/business-error.ts";
@@ -7,6 +7,7 @@ import { CountryIsoCode } from "../../contracts/country-iso-code.ts";
 import type { IdentityAccount } from "../../contracts/identity-account.ts";
 import type { JsonWebTokenPayload } from "../../contracts/json-web-token-payload.ts";
 import type { Merchant } from "../../contracts/merchant.ts";
+import { PHONE_NUMBER_REGEX } from "../../contracts/regexs.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
 import type { MerchantFinder } from "../../finders/merchant-finder.ts";
@@ -24,8 +25,18 @@ type InjectedDependencies = {
   claims: JsonWebTokenPayload;
 };
 
+const PHONE_NUMBER_ALREADY_EXISTS: BusinessError = Object.freeze({
+  code: codes.phoneNumberAlreadyExists,
+  message: "The phone number is already in use by another account.",
+  details: [],
+});
+
 const OnboardAccountRequest = z.object({
   name: z.string().trim().nonempty().max(64),
+  phone: z
+    .string()
+    .trim()
+    .regex(PHONE_NUMBER_REGEX, "The phone number must be in E.164 format, for example +593987654321."),
   country: CountryIsoCode,
   location: z.object({
     name: z.string().trim().nonempty().max(64),
@@ -72,9 +83,17 @@ class ProvisionAccountService extends BaseService<OnboardAccountRequest, Merchan
       .where(eq(tables.account.externalId, this.claims.sub))
       .limit(1);
 
-    const merchant = existingAccount
-      ? await assertFound(this.merchantFinder.find(this.db, existingAccount.merchantId))
-      : await this.createMerchant(request, identityAccount);
+    const {
+      success: provisioned,
+      value: merchant,
+      error: provisioningError,
+    } = existingAccount
+      ? ok(await assertFound(this.merchantFinder.find(this.db, existingAccount.merchantId)))
+      : await this.provisionMerchant(request, identityAccount);
+
+    if (!provisioned) {
+      return err(provisioningError);
+    }
 
     const [account] = await this.db
       .select({ merchantId: tables.account.merchantId, employee: tables.employee })
@@ -106,7 +125,51 @@ class ProvisionAccountService extends BaseService<OnboardAccountRequest, Merchan
     return ok(merchant);
   }
 
-  private async createMerchant(request: OnboardAccountRequest, identityAccount: IdentityAccount): Promise<Merchant> {
+  // Clerk is updated before the database so a number Clerk rejects is never stored; a retry after a
+  // failed transaction finds the number already on the Clerk user and skips adding it again.
+  private async provisionMerchant(
+    request: OnboardAccountRequest,
+    identityAccount: IdentityAccount,
+  ): Promise<Result<Merchant, BusinessError>> {
+    const [phoneOwner] = await this.db
+      .select({ id: tables.account.id })
+      .from(tables.account)
+      .where(and(eq(tables.account.phone, request.phone), ne(tables.account.externalId, identityAccount.id)))
+      .limit(1);
+
+    if (phoneOwner) {
+      return err(PHONE_NUMBER_ALREADY_EXISTS);
+    }
+
+    if (!identityAccount.phoneNumbers.includes(request.phone)) {
+      const { success, error } = await this.identity.addPhoneNumber({
+        accountId: identityAccount.id,
+        phoneNumber: request.phone,
+      });
+
+      if (!success && !(await this.isConcurrentlyAddedToIdentity(error, request.phone))) {
+        return err(error);
+      }
+    }
+
+    return this.createMerchant(request, identityAccount);
+  }
+
+  // A concurrent onboarding request from the same owner may have added the number to Clerk after this
+  // request read the identity; Clerk then reports it as taken even though it belongs to this owner.
+  private async isConcurrentlyAddedToIdentity(error: BusinessError, phone: string): Promise<boolean> {
+    if (error.code !== codes.phoneNumberAlreadyExists) {
+      return false;
+    }
+
+    const { success, value: identityAccount } = await this.identity.find(this.claims.sub);
+    return success && identityAccount.phoneNumbers.includes(phone);
+  }
+
+  private async createMerchant(
+    request: OnboardAccountRequest,
+    identityAccount: IdentityAccount,
+  ): Promise<Result<Merchant, BusinessError>> {
     return this.db.transaction(async (trx) => {
       const merchantId = generateId({ model: "merchant" });
       const accountId = generateId({ model: "account" });
@@ -119,7 +182,13 @@ class ProvisionAccountService extends BaseService<OnboardAccountRequest, Merchan
 
       await trx
         .insert(tables.account)
-        .values({ id: accountId, externalId: identityAccount.id, email: identityAccount.email!, merchantId })
+        .values({
+          id: accountId,
+          externalId: identityAccount.id,
+          email: identityAccount.email!,
+          phone: request.phone,
+          merchantId,
+        })
         .onDuplicateKeyUpdate({
           set: {
             externalId: sql`${tables.account.externalId}`,
@@ -127,18 +196,23 @@ class ProvisionAccountService extends BaseService<OnboardAccountRequest, Merchan
           },
         });
 
-      const [account] = await assertFound(
-        trx
-          .select({ id: tables.account.id, merchantId: tables.account.merchantId })
-          .from(tables.account)
-          .where(eq(tables.account.externalId, identityAccount.id))
-          .limit(1)
-          .for("update"),
-      );
+      const [account] = await trx
+        .select({ id: tables.account.id, merchantId: tables.account.merchantId })
+        .from(tables.account)
+        .where(eq(tables.account.externalId, identityAccount.id))
+        .limit(1)
+        .for("update");
+
+      // The upsert also absorbs a collision on the phone unique index, leaving no account for this
+      // identity; that only happens when a concurrent signup claimed the same number first.
+      if (!account) {
+        await trx.delete(tables.merchant).where(eq(tables.merchant.id, merchantId));
+        return err(PHONE_NUMBER_ALREADY_EXISTS);
+      }
 
       if (account.merchantId !== merchantId) {
         await trx.delete(tables.merchant).where(eq(tables.merchant.id, merchantId));
-        return assertFound(this.merchantFinder.find(trx, account.merchantId));
+        return ok(await assertFound(this.merchantFinder.find(trx, account.merchantId)));
       }
 
       await trx.insert(tables.employee).values({
@@ -157,7 +231,7 @@ class ProvisionAccountService extends BaseService<OnboardAccountRequest, Merchan
         merchantId,
       });
 
-      return assertFound(this.merchantFinder.find(trx, merchantId));
+      return ok(await assertFound(this.merchantFinder.find(trx, merchantId)));
     });
   }
 }

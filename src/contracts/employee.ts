@@ -14,7 +14,7 @@ const Employee = z.object({
     .string()
     .nullish()
     .transform((value) => splitDistinct(value, PERMISSIONS_DELIMITER)),
-  account: z.object({ id: z.string(), email: z.string() }).nullable().default(null),
+  account: z.object({ id: z.string(), email: z.string(), phone: z.string().nullable() }).nullable().default(null),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
