@@ -3,68 +3,68 @@
   "info": {
     "title": "Mipyme API",
     "version": "1.0.0",
-    "description": "Mipyme helps retail and service businesses manage products, customers, suppliers, purchases, and sales under one merchant account.\n\n## Conventions\nSend `Authorization: Bearer <token>`. Your account controls merchant and location access; health is public. Requests and responses use JSON except realtime authorization (form fields). `/v1` uses `snake_case`; send money as decimal strings.\nLists use cursor pagination: omit `cursor` on the first page, then send `next_cursor` with unchanged filters while `has_more` is true. PATCH updates supplied fields only; omit fields to preserve them or use `null` to clear when allowed.\n\n## Retries and errors\nPOST endpoints documenting `Idempotency-Key` support retries. Errors include `code`, `message`, HTTP `status`, `request_id`, and `details`. Handle by `code`; keep `request_id` for investigation."
+    "description": "Use the Mipyme API to manage a retail or service business. A merchant shares one product catalog across its locations. Record sales and supplier deliveries at each location to track what sold, what arrived, and how much stock is on hand.\n\n## Authentication\n\nSend your access token in the `Authorization` header as `Bearer <token>`. Your merchant membership determines which business you can access. You can call `GET /_health` without a token.\n\n## Request format\n\nUse JSON for request bodies. Realtime channel authorization accepts form fields. Under `/v1`, field names use `snake_case`. Send monetary amounts as decimal strings, such as `\"12.50\"`.\n\nFor a PATCH request, send only the fields you want to change. Omit a field to keep its current value. To clear a field that supports it, send `null`.\n\n## Pagination\n\nRequest the first page without a cursor. If `has_more` is true, pass `next_cursor` as `cursor` on the next request and keep the same filters.\n\n## Retries and errors\n\nWhen a POST operation accepts `Idempotency-Key`, choose a new key for each action and reuse it if you retry that action. If a request fails, use the error `code` to decide what to do next. Check `details` for field-specific issues and keep `request_id` for troubleshooting."
   },
   "tags": [
     {
       "name": "Locations",
-      "description": "Manage merchant locations and their settings. Staff can read assigned locations."
+      "description": "A location is a place where a merchant sells products or holds stock. Manage its contact details, receipt text, and checkout settings."
     },
     {
       "name": "Employees",
-      "description": "Employees are the people who work at a merchant. They unlock shared devices with a PIN, and can optionally be invited to create a personal account."
+      "description": "An employee can work at a shared point of sale with a PIN. Manage their permissions and location access, or invite them to sign in with a personal account."
     },
     {
       "name": "Invitations",
-      "description": "Invitations let a person join a business as an employee by linking their login to it."
+      "description": "Let a signed-in user find and accept an invitation to join a merchant as an existing employee."
     },
     {
       "name": "Realtime",
-      "description": "Realtime notifications report changes to your merchant's data. Authorize the private channel for your merchant before subscribing."
+      "description": "Subscribe to a merchant's private channel to receive notifications when its records change."
     },
     {
       "name": "Authentication",
-      "description": "Use the current account endpoint to identify the account associated with your access token."
+      "description": "Identify the user who signed in with an access token."
     },
     {
       "name": "Onboarding",
-      "description": "Onboarding associates an owner account with a merchant and its first location. Staff accounts cannot create a merchant."
+      "description": "Set up a business for a new owner by creating the merchant and its first location."
     },
     {
       "name": "Products",
-      "description": "Products are the goods and services in a merchant's catalog. Use collections to group related products and variants to define the options available for sale."
+      "description": "A product is a physical item or a service in the merchant's catalog. Use its variants to record sales and track stock for physical items."
     },
     {
       "name": "Collections",
-      "description": "Collections group related products in a merchant's catalog. Each product can belong to one collection."
+      "description": "Group related catalog products under a shared name. Each product can belong to one collection."
     },
     {
       "name": "Suppliers",
-      "description": "Suppliers provide products to a merchant. Link them to purchases to track where received stock came from."
+      "description": "Keep contact details for the people and businesses that supply stock. Each purchase identifies the supplier that provided it."
     },
     {
       "name": "Customers",
-      "description": "Customers are the people or businesses who buy from a merchant. Link a customer to a sale to record who made the purchase."
+      "description": "Keep contact details for buyers and link their sales to the same customer record."
     },
     {
       "name": "Sales",
-      "description": "A sale records a checkout at a location. Review its fulfillment and payment history, or void a fulfilled sale to restore item quantities."
+      "description": "A sale records a checkout at one location, including the items sold and payments received. Review fulfillment or void an eligible sale."
     },
     {
       "name": "Purchases",
-      "description": "A purchase records stock received from a supplier at a location. Use it to track where inventory came from and what it cost."
+      "description": "A purchase records stock received from a supplier at one location. Use it to track quantities and acquisition costs or reverse a delivery recorded in error."
     },
     {
       "name": "Inventory",
-      "description": "Manual stock adjustments and the stock history of every variant at every location. Set opening stock on the product, receive supplier stock through purchases, and record any other change as an adjustment."
+      "description": "Track how much of each variant a location holds. Review stock movements and record losses or corrections."
     },
     {
       "name": "Health",
-      "description": "The health endpoint reports whether the API is available."
+      "description": "Check whether the API is ready to serve requests."
     },
     {
       "name": "Sync",
-      "description": "Download a full or incremental snapshot of merchant resources for offline use."
+      "description": "Keep an offline copy of the merchant profile, catalog, customers, suppliers, locations, and employees up to date."
     }
   ],
   "paths": {
@@ -73,7 +73,7 @@
         "tags": ["Sync"],
         "operationId": "syncResources",
         "summary": "Sync merchant resources",
-        "description": "Downloads the merchant, products, collections, customers, suppliers, and all merchant locations in one unpaginated response. Requires enabled merchant membership. Send \"*\" for full sync, then the returned token for incremental sync. Incremental queries use updated_at between the previous checkpoint minus one hour and the current checkpoint, inclusively. The overlap can replay recent records and covers delayed commits within that window; it cannot guarantee delivery of transactions that commit after falling outside the overlap. Products are returned complete when their own or related record timestamps qualify, including archived products. All reads share one consistent database snapshot. Redis stores the checkpoint timestamp for 30 days. Authentic expired tokens or missing checkpoints trigger full sync; malformed, tampered, and wrong-merchant tokens are rejected. Successful requests issue fresh merchant-bound tokens with no device identity; older tokens retain their original expiry. Save each token atomically with the applied response. The new checkpoint is saved only after all resource queries succeed. Database failures return 500 and Redis failures return 503, without a new token. No resource selection, deletion tracking, pagination, or record or byte cap.",
+        "description": "Send `*` for a full snapshot, then pass the returned token to request changes. Replace local data when `full_sync` is true. Otherwise merge records by ID. Save the new token together with the changes.",
         "security": [
           {
             "bearerAuth": []
@@ -94,7 +94,7 @@
         },
         "responses": {
           "200": {
-            "description": "Returns complete qualifying resources and a new sync token. Empty arrays indicate no eligible records. merchant is null when no merchant update qualifies. Recent records can be replayed by the one-hour overlap.",
+            "description": "A full or incremental snapshot with a token for the next request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -104,7 +104,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values, or the token is malformed, tampered, or belongs to another merchant. Returns validation_error or sync_token_invalid.",
+            "description": "Correct invalid fields for `validation_error`. For `sync_token_invalid`, start a full sync with `*`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -114,7 +114,7 @@
             }
           },
           "401": {
-            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -124,7 +124,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns account_not_provisioned or forbidden_error.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -137,7 +137,7 @@
             "$ref": "#/components/responses/RateLimitExceeded"
           },
           "500": {
-            "description": "A database or resource-query failure prevented sync. No new token is issued. Returns internal_server_error.",
+            "description": "Sync failed with `internal_server_error`. Keep the previous token.",
             "content": {
               "application/json": {
                 "schema": {
@@ -147,7 +147,7 @@
             }
           },
           "503": {
-            "description": "Redis cannot read or save the checkpoint. Retry with the same token. Returns sync_unavailable.",
+            "description": "Sync is temporarily unavailable (`sync_unavailable`). Retry with the same token.",
             "content": {
               "application/json": {
                 "schema": {
@@ -163,8 +163,8 @@
       "get": {
         "tags": ["Locations"],
         "operationId": "listLocations",
-        "summary": "List all locations",
-        "description": "Lists locations for your merchant, ordered by ID. Owners see all locations; staff see only assigned locations. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
+        "summary": "List locations",
+        "description": "Returns locations in ascending ID order. Owners see all merchant locations, and staff see only their assignments.",
         "security": [
           {
             "bearerAuth": []
@@ -187,7 +187,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "The `next_cursor` value returned by the previous page.",
+            "description": "Pass `next_cursor` from the previous page. Omit it on the first request.",
             "schema": {
               "type": "string"
             }
@@ -198,7 +198,7 @@
             "$ref": "#/components/responses/RateLimitExceeded"
           },
           "200": {
-            "description": "Returns a page of locations and pagination information.",
+            "description": "A page of locations, with a cursor when more results are available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -208,7 +208,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use a limit between 1 and 100 (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -228,7 +228,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -238,7 +238,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the locations from being listed. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -253,7 +253,7 @@
         "tags": ["Locations"],
         "operationId": "createLocation",
         "summary": "Create a location",
-        "description": "Creates a location for your merchant. Only owners can create locations. Both `name` and `business_type` are required. Each merchant can have at most 3 locations, including the location created during onboarding. Location names do not need to be unique. IDs, merchant ownership, timestamps, and transaction counters are server-managed; unknown request fields are ignored.",
+        "description": "Only the owner can add a location. The limit is three per merchant, including the first location created during onboarding.",
         "security": [
           {
             "bearerAuth": []
@@ -284,7 +284,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Check the request fields listed in `details` and correct the invalid values (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -294,7 +294,7 @@
             }
           },
           "401": {
-            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -304,7 +304,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is disabled or archived or is staff (`forbidden_error`), or the merchant already has 3 locations (`location_limit_exceeded`).",
+            "description": "Only an enabled owner can add a location (`forbidden_error`). A fourth location returns `location_limit_exceeded`. A login without merchant membership receives `account_not_provisioned`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -314,7 +314,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented creation. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -342,7 +342,7 @@
         "tags": ["Locations"],
         "operationId": "getLocation",
         "summary": "Retrieve a location",
-        "description": "Retrieves a location in your merchant. Owners can retrieve all locations; staff can retrieve only assigned locations.",
+        "description": "Look up a location's receipt text, exchange rate, and backorder settings. Staff can retrieve only locations assigned to them.",
         "security": [
           {
             "bearerAuth": []
@@ -374,7 +374,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use the complete resource ID returned by the API (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -394,7 +394,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -414,7 +414,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the location from being retrieved. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -429,7 +429,7 @@
         "tags": ["Locations"],
         "operationId": "updateLocation",
         "summary": "Update a location",
-        "description": "Only owners can update locations. Updates supplied fields; omitted fields stay unchanged. Set optional text fields or `tax_rate` to `null` to clear them. An empty body returns the unchanged location, including timestamps. IDs, merchant ownership, timestamps, and transaction counters are server-managed; unknown request fields are ignored.",
+        "description": "Owners can change contact details, receipt text, and checkout settings for one location. Send `null` to clear optional text or the tax rate.",
         "security": [
           {
             "bearerAuth": []
@@ -471,7 +471,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Check the request fields listed in `details` and correct the invalid values (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -491,7 +491,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (`account_not_provisioned`), or its employee is disabled, archived, or staff (`forbidden_error`).",
+            "description": "Only an enabled owner can update location settings (`forbidden_error`). A login without merchant membership receives `account_not_provisioned`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -511,7 +511,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the location from being updated. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -527,8 +527,8 @@
       "get": {
         "tags": ["Employees"],
         "operationId": "listEmployees",
-        "summary": "List all employees",
-        "description": "Lists your merchant's employees ordered by ID, including their PINs, so any member can verify them on a shared device. Archived employees are excluded unless `status` is `archived`. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
+        "summary": "List employees",
+        "description": "Returns enabled and disabled employees with their PINs for shared-device sign-in. Use `status=archived` to retrieve former employees.",
         "security": [
           {
             "bearerAuth": []
@@ -551,7 +551,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "The `next_cursor` value returned by the previous page.",
+            "description": "Pass `next_cursor` from the previous page. Keep the same filters.",
             "schema": {
               "type": "string"
             }
@@ -572,7 +572,7 @@
             "$ref": "#/components/responses/RateLimitExceeded"
           },
           "200": {
-            "description": "Returns a page of employees and pagination information.",
+            "description": "A page of employees, with a cursor when more results are available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -582,7 +582,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use a limit between 1 and 100 and a supported employee status (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -602,7 +602,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (`account_not_provisioned`), or its employee is disabled or archived (`forbidden_error`).",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -612,7 +612,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the employees from being listed. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -627,7 +627,7 @@
         "tags": ["Employees"],
         "operationId": "createEmployee",
         "summary": "Create an employee",
-        "description": "Creates an employee who can start working right away by unlocking a shared device with their PIN; an account is optional and can be added later with an invitation. Requires the owner or `manage_employees`. The PIN must not be used by another enabled or disabled employee of your merchant.",
+        "description": "The employee starts enabled and can use a shared device with their PIN before creating an account. Only the owner or staff with `manage_employees` can add employees.",
         "security": [
           {
             "bearerAuth": []
@@ -663,7 +663,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Check the request fields listed in `details` and correct the invalid values (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -683,7 +683,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is disabled or archived, or it is neither the owner nor holds `manage_employees` (`forbidden_error`).",
+            "description": "Requires the owner or an enabled employee with `manage_employees` (`forbidden_error`). A login without merchant membership receives `account_not_provisioned`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -713,7 +713,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented creation. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -733,7 +733,7 @@
         "tags": ["Employees"],
         "operationId": "findEmployee",
         "summary": "Retrieve an employee",
-        "description": "Retrieves an employee of your merchant, whatever its status.",
+        "description": "Look up an employee's permissions, assigned locations, linked account, and latest invitation. Archived employees remain available by ID.",
         "security": [
           {
             "bearerAuth": []
@@ -765,7 +765,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use the complete resource ID returned by the API (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -785,7 +785,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (`account_not_provisioned`), or its employee is disabled or archived (`forbidden_error`).",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -805,7 +805,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the employee from being retrieved. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -820,7 +820,7 @@
         "tags": ["Employees"],
         "operationId": "updateEmployee",
         "summary": "Update an employee",
-        "description": "Updates the supplied fields. Requires the owner or `manage_employees`, except that any account can change only the `pin` of its own employee. Only the owner can update the owner's employee, and only its name and PIN. Archiving frees the PIN, releases the linked account so it can join or create another business, and revokes a pending invitation. An empty body returns the unchanged employee.",
+        "description": "Owners and staff with `manage_employees` can change employee access. Any member can change their own PIN. Archiving an employee releases their linked account and PIN and revokes any pending invitation.",
         "security": [
           {
             "bearerAuth": []
@@ -882,7 +882,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is disabled or archived, or it is neither the owner nor holds `manage_employees` (`forbidden_error`) A staff member with `manage_employees` tried to update the owner's employee (`forbidden_error`).",
+            "description": "Only the owner can edit the owner's profile. Other changes require `manage_employees`, except changing your own PIN. Returns `forbidden_error` for insufficient access or `account_not_provisioned` for a login without merchant membership.",
             "content": {
               "application/json": {
                 "schema": {
@@ -912,7 +912,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the employee from being updated. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -928,8 +928,8 @@
       "post": {
         "tags": ["Employees"],
         "operationId": "createEmployeeInvitation",
-        "summary": "Invite an employee to create an account",
-        "description": "Emails the employee an invitation to create a personal account. Signing in with that email and accepting the invitation links the login to the employee. Invitations expire after 7 days; sending a new one revokes the pending one, which is how you resend it. Requires the owner or `manage_employees`. The owner, employees with an account, and archived employees cannot be invited. In staging and production the email is sent after the response, in English for Belize and in Spanish elsewhere; a delivery failure does not fail the request.",
+        "summary": "Invite an employee",
+        "description": "Use the email address the employee will sign in with. Sending a new invitation replaces their pending invitation and starts a new seven-day acceptance period.",
         "security": [
           {
             "bearerAuth": []
@@ -964,7 +964,7 @@
             "$ref": "#/components/responses/RateLimitExceeded"
           },
           "201": {
-            "description": "Returns the pending invitation.",
+            "description": "The pending invitation. A successful response confirms creation, even if email delivery fails.",
             "content": {
               "application/json": {
                 "schema": {
@@ -974,7 +974,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Check the request fields listed in `details` and correct the invalid values (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -994,7 +994,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is disabled or archived, or it is neither the owner nor holds `manage_employees` (`forbidden_error`).",
+            "description": "Requires the owner or an enabled employee with `manage_employees` (`forbidden_error`). A login without merchant membership receives `account_not_provisioned`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1024,7 +1024,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the invitation from being created. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1044,7 +1044,7 @@
         "tags": ["Employees"],
         "operationId": "revokeEmployeeInvitation",
         "summary": "Revoke an employee invitation",
-        "description": "Revokes an invitation so it can no longer be accepted, including one that already expired. Revoking a revoked invitation returns it unchanged. Requires the owner or `manage_employees`.",
+        "description": "Withdraw an invitation before the employee accepts it. Revoking it again returns the same invitation.",
         "security": [
           {
             "bearerAuth": []
@@ -1085,7 +1085,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use the complete IDs returned by the API (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1105,7 +1105,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is disabled or archived, or it is neither the owner nor holds `manage_employees` (`forbidden_error`).",
+            "description": "Requires the owner or an enabled employee with `manage_employees` (`forbidden_error`). A login without merchant membership receives `account_not_provisioned`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1135,7 +1135,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the invitation from being revoked. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1151,8 +1151,8 @@
       "get": {
         "tags": ["Invitations"],
         "operationId": "listReceivedInvitations",
-        "summary": "List invitations for the signed-in login",
-        "description": "Lists the pending, unexpired invitations sent to the email of the signed-in login. Works before the login belongs to a business: call it when another endpoint returns `account_not_provisioned` to offer joining a business instead of onboarding.",
+        "summary": "List received invitations",
+        "description": "Find unexpired invitations addressed to the signed-in user's email. A new user can check here before deciding whether to create a business.",
         "security": [
           {
             "bearerAuth": []
@@ -1163,7 +1163,7 @@
             "$ref": "#/components/responses/RateLimitExceeded"
           },
           "200": {
-            "description": "Returns every pending invitation for the login.",
+            "description": "All pending invitations for the signed-in email address, oldest first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1183,7 +1183,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the invitations from being listed. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1200,7 +1200,7 @@
         "tags": ["Invitations"],
         "operationId": "acceptInvitation",
         "summary": "Accept an invitation",
-        "description": "Links the signed-in login to the invited employee, creating its account in that business. The login's email must match the invitation, and a login can belong to only one business. Accepting again with the same login returns the employee unchanged, so a failed request can be retried.",
+        "description": "Join the business using the login with the invited email address. A login can belong to one merchant at a time. Repeating acceptance with the same linked login returns the employee again.",
         "security": [
           {
             "bearerAuth": []
@@ -1235,7 +1235,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use the complete IDs returned by the API (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1275,7 +1275,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the invitation from being accepted. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1295,7 +1295,7 @@
         "tags": ["Realtime"],
         "operationId": "authorizeRealtimeChannel",
         "summary": "Authorize a private realtime channel",
-        "description": "Authorizes a client for the private channel of the merchant tied to its access token. Send `socket_id` and `channel_name` as form fields (`private-{merchantId}`), then pass the returned authorization to the client.",
+        "description": "Send the Pusher socket ID and the channel name `private-{merchantId}` as form fields. Pass the returned signature to the realtime client to subscribe.",
         "security": [
           {
             "bearerAuth": []
@@ -1328,7 +1328,7 @@
             }
           },
           "400": {
-            "description": "The socket ID or channel name is missing or invalid. Returns validation_error.",
+            "description": "The socket ID or channel name is missing or invalid. Returns `validation_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1338,7 +1338,7 @@
             }
           },
           "401": {
-            "description": "A valid bearer access token is required. Returns invalid_oauth_token.",
+            "description": "A valid bearer access token is required. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1348,7 +1348,7 @@
             }
           },
           "403": {
-            "description": "The account is not provisioned, employee access is disabled, or the channel does not match the current merchant. Returns account_not_provisioned or forbidden_error.",
+            "description": "The account is not provisioned, employee access is disabled, or the channel does not match the current merchant. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1358,7 +1358,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented authorization. Returns internal_server_error.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1378,7 +1378,7 @@
         "tags": ["Health"],
         "operationId": "healthCheck",
         "summary": "Check API health",
-        "description": "Checks whether the API is available. No access token is required.",
+        "description": "Use this public check to confirm the API can reach the services it needs. A healthy response has status 204 and an empty body.",
         "responses": {
           "204": {
             "description": "The API is available. The response has no body."
@@ -1403,8 +1403,8 @@
       "get": {
         "tags": ["Authentication"],
         "operationId": "getCurrentAccountClaims",
-        "summary": "Retrieve the current account",
-        "description": "Retrieves the identity and merchant context associated with your access token.",
+        "summary": "Identify the signed-in user",
+        "description": "Read the account ID and email associated with the access token, including before the user joins a merchant.",
         "security": [
           {
             "bearerAuth": []
@@ -1413,7 +1413,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
-            "description": "The identity information associated with your access token.",
+            "description": "Verified token claims, including the user's ID in `sub` and their email address.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1423,7 +1423,7 @@
             }
           },
           "401": {
-            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1440,7 +1440,7 @@
         "tags": ["Onboarding"],
         "operationId": "onboardAccount",
         "summary": "Create a merchant",
-        "description": "Creates a merchant and its first location, then makes the authenticated account its owner. The merchant's country is inferred from the owner's phone number. If the account already owns a merchant, the endpoint returns it. Staff accounts cannot create a merchant.",
+        "description": "Creates the owner's merchant and first location using the country associated with the owner's phone number. An existing owner receives their merchant again. A login already linked to a staff profile cannot create a merchant.",
         "security": [
           {
             "bearerAuth": []
@@ -1478,7 +1478,7 @@
             }
           },
           "401": {
-            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1509,7 +1509,7 @@
           },
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "500": {
-            "description": "An unexpected error prevented the request from completing. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1533,8 +1533,8 @@
       "get": {
         "tags": ["Products"],
         "operationId": "listProducts",
-        "summary": "List all products",
-        "description": "Lists products in your merchant's catalog. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
+        "summary": "List products",
+        "description": "Browse the catalog in ascending ID order, including draft and archived products. Each result includes its variants and their stock levels by location.",
         "security": [
           {
             "bearerAuth": []
@@ -1557,7 +1557,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "The `next_cursor` value returned by the previous page.",
+            "description": "Pass `next_cursor` from the previous page. Omit it on the first request.",
             "schema": {
               "type": "string"
             }
@@ -1566,7 +1566,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
-            "description": "Returns a page of products and pagination information.",
+            "description": "A page of products, with a cursor when more results are available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1596,7 +1596,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1606,7 +1606,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the products from being listed. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1621,7 +1621,7 @@
         "tags": ["Products"],
         "operationId": "createProduct",
         "summary": "Create a product",
-        "description": "Creates a product and its initial variant. Items start as drafts unless they are created with opening stock, require positive `unit_cost`, and get an inventory level at every location of your merchant. Use `inventory_levels` to set opening stock and stock thresholds per location; opening stock is recorded as an `initial_stock` movement and makes the item `active`. Services start active, do not track inventory, and ignore `inventory_levels`. Requires an enabled owner or staff member.",
+        "description": "Creates the first variant along with the product. A physical item starts as a draft unless you supply positive opening stock. A service starts active and does not track stock.",
         "security": [
           {
             "bearerAuth": []
@@ -1640,7 +1640,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "201": {
-            "description": "Returns the created product and its default variant. Items start as draft, or active when created with opening stock; services start as active.",
+            "description": "The product and its initial variant, including any opening stock by location.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1650,7 +1650,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or invalid field values, an item is missing unit_cost or has zero unit_cost, an item's price is below its unit_cost, `inventory_levels` repeats a location, or a `low_stock_threshold` is not lower than a positive `optimal_stock_level`. Returns `price_below_unit_cost` when the price is below the unit cost and `validation_error` otherwise.",
+            "description": "Supply a positive unit cost for items and a price at or above cost. A lower price returns `price_below_unit_cost`. Invalid fields, duplicate locations, or incompatible stock thresholds return `validation_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1660,7 +1660,7 @@
             }
           },
           "401": {
-            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1670,7 +1670,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (account_not_provisioned), its employee is disabled or archived, or the `created_by_id` employee is not enabled (forbidden_error).",
+            "description": "The account has no provisioned membership (`account_not_provisioned`), its employee is disabled or archived, or the `created_by_id` employee is not enabled (`forbidden_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1700,7 +1700,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the product from being created. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1725,7 +1725,7 @@
         "tags": ["Products"],
         "operationId": "getProduct",
         "summary": "Retrieve a product",
-        "description": "Retrieves the product identified by `id`.",
+        "description": "Use the returned variant IDs to record a sale or receive stock for a physical item. Each variant includes its options and any stock levels recorded by location.",
         "security": [
           {
             "bearerAuth": []
@@ -1775,7 +1775,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1795,7 +1795,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the product from being retrieved. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1810,7 +1810,7 @@
         "tags": ["Products"],
         "operationId": "updateProduct",
         "summary": "Update a product",
-        "description": "Updates supplied fields; omitted fields are unchanged. Use `null` to clear `sku`, `barcode`, `collection_id`, or `image_url`. For items, `unit_cost` must be positive and may change only before stock moves; `price` cannot be below `unit_cost`. `inventory_levels` changes only the listed locations: thresholds can change at any time, while `on_hand` sets opening stock, recorded as an `initial_stock` movement that makes a draft item active, and is accepted only before the product's first inventory movement at any location. Later stock changes go through `POST /v1/inventory/adjustments`. Services ignore `inventory_levels`.",
+        "description": "Change catalog details or stock thresholds for the locations you specify. You can set opening quantities and change an item's unit cost only before its first stock movement. Use purchases and inventory adjustments for later stock changes.",
         "security": [
           {
             "bearerAuth": []
@@ -1850,7 +1850,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or field values, an item has an invalid unit cost, its price is below its unit cost, `inventory_levels` repeats a location, sets `on_hand` after the product's first inventory movement, or leaves a `low_stock_threshold` that is not lower than a positive `optimal_stock_level`. Returns `price_below_unit_cost` when the price is below the unit cost and `validation_error` otherwise.",
+            "description": "A price below unit cost returns `price_below_unit_cost`. For `validation_error`, check field values, location IDs and thresholds, and whether a stock movement already prevents changing opening quantities or unit cost.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1900,7 +1900,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the product from being updated. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1922,7 +1922,7 @@
         ],
         "operationId": "authorizeProductImageUpload",
         "summary": "Authorize a product image upload",
-        "description": "Creates an upload authorization for an existing product owned by your merchant. Send the WebP bytes as the body of a PUT to `upload_url` with every returned header before `expires_at`, then call the verify endpoint. Authorizing a new upload supersedes any previous pending upload for the product.",
+        "description": "Upload the WebP file to the returned URL with a PUT request and the supplied headers, then verify the upload. A new authorization replaces any pending upload for the same product.",
         "parameters": [
           {
             "name": "id",
@@ -1976,7 +1976,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1999,7 +1999,7 @@
             "$ref": "#/components/responses/RateLimitExceeded"
           },
           "500": {
-            "description": "The operation could not be completed because of an internal or storage error. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2020,8 +2020,8 @@
           }
         ],
         "operationId": "verifyProductImageUpload",
-        "summary": "Verify and activate a product image",
-        "description": "Checks the stored object's size, Content-Type and WebP signature before replacing the current product image. An upload can be verified for 24 hours after authorization. Repeating verification for the active upload returns the product.",
+        "summary": "Verify a product image upload",
+        "description": "Makes the uploaded WebP the product's current image after it passes verification. Verify within 24 hours of authorization. Repeating the request for the active image returns the product.",
         "parameters": [
           {
             "name": "id",
@@ -2054,7 +2054,7 @@
             }
           },
           "400": {
-            "description": "A resource ID is invalid, or the uploaded image size, content type or signature failed verification. Returns `validation_error`.",
+            "description": "Use valid IDs and upload a WebP file with the declared size and content type (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2074,7 +2074,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2094,7 +2094,7 @@
             }
           },
           "409": {
-            "description": "The upload is missing, expired, superseded or removed. Returns `conflict_error`.",
+            "description": "The file has not been uploaded or this upload is no longer available for verification (`conflict_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2107,7 +2107,7 @@
             "$ref": "#/components/responses/RateLimitExceeded"
           },
           "500": {
-            "description": "The operation could not be completed because of an internal or storage error. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2123,8 +2123,8 @@
       "get": {
         "tags": ["Collections"],
         "operationId": "listCollections",
-        "summary": "List all collections",
-        "description": "Lists collections in your merchant's catalog. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
+        "summary": "List collections",
+        "description": "Browse the catalog's groups in ascending ID order. Use a collection's ID to assign a product to it.",
         "security": [
           {
             "bearerAuth": []
@@ -2147,7 +2147,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "The `next_cursor` value returned by the previous page.",
+            "description": "Pass `next_cursor` from the previous page. Omit it on the first request.",
             "schema": {
               "type": "string"
             }
@@ -2156,7 +2156,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
-            "description": "Returns a page of collections and pagination information.",
+            "description": "A page of collections, with a cursor when more results are available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2166,7 +2166,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use a limit between 1 and 100 (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2186,7 +2186,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2196,7 +2196,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the collections from being listed. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2211,7 +2211,7 @@
         "tags": ["Collections"],
         "operationId": "createCollection",
         "summary": "Create a collection",
-        "description": "Creates a collection in your catalog. Its name must produce a URL-friendly slug that is unique within your merchant.",
+        "description": "Choose a name whose URL-friendly form, or slug, is unique within the merchant's catalog. Use the returned ID when adding products to the collection.",
         "security": [
           {
             "bearerAuth": []
@@ -2240,7 +2240,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Check the request fields listed in `details` and correct the invalid values (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2250,7 +2250,7 @@
             }
           },
           "401": {
-            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2260,7 +2260,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is disabled or archived (forbidden_error).",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2270,7 +2270,7 @@
             }
           },
           "409": {
-            "description": "The collection name creates a slug already used in this merchant, including one claimed by a concurrent request (`collection_name_already_exists`). With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
+            "description": "Choose another name if its slug already exists (`collection_name_already_exists`). Keyed retries can also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2280,7 +2280,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the collection from being created. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2305,7 +2305,7 @@
         "tags": ["Collections"],
         "operationId": "getCollection",
         "summary": "Retrieve a collection",
-        "description": "Retrieves the collection identified by `id`.",
+        "description": "Look up the name and URL-friendly slug for a product's collection.",
         "security": [
           {
             "bearerAuth": []
@@ -2325,7 +2325,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
-            "description": "Returns the collection.",
+            "description": "The collection's ID, name, slug, and timestamps.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2335,7 +2335,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use the complete resource ID returned by the API (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2355,7 +2355,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2375,7 +2375,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the collection from being retrieved. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2390,7 +2390,7 @@
         "tags": ["Collections"],
         "operationId": "updateCollection",
         "summary": "Update a collection",
-        "description": "Updates a collection's name. Omit `name` to keep it unchanged; the new name must produce a unique URL-friendly slug within your merchant.",
+        "description": "Renaming a collection also updates its slug. Products stay linked by the same collection ID.",
         "security": [
           {
             "bearerAuth": []
@@ -2430,7 +2430,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Check the request fields listed in `details` and correct the invalid values (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2450,7 +2450,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2470,7 +2470,7 @@
             }
           },
           "409": {
-            "description": "Another collection in this merchant has claimed the same slug, including through a concurrent request. Returns `collection_name_already_exists`.",
+            "description": "Another collection already uses the slug for this name. Choose a different name (`collection_name_already_exists`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2480,7 +2480,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the collection from being updated. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2496,8 +2496,8 @@
       "get": {
         "tags": ["Suppliers"],
         "operationId": "listSuppliers",
-        "summary": "List all suppliers",
-        "description": "Lists suppliers for your merchant. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
+        "summary": "List suppliers",
+        "description": "Browse the merchant's supplier directory in ascending ID order. Use the supplier ID when recording a delivery.",
         "security": [
           {
             "bearerAuth": []
@@ -2520,7 +2520,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "The `next_cursor` value returned by the previous page.",
+            "description": "Pass `next_cursor` from the previous page. Omit it on the first request.",
             "schema": {
               "type": "string"
             }
@@ -2529,7 +2529,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
-            "description": "Returns a page of suppliers and pagination information.",
+            "description": "A page of suppliers, with a cursor when more results are available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2539,7 +2539,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use a limit between 1 and 100 (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2559,7 +2559,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2569,7 +2569,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the suppliers from being listed. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2584,7 +2584,7 @@
         "tags": ["Suppliers"],
         "operationId": "createSupplier",
         "summary": "Create a supplier",
-        "description": "Creates a supplier for your merchant. Only `name` is required; email and phone are optional, and supplier names do not need to be unique.",
+        "description": "A name is enough to start recording purchases from a supplier. Suppliers can share a name, so keep the returned ID for future deliveries.",
         "security": [
           {
             "bearerAuth": []
@@ -2613,7 +2613,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Check the request fields listed in `details` and correct the invalid values (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2623,7 +2623,7 @@
             }
           },
           "401": {
-            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2633,7 +2633,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is disabled or archived (forbidden_error).",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2643,7 +2643,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented creation. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2671,7 +2671,7 @@
         "tags": ["Suppliers"],
         "operationId": "getSupplier",
         "summary": "Retrieve a supplier",
-        "description": "Retrieves the supplier identified by `id`.",
+        "description": "Use the supplier ID from a purchase to look up the supplier's current contact details.",
         "security": [
           {
             "bearerAuth": []
@@ -2701,7 +2701,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use the complete resource ID returned by the API (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2721,7 +2721,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2741,7 +2741,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the supplier from being retrieved. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2756,7 +2756,7 @@
         "tags": ["Suppliers"],
         "operationId": "updateSupplier",
         "summary": "Update a supplier",
-        "description": "Updates the supplier fields you provide; omitted fields remain unchanged. Set `email` or `phone` to `null` to clear either value.",
+        "description": "Change the supplier's name or contact details. To remove a saved email or phone number, send `null` for that field.",
         "security": [
           {
             "bearerAuth": []
@@ -2796,7 +2796,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Check the request fields listed in `details` and correct the invalid values (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2816,7 +2816,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2836,7 +2836,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the supplier from being updated. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2852,8 +2852,8 @@
       "get": {
         "tags": ["Customers"],
         "operationId": "listCustomers",
-        "summary": "List all customers",
-        "description": "Lists customers for your merchant. Omit `cursor` for the first page, then pass `next_cursor` to continue.",
+        "summary": "List customers",
+        "description": "Browse the merchant's customer directory in ascending ID order. Use the customer ID to associate a checkout with an existing buyer.",
         "security": [
           {
             "bearerAuth": []
@@ -2876,7 +2876,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "The `next_cursor` value returned by the previous page.",
+            "description": "Pass `next_cursor` from the previous page. Omit it on the first request.",
             "schema": {
               "type": "string"
             }
@@ -2885,7 +2885,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
-            "description": "Returns a page of customers and pagination information.",
+            "description": "A page of customers, with a cursor when more results are available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2895,7 +2895,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use a limit between 1 and 100 (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2915,7 +2915,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2925,7 +2925,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the customers from being listed. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2940,7 +2940,7 @@
         "tags": ["Customers"],
         "operationId": "createCustomer",
         "summary": "Create a customer",
-        "description": "Creates a customer for your merchant. Only `name` is required; email and phone are optional, and customer names do not need to be unique.",
+        "description": "A name is enough to create a customer. Customers can share a name, so keep the returned ID to link future sales to the same buyer.",
         "security": [
           {
             "bearerAuth": []
@@ -2969,7 +2969,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Check the request fields listed in `details` and correct the invalid values (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2979,7 +2979,7 @@
             }
           },
           "401": {
-            "description": "The bearer token is missing, invalid, or expired. Returns invalid_oauth_token.",
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2989,7 +2989,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is disabled or archived (forbidden_error).",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2999,7 +2999,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented creation. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3027,7 +3027,7 @@
         "tags": ["Customers"],
         "operationId": "getCustomer",
         "summary": "Retrieve a customer",
-        "description": "Retrieves the customer identified by `id`.",
+        "description": "Use the customer ID from a sale to look up the buyer's current contact details, including their email address and phone number when available.",
         "security": [
           {
             "bearerAuth": []
@@ -3057,7 +3057,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use the complete resource ID returned by the API (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3077,7 +3077,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3097,7 +3097,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the customer from being retrieved. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3112,7 +3112,7 @@
         "tags": ["Customers"],
         "operationId": "updateCustomer",
         "summary": "Update a customer",
-        "description": "Updates the customer fields you provide; omitted fields remain unchanged. Set `email` or `phone` to `null` to clear either value.",
+        "description": "Change the buyer's name or contact details. To remove a saved email or phone number, send `null` for that field.",
         "security": [
           {
             "bearerAuth": []
@@ -3152,7 +3152,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Check the request fields listed in `details` and correct the invalid values (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3172,7 +3172,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "Join or create a merchant if you receive `account_not_provisioned`. Disabled or archived employees receive `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3192,7 +3192,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the customer from being updated. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3209,7 +3209,7 @@
         "tags": ["Purchases"],
         "operationId": "createPurchase",
         "summary": "Create a purchase",
-        "description": "Receives supplier stock at a location, increasing inventory and average unit costs. Draft items in the purchase become active. Supplier, location, and unique variants must belong to your merchant; services cannot be purchased. Requires an enabled owner or staff member.",
+        "description": "Adds received quantities to the selected location and recalculates each product's weighted average unit cost across all locations. Receiving stock activates draft items.",
         "security": [
           {
             "bearerAuth": []
@@ -3228,7 +3228,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "201": {
-            "description": "Returns the created fulfilled purchase.",
+            "description": "The fulfilled purchase with the quantities and unit costs recorded on receipt.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3258,7 +3258,7 @@
             }
           },
           "403": {
-            "description": "Membership is not provisioned or the employee is not enabled. Returns `account_not_provisioned` or `forbidden_error`. The credited employee is disabled or archived (`forbidden_error`).",
+            "description": "The account needs merchant membership (`account_not_provisioned`). Both the signed-in employee and the credited employee must be enabled (`forbidden_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3268,7 +3268,7 @@
             }
           },
           "404": {
-            "description": "The location, supplier, or one of the variants does not exist within the authenticated merchant. Returns `resource_not_found`. The credited employee does not belong to your merchant (`resource_not_found`).",
+            "description": "The location, supplier, credited employee, or item variant is unavailable to this merchant. Archived products and variants cannot be received (`resource_not_found`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3288,7 +3288,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the purchase from being created. No purchase or inventory changes are applied.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3310,8 +3310,8 @@
       "get": {
         "tags": ["Purchases"],
         "operationId": "listPurchases",
-        "summary": "List all purchases",
-        "description": "Lists purchases newest first, with all statuses unless filtered by `status`. Continue with `next_cursor` and unchanged filters. Owners see all; staff need `view_transactions` and access to the location.",
+        "summary": "List purchases",
+        "description": "Review deliveries by supplier or location, newest first by creation time. Staff need `view_transactions` and see only purchases at their assigned locations.",
         "security": [
           {
             "bearerAuth": []
@@ -3334,7 +3334,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "The opaque base64url `next_cursor` value returned by the previous page. Keep the other filters unchanged when using it.",
+            "description": "Pass `next_cursor` from the previous page. Keep the same filters.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]+$",
@@ -3374,7 +3374,7 @@
             "name": "from",
             "in": "query",
             "required": false,
-            "description": "Inclusive lower bound on created_at. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "description": "Earliest purchase creation time (`created_at`) to include. Use an ISO 8601 timestamp with a timezone offset.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -3384,7 +3384,7 @@
             "name": "to",
             "in": "query",
             "required": false,
-            "description": "Inclusive upper bound on created_at. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "description": "Latest purchase creation time (`created_at`) to include. Use an ISO 8601 timestamp with a timezone offset.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -3396,7 +3396,7 @@
             "$ref": "#/components/responses/RateLimitExceeded"
           },
           "200": {
-            "description": "Returns a page of purchases and pagination information.",
+            "description": "A page of purchases, with a cursor when more results are available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3406,7 +3406,7 @@
             }
           },
           "400": {
-            "description": "Invalid filters, limit, cursor, timestamps, or reversed date range. Returns validation_error.",
+            "description": "Invalid filters, limit, cursor, timestamps, or reversed date range. Returns `validation_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3426,7 +3426,7 @@
             }
           },
           "403": {
-            "description": "Membership is not provisioned, employee access is not enabled, or staff lack view_transactions permission. Returns account_not_provisioned or forbidden_error.",
+            "description": "The login has no merchant membership (`account_not_provisioned`), or the employee is disabled, archived, or lacks `view_transactions` (`forbidden_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3436,7 +3436,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the purchases from being listed. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3453,7 +3453,7 @@
         "tags": ["Purchases"],
         "operationId": "getPurchase",
         "summary": "Retrieve a purchase",
-        "description": "Retrieves a purchase with line items as recorded when stock was received. Enabled owners can view all purchases; staff need `view_transactions` and access to its location.",
+        "description": "Review the quantities and unit costs recorded when the delivery arrived. Staff need `view_transactions` and access to the receiving location.",
         "security": [
           {
             "bearerAuth": []
@@ -3485,7 +3485,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use the complete resource ID returned by the API (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3505,7 +3505,7 @@
             }
           },
           "403": {
-            "description": "Membership is not provisioned, employee access is not enabled, or staff lack view_transactions permission. Returns account_not_provisioned or forbidden_error.",
+            "description": "The login has no merchant membership (`account_not_provisioned`), or the employee is disabled, archived, or lacks `view_transactions` (`forbidden_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3515,7 +3515,7 @@
             }
           },
           "404": {
-            "description": "The purchase is missing, belongs to another merchant, or is at a location the staff member cannot access. Returns resource_not_found.",
+            "description": "The purchase is missing, belongs to another merchant, or is at a location the staff member cannot access. Returns `resource_not_found`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3525,7 +3525,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the purchase from being retrieved. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3542,7 +3542,7 @@
         "tags": ["Sales"],
         "operationId": "createSale",
         "summary": "Create a sale",
-        "description": "Creates a sale at a location. Available item stock is deducted; services do not affect inventory. Web sales with shortages require backorders and stay pending without stock deduction; Android and iOS may accept shortages without backorders.\n\nEnabled owners can check out. Staff need `checkout` and location access. Discounts require `apply_discounts` and are capped at `max_discount_rate` per line; owners are exempt. Prices must be at least `unit_cost`.\n\nPayments must equal the total exactly; no tax is applied. Discounted line totals and USD payments converted at the location rate round to cents, half up. A zero rate gives USD payments zero local value.",
+        "description": "A fulfilled checkout deducts physical items from stock. If any item is short, an accepted sale stays pending and leaves stock unchanged for every line. Web checkouts reject shortages unless the location allows backorders.",
         "security": [
           {
             "bearerAuth": []
@@ -3571,7 +3571,7 @@
             }
           },
           "400": {
-            "description": "Invalid fields, duplicate variants, inactive catalog entries, prices below cost, or payment mismatch return `validation_error`, `price_below_unit_cost`, or `payment_insufficient`.",
+            "description": "A line below cost after discounts returns `price_below_unit_cost`. Underpayment returns `payment_insufficient`. Overpayment, duplicate variants, and invalid or unsellable items return `validation_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3591,7 +3591,7 @@
             }
           },
           "403": {
-            "description": "Membership, checkout permission, location access, discount permission or discount cap prevents checkout. The credited employee is disabled or archived (`forbidden_error`).",
+            "description": "Staff need `checkout` and location access. Discounts require `apply_discounts` and must stay within the employee's discount limit. A disabled or archived credited employee also causes `forbidden_error`. Accounts without merchant membership receive `account_not_provisioned`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3611,7 +3611,7 @@
             }
           },
           "409": {
-            "description": "`stock_insufficient` means a web sale lacked backorders; `conflict_error` means no sale number was available. With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
+            "description": "A web checkout with insufficient stock requires backorders (`stock_insufficient`). Retry if stock or the sale number changed during checkout (`concurrent_update_conflict`). Keyed retries can also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3621,7 +3621,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the sale from being created. No sale or stock changes are applied.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3643,8 +3643,8 @@
       "get": {
         "tags": ["Sales"],
         "operationId": "listSales",
-        "summary": "List all sales",
-        "description": "Lists sales newest first, all statuses by default. Filter with `status`; use `next_cursor` with unchanged filters to continue. Enabled owners see all sales; staff need `view_transactions` and access to the location.",
+        "summary": "List sales",
+        "description": "Filter by checkout date, customer, or location. Results are ordered by creation time, newest first. Staff need `view_transactions` and see only sales at their assigned locations.",
         "security": [
           {
             "bearerAuth": []
@@ -3667,7 +3667,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "The opaque base64url `next_cursor` value returned by the previous page. Keep the other filters unchanged when using it.",
+            "description": "Pass `next_cursor` from the previous page. Keep the same filters.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]+$",
@@ -3707,7 +3707,7 @@
             "name": "from",
             "in": "query",
             "required": false,
-            "description": "Inclusive lower bound on business_date. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "description": "Earliest checkout time (`business_date`) to include. Use an ISO 8601 timestamp with a timezone offset.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -3717,7 +3717,7 @@
             "name": "to",
             "in": "query",
             "required": false,
-            "description": "Inclusive upper bound on business_date. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "description": "Latest checkout time (`business_date`) to include. Use an ISO 8601 timestamp with a timezone offset.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -3727,7 +3727,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
-            "description": "Returns a page of sales and pagination information.",
+            "description": "A page of sales, with a cursor when more results are available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3737,7 +3737,7 @@
             }
           },
           "400": {
-            "description": "Invalid filters, limit, cursor, timestamps, or reversed date range. Returns validation_error.",
+            "description": "Invalid filters, limit, cursor, timestamps, or reversed date range. Returns `validation_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3757,7 +3757,7 @@
             }
           },
           "403": {
-            "description": "Membership is not provisioned, employee access is not enabled, or staff lack view_transactions permission. Returns account_not_provisioned or forbidden_error.",
+            "description": "The login has no merchant membership (`account_not_provisioned`), or the employee is disabled, archived, or lacks `view_transactions` (`forbidden_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3767,7 +3767,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the sales from being listed. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3784,7 +3784,7 @@
         "tags": ["Sales"],
         "operationId": "voidSale",
         "summary": "Void a sale",
-        "description": "Voids a fulfilled sale and restores items at the original location. Cannot void if an item was restocked on or after the sale. Payments remain; no refund. Owners can void; staff need `void_transaction` and location access. Repeats return original details without restoring stock.",
+        "description": "Restores stock at the original location for a fulfilled sale. Voiding keeps the payment record and does not issue a refund. A restock of any affected product at or after the sale blocks the void.",
         "security": [
           {
             "bearerAuth": []
@@ -3818,7 +3818,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
-            "description": "The voided sale, including its original payments and void metadata.",
+            "description": "The voided sale with its original payments. Repeating a successful void returns its original details without restoring stock a second time.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3828,7 +3828,7 @@
             }
           },
           "400": {
-            "description": "The reason is invalid, the sale is not fulfilled, or a product was restocked at or after the sale was created. Returns validation_error.",
+            "description": "The reason is invalid, the sale is not fulfilled, or a product was restocked at or after the sale was created. Returns `validation_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3848,7 +3848,7 @@
             }
           },
           "403": {
-            "description": "Membership, void permission, employee status, or sale-location access prevents voiding. The credited employee is disabled or archived (`forbidden_error`).",
+            "description": "Staff need `void_transaction` and access to the sale's location. Both the signed-in and credited employees must be enabled. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3878,7 +3878,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the sale from being voided. The sale and stock remain unchanged.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3898,7 +3898,7 @@
         "tags": ["Sales"],
         "operationId": "getSale",
         "summary": "Retrieve a sale",
-        "description": "Retrieves the sale identified by `id`. Enabled owners can read all sales for their merchant; staff need `view_transactions` and can read only sales at their assigned locations.",
+        "description": "Review what the buyer paid, the prices recorded at checkout, and any quantities that were short. Staff need `view_transactions` and access to the sale's location.",
         "security": [
           {
             "bearerAuth": []
@@ -3928,7 +3928,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values. Returns `validation_error`.",
+            "description": "Use the complete resource ID returned by the API (`validation_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3948,7 +3948,7 @@
             }
           },
           "403": {
-            "description": "Membership is not provisioned, employee access is not enabled, or staff lack view_transactions permission. Returns account_not_provisioned or forbidden_error.",
+            "description": "The login has no merchant membership (`account_not_provisioned`), or the employee is disabled, archived, or lacks `view_transactions` (`forbidden_error`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3958,7 +3958,7 @@
             }
           },
           "404": {
-            "description": "The sale is missing, belongs to another merchant, or is at a location the staff member cannot access. Returns resource_not_found.",
+            "description": "The sale is missing, belongs to another merchant, or is at a location the staff member cannot access. Returns `resource_not_found`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3968,7 +3968,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the sale from being retrieved. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3985,7 +3985,7 @@
         "tags": ["Purchases"],
         "operationId": "voidPurchase",
         "summary": "Void a purchase",
-        "description": "Voids a fulfilled purchase, removes its received quantities at the original location, and restores each product's saved previous unit cost. Any later inventory movement or adjustment to any variant of an affected product, at any location, blocks voiding, even if that later transaction was voided. Purchases without saved cost snapshots cannot be voided. Enabled owners can void; enabled staff need `void_transaction` and purchase-location access. Repeated requests return the original void details without changing stock or cost again.",
+        "description": "Removes the received stock from the original location and restores each product's previous unit cost. A later stock movement for any variant of an affected product at any location blocks the void. Repeating a successful void leaves stock and costs unchanged.",
         "security": [
           {
             "bearerAuth": []
@@ -4018,7 +4018,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "200": {
-            "description": "The voided purchase with its original item snapshots and void metadata.",
+            "description": "The voided purchase with its original line items, the time of reversal, and any recorded reason.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4028,7 +4028,7 @@
             }
           },
           "400": {
-            "description": "Invalid identifier or reason, a purchase that is not fulfilled, missing previous-cost snapshots, or a later inventory change. Returns validation_error.",
+            "description": "Check the ID and reason for `validation_error`. A purchase can only be reversed if it was fulfilled, its previous costs are available, and its products have had no later stock movements.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4048,7 +4048,7 @@
             }
           },
           "403": {
-            "description": "Membership, void permission, employee status, or purchase-location access prevents voiding. The credited employee is disabled or archived (`forbidden_error`).",
+            "description": "Staff need `void_transaction` and access to the purchase's location. Both the signed-in and credited employees must be enabled. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4078,7 +4078,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the purchase from being voided. The purchase and stock remain unchanged.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4097,8 +4097,8 @@
       "post": {
         "tags": ["Inventory"],
         "operationId": "createInventoryAdjustments",
-        "summary": "Adjust inventory",
-        "description": "Adds or removes stock at one location after a product's opening stock has been set, recording one movement per line valued at the product's current unit cost. All lines apply together or none do. `damaged`, `theft`, and `lost` move stock to waste and must reduce it; `correction` fixes a miscount in either direction and requires notes. Stock can never drop below zero. A positive `correction` at a location without stock creates its inventory level. Adjustments never change the product's unit cost, and purchases made before an adjustment can no longer be voided. The credited employee needs `manage_inventory` and access to the location.",
+        "summary": "Adjust stock at a location",
+        "description": "Record losses or correct stock for one location after opening stock has been set. All lines must succeed together, and none can leave stock below zero. The credited employee needs `manage_inventory` and access to that location.",
         "security": [
           {
             "bearerAuth": []
@@ -4134,7 +4134,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or values, a repeated variant, a service product, a product whose opening stock has not been set, a `damaged`, `theft`, or `lost` line that adds stock, or a `correction` without notes. Returns `validation_error`.",
+            "description": "For `validation_error`, check that each line uses a distinct item variant with opening stock. Losses must reduce stock, and corrections require a note.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4184,7 +4184,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the adjustment. No stock changes are applied.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4204,7 +4204,7 @@
         "tags": ["Inventory"],
         "operationId": "listInventoryChanges",
         "summary": "List inventory history",
-        "description": "Lists stock movements newest first, from opening stock, sales, purchases, voids, and adjustments, each with the on-hand quantity right after it. List filters take comma-separated values; values within a filter match any, and different filters must all match. Continue with `next_cursor` and unchanged filters. Owners see every location; staff need `view_inventory_reports` and see only the locations they can access.",
+        "description": "Review stock movements newest first, with the quantity on hand after each movement. Staff need `view_inventory_reports` and can request only their assigned locations.",
         "security": [
           {
             "bearerAuth": []
@@ -4227,7 +4227,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "The opaque base64url `next_cursor` value returned by the previous page. Keep the other filters unchanged when using it.",
+            "description": "Pass `next_cursor` from the previous page. Keep the same filters.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]+$",
@@ -4273,7 +4273,7 @@
             "required": false,
             "style": "form",
             "explode": false,
-            "description": "Comma-separated movement reasons, such as `damaged,theft,lost` for losses.",
+            "description": "Match any of these comma-separated movement reasons, such as `damaged,theft,lost`. Other filters still apply.",
             "schema": {
               "type": "array",
               "minItems": 1,
@@ -4303,7 +4303,7 @@
             "name": "from",
             "in": "query",
             "required": false,
-            "description": "Inclusive lower bound on occurred_at. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "description": "Earliest stock movement time (`occurred_at`) to include. Use an ISO 8601 timestamp with a timezone offset.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -4313,7 +4313,7 @@
             "name": "to",
             "in": "query",
             "required": false,
-            "description": "Inclusive upper bound on occurred_at. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "description": "Latest stock movement time (`occurred_at`) to include. Use an ISO 8601 timestamp with a timezone offset.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -4325,7 +4325,7 @@
             "$ref": "#/components/responses/RateLimitExceeded"
           },
           "200": {
-            "description": "Returns a page of inventory changes and pagination information.",
+            "description": "A page of inventory changes, with a cursor when more results are available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4365,7 +4365,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error prevented the inventory history from being listed. Returns `internal_server_error`.",
+            "description": "The API encountered an unexpected error (`internal_server_error`). Use `request_id` to identify the failed request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4384,7 +4384,7 @@
       "schema": {
         "$ref": "#/components/schemas/RealtimeChangeEvent"
       },
-      "description": "In staging and production, publishes the primary resource for collection, customer, supplier, or product changes; employee changes and invitations; purchase/sale creation; and sale void. Unchanged updates publish too; publication does not delay or fail HTTP responses."
+      "description": "Listen for this event on the merchant's private channel in staging or production. It identifies the changed resource and includes its current snapshot when it fits in the event."
     }
   },
   "components": {
@@ -4416,7 +4416,7 @@
         }
       },
       "IdempotencyConflict": {
-        "description": "Returned when a key is reused with different parameters or while its request is in progress. The new request is not run. Retry with the same key; otherwise verify the outcome before using another.",
+        "description": "The key belongs to a different request or the original request is still in progress. Check the outcome before starting a new request with another key.",
         "content": {
           "application/json": {
             "schema": {
@@ -4426,7 +4426,7 @@
         }
       },
       "IdempotencyUnavailable": {
-        "description": "The idempotency store is temporarily unavailable. The operation did not execute. Retry the same request with the same key.",
+        "description": "Duplicate protection is temporarily unavailable. Retry the original request with the same key.",
         "content": {
           "application/json": {
             "schema": {
@@ -4444,12 +4444,12 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2048,
-            "description": "Required. Send \"*\" for a full sync, or reuse a token from a successful sync. Treat tokens as opaque.",
+            "description": "Send `*` to start a full sync or pass the opaque token from a previous successful sync.",
             "examples": ["*"]
           }
         },
         "required": ["sync_token"],
-        "description": "All six resource types are always requested. Unknown fields are ignored."
+        "description": "Request the same set of merchant resources on every sync. The token determines which records qualify."
       },
       "SyncResponse": {
         "type": "object",
@@ -4463,57 +4463,57 @@
                 "type": "null"
               }
             ],
-            "description": "The merchant on full sync or when its updated_at is inside the inclusive sync window. Null otherwise; preserve the locally cached merchant when null."
+            "description": "Keep the cached merchant if an incremental sync returns `null`."
           },
           "full_sync": {
             "type": "boolean",
-            "description": "True for \"*\", authentic expired tokens, or authentic tokens whose checkpoint is missing from Redis."
+            "description": "True when you request a full snapshot or the API can no longer resume from a previously valid token. Replace your cached datasets when true."
           },
           "sync_token": {
             "type": "string",
-            "description": "An opaque, signed, merchant-bound token valid for 30 days from issuance. Save it together with all returned changes. Tokens have no device identity; previous tokens remain usable until their original expiry."
+            "description": "Use this token for the same merchant on the next sync. It expires after 30 days, independently of tokens issued later."
           },
           "products": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Product"
             },
-            "description": "Complete products, including archived products, variants, options, and inventory across every merchant location. Product, variant, inventory, collection, option, option-group, and image timestamps can select a product. Association-only writers must update the parent product timestamp because link tables have no timestamps."
+            "description": "Complete products, including archived products. A change to a variant, stock level, option, collection, or image can cause the product to appear again."
           },
           "collections": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Collection"
             },
-            "description": "Complete records updated inside the inclusive sync window. Returns an empty array when no records qualify; the one-hour overlap can replay recently updated records."
+            "description": "All collections on a full sync, or collections updated within the incremental sync window."
           },
           "customers": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Customer"
             },
-            "description": "Complete records updated inside the inclusive sync window. Returns an empty array when no records qualify; the one-hour overlap can replay recently updated records."
+            "description": "Customer records in the snapshot, including their current contact details."
           },
           "suppliers": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Supplier"
             },
-            "description": "Complete records updated inside the inclusive sync window. Returns an empty array when no records qualify; the one-hour overlap can replay recently updated records."
+            "description": "Supplier records in the snapshot, including their current contact details."
           },
           "locations": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Location"
             },
-            "description": "Merchant locations updated inside the sync window, including locations not assigned to the current employee. Full sync returns every merchant location."
+            "description": "Includes locations outside the signed-in employee's assignments. A full sync returns every merchant location."
           },
           "employees": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Employee"
             },
-            "description": "Employees of every status updated inside the inclusive sync window, including each employee's account email. An employee is also returned when its linked account is updated inside the window. Full sync returns every merchant employee. Replace an employee's cached location_ids with the returned list. Owners can access every location regardless of location_ids."
+            "description": "Includes employees of every status and changes to linked accounts. Replace each returned employee's cached location list with `location_ids`."
           }
         },
         "required": [
@@ -4528,11 +4528,11 @@
           "employees"
         ],
         "additionalProperties": false,
-        "description": "All records come from one consistent database snapshot. Full sync returns all datasets. Incremental sync returns complete records with updated_at in the inclusive interval from the previous checkpoint minus one hour through the current checkpoint. Recently updated records may be replayed. Upsert incremental records and preserve the cached merchant when merchant is null. Replace datasets on full sync. No pagination, product-count cap, transactional resources, or deletion tracking."
+        "description": "A single snapshot of the merchant, products, collections, customers, suppliers, locations, and employees. Incremental snapshots overlap the previous sync by one hour, so a record can appear more than once across responses. Incremental sync does not report deletions."
       },
       "CreateLocationRequest": {
         "type": "object",
-        "description": "Location settings. Requires name and business_type. Unknown fields are ignored. Transaction counters start at 1. Optional text fields default to null; rates default to 0.00; backorders default to false.",
+        "description": "Contact details and checkout settings for a new location. Sale and purchase numbering each start at 1.",
         "properties": {
           "name": {
             "type": "string",
@@ -4547,45 +4547,45 @@
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 32,
-            "description": "Surrounding whitespace is removed. Omit on creation or set to null to store no value. Omit on update to leave unchanged."
+            "description": "Contact phone number for this location."
           },
           "address": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 256,
-            "description": "Surrounding whitespace is removed. Omit on creation or set to null to store no value. Omit on update to leave unchanged."
+            "description": "Street address for this location."
           },
           "tax_id": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 32,
-            "description": "Surrounding whitespace is removed. Omit on creation or set to null to store no value. Omit on update to leave unchanged."
+            "description": "Tax registration number for this location."
           },
           "receipt_header_text": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 256,
-            "description": "Surrounding whitespace is removed. Omit on creation or set to null to store no value. Omit on update to leave unchanged."
+            "description": "Text for the top of receipts."
           },
           "receipt_footer_text": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 256,
-            "description": "Surrounding whitespace is removed. Omit on creation or set to null to store no value. Omit on update to leave unchanged."
+            "description": "Text for the bottom of receipts."
           },
           "exchange_rate": {
             "type": "string",
             "pattern": "^\\d+(\\.\\d{1,2})?$",
-            "description": "A non-negative decimal string with at most two decimal places and a value below 10000000000. Defaults to 0.00 on creation."
+            "description": "Local currency units per US dollar. Checkout uses this rate for `cash_dollar` payments. Defaults to `0.00`."
           },
           "tax_rate": {
             "type": ["string", "null"],
             "pattern": "^\\d+(\\.\\d{1,2})?$",
-            "description": "A non-negative decimal string with at most two decimal places and a value below 10000000000. Defaults to 0.00 on creation. Set to null to clear."
+            "description": "Tax rate configured for the location. Checkout does not add tax to the sale total. Omit to use `0.00`, or send `null` for no configured rate."
           },
           "allow_backorders": {
             "type": "boolean",
-            "description": "Whether sales can exceed available stock. Defaults to false on creation."
+            "description": "Whether web checkouts can record a pending sale when stock is short. Android and iOS checkouts can record shortages regardless of this setting. Defaults to false."
           }
         },
         "required": ["name", "business_type"],
@@ -4599,7 +4599,7 @@
       },
       "UpdateLocationRequest": {
         "type": "object",
-        "description": "Location settings to update. Omit fields to preserve them. Optional text fields and tax_rate can be cleared with null. Unknown fields are ignored. An empty object leaves the location unchanged.",
+        "description": "Change only the settings you supply. To clear optional text or the tax rate, send `null`.",
         "properties": {
           "name": {
             "type": "string",
@@ -4614,45 +4614,45 @@
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 32,
-            "description": "Surrounding whitespace is removed. Set to null to clear. Omit to leave unchanged."
+            "description": "Contact phone number for this location."
           },
           "address": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 256,
-            "description": "Surrounding whitespace is removed. Set to null to clear. Omit to leave unchanged."
+            "description": "Street address for this location."
           },
           "tax_id": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 32,
-            "description": "Surrounding whitespace is removed. Set to null to clear. Omit to leave unchanged."
+            "description": "Tax registration number for this location."
           },
           "receipt_header_text": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 256,
-            "description": "Surrounding whitespace is removed. Set to null to clear. Omit to leave unchanged."
+            "description": "Text for the top of receipts."
           },
           "receipt_footer_text": {
             "type": ["string", "null"],
             "minLength": 1,
             "maxLength": 256,
-            "description": "Surrounding whitespace is removed. Set to null to clear. Omit to leave unchanged."
+            "description": "Text for the bottom of receipts."
           },
           "exchange_rate": {
             "type": "string",
             "pattern": "^\\d+(\\.\\d{1,2})?$",
-            "description": "A non-negative decimal string with at most two decimal places and a value below 10000000000."
+            "description": "Local currency units per US dollar. Checkout uses this rate for `cash_dollar` payments."
           },
           "tax_rate": {
             "type": ["string", "null"],
             "pattern": "^\\d+(\\.\\d{1,2})?$",
-            "description": "A non-negative decimal string with at most two decimal places and a value below 10000000000. Set to null to clear."
+            "description": "Tax rate configured for the location. Checkout does not add tax to the sale total. Send `null` to clear it."
           },
           "allow_backorders": {
             "type": "boolean",
-            "description": "Whether sales can exceed available stock."
+            "description": "Whether web checkouts can record a pending sale when stock is short. Android and iOS checkouts can record shortages regardless of this setting."
           }
         },
         "examples": [
@@ -4736,7 +4736,7 @@
         ]
       },
       "RealtimeChangeEvent": {
-        "description": "Sent on `private-{merchantId}` when a resource changes. Delivery is not guaranteed; events may arrive out of order. `snapshot` is the API's `snake_case` resource, or `null` for large resources. Fetch by `resource_id` if absent.",
+        "description": "A change notification on the merchant's private channel. Events can arrive out of order or be missed. If `snapshot` is null, use `resource_id` to retrieve the record.",
         "type": "object",
         "required": ["id", "type", "resource_id", "snapshot"],
         "properties": {
@@ -5103,12 +5103,12 @@
               },
               "type": {
                 "$ref": "#/components/schemas/AccountType",
-                "description": "Category of this record.",
+                "description": "The account's role in the business.",
                 "examples": ["staff"]
               }
             },
             "additionalProperties": false,
-            "description": "The merchant, employee, and account-role information associated with the account. Each field is optional.",
+            "description": "Merchant membership details, when present.",
             "examples": [
               {
                 "merchantId": "merch_40KUNF3IWJGFJGPSHC",
@@ -5150,7 +5150,7 @@
           },
           "slug": {
             "type": "string",
-            "description": "The URL-friendly name of the collection.",
+            "description": "A URL-friendly form of the collection name, unique within this merchant's catalog.",
             "examples": ["east-blue-provisions"]
           },
           "created_at": {
@@ -5265,7 +5265,7 @@
           },
           "name": {
             "type": "string",
-            "description": "The display name of the customer.",
+            "description": "The buyer's display name. Multiple customers can have the same name.",
             "examples": ["Trafalgar Law"]
           },
           "email": {
@@ -5344,13 +5344,13 @@
           "status": {
             "type": "string",
             "enum": ["enabled", "disabled", "archived"],
-            "description": "Whether the employee can work. `enabled` employees can unlock shared devices with their PIN and be credited with sales and purchases. `disabled` employees can't, and their linked account is blocked. `archived` employees no longer work at the business: they are hidden from lists by default, their PIN is free for reuse, and their account was released.",
+            "description": "Enabled employees can work. Disabling an employee blocks access. Archiving also releases the linked account and PIN and hides the employee from the default list.",
             "examples": ["enabled"]
           },
           "pin": {
             "type": "string",
             "pattern": "^\\d{4}$",
-            "description": "The 4-digit PIN the employee enters to unlock a shared device. Unique among the merchant's enabled and disabled employees; archived employees give theirs up. Every member of the merchant can read it, so devices can verify it offline.",
+            "description": "Four-digit PIN for shared-device sign-in. Merchant members can read it for offline use. Enabled and disabled employees must have distinct PINs.",
             "examples": ["4821"]
           },
           "permissions": {
@@ -5367,7 +5367,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The identifiers of the locations the employee is explicitly assigned to, as of the employee's last update. Any change to an employee's location access must also update the employee, otherwise clients are not sent the new list. Owners have access to every location regardless of this list, which is usually empty for them.",
+            "description": "Locations assigned to this employee. Owners have access to every location regardless of this list.",
             "examples": [["loc_AGGD8EJA69JRL3UTU79K"]]
           },
           "account": {
@@ -5448,7 +5448,7 @@
                   "expires_at": {
                     "type": "string",
                     "format": "date-time",
-                    "description": "When the invitation stops being acceptable, in RFC 3339 format.",
+                    "description": "Deadline for accepting the invitation.",
                     "examples": ["2026-09-23T09:00:00.000Z"]
                   }
                 },
@@ -5494,7 +5494,7 @@
           "max_discount_rate"
         ],
         "additionalProperties": false,
-        "description": "A person associated with a merchant who can use point-of-sale features according to their account status and permissions.",
+        "description": "A merchant's employee profile. It holds the PIN, permissions, and locations used at the point of sale and can be linked to a personal login.",
         "examples": [
           {
             "id": "empl_YJHP5ULEG3QP1M786T3",
@@ -5524,7 +5524,7 @@
       },
       "EmployeeInvitation": {
         "type": "object",
-        "description": "An invitation for an employee to create a personal account and link it to their profile.",
+        "description": "An offer to link a personal login to an existing employee profile.",
         "properties": {
           "id": {
             "type": "string",
@@ -5533,7 +5533,7 @@
           },
           "employee_id": {
             "type": "string",
-            "description": "The employee the invitation links an account to.",
+            "description": "The employee profile that the recipient will join when they accept.",
             "examples": ["empl_YJHP5ULEG3QP1M786T3"]
           },
           "email": {
@@ -5550,7 +5550,7 @@
           "expires_at": {
             "type": "string",
             "format": "date-time",
-            "description": "When the invitation stops being acceptable, 7 days after it was sent, in RFC 3339 format.",
+            "description": "Deadline for accepting the invitation, seven days after issue.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
           "accepted_at": {
@@ -5606,7 +5606,7 @@
       },
       "ReceivedInvitation": {
         "type": "object",
-        "description": "A pending invitation addressed to the signed-in login, with the business and employee it joins.",
+        "description": "An invitation the signed-in user can accept, with the business name and employee profile they would join.",
         "properties": {
           "id": {
             "type": "string",
@@ -5621,13 +5621,13 @@
           "status": {
             "type": "string",
             "enum": ["invited", "accepted", "revoked", "expired"],
-            "description": "Always `invited`: only pending invitations are listed.",
+            "description": "Pending invitations have the status `invited`.",
             "examples": ["invited"]
           },
           "expires_at": {
             "type": "string",
             "format": "date-time",
-            "description": "When the invitation stops being acceptable, 7 days after it was sent, in RFC 3339 format.",
+            "description": "Deadline for accepting the invitation, seven days after issue.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
           "created_at": {
@@ -5648,7 +5648,7 @@
             },
             "required": ["id", "name"],
             "additionalProperties": false,
-            "description": "The business the invitation joins."
+            "description": "The business the recipient has been invited to join."
           },
           "employee": {
             "type": "object",
@@ -5687,7 +5687,7 @@
       },
       "CreateEmployeeRequest": {
         "type": "object",
-        "description": "The profile of a new employee. The employee starts `enabled` and doesn't need an account to work.",
+        "description": "A new employee starts enabled and can use a shared device without a personal login.",
         "properties": {
           "name": {
             "type": "string",
@@ -5741,7 +5741,7 @@
       },
       "UpdateEmployeeRequest": {
         "type": "object",
-        "description": "The fields to change. Omitted fields stay unchanged, and `location_ids` replaces the whole list. Only the name and PIN of the owner can be changed.",
+        "description": "Send the fields to change. Only the owner can edit their own owner profile, and only its name and PIN can change.",
         "properties": {
           "name": {
             "type": "string",
@@ -5796,7 +5796,7 @@
       },
       "CreateEmployeeInvitationRequest": {
         "type": "object",
-        "description": "Where to send an invitation for the employee to create a personal account.",
+        "description": "The employee must sign in with this email address to accept the invitation.",
         "properties": {
           "email": {
             "type": "string",
@@ -5844,7 +5844,7 @@
       },
       "ReceivedInvitationPaginationResponse": {
         "type": "object",
-        "description": "Every pending invitation addressed to the signed-in login. All of them fit in one page.",
+        "description": "All pending invitations for the signed-in email address, in one response.",
         "properties": {
           "results": {
             "type": "array",
@@ -5967,7 +5967,7 @@
         },
         "required": ["code", "message", "details", "request_id", "status"],
         "additionalProperties": false,
-        "description": "The error returned for a failed API request. It includes the HTTP status, request ID, and business error details. Use `code` to handle the error and `request_id` to identify the request when investigating it.",
+        "description": "Use `code` to handle a failed request and `request_id` to identify it when troubleshooting.",
         "examples": [
           {
             "code": "stock_insufficient",
@@ -6090,7 +6090,7 @@
               "on_hand_after": {
                 "type": "integer",
                 "minimum": 0,
-                "description": "The variant's on-hand quantity at the location right after this movement. Computed from the current on-hand quantity and the movements recorded after this one, so it is exact even when filters hide some of them.",
+                "description": "Quantity immediately after this movement, including the effects of movements outside the selected filters.",
                 "examples": [7]
               },
               "type": {
@@ -6142,7 +6142,7 @@
                 "type": "movement"
               }
             ],
-            "description": "Records a product variant's stock change at a location: quantity delta, resulting on-hand quantity, inventory states, unit cost, credited employee, optional notes, and an optional reference to a related sale or purchase order."
+            "description": "A change in a variant's stock at one location, with the reason and resulting quantity."
           },
           {
             "type": "object",
@@ -6285,7 +6285,7 @@
         ]
       },
       "InventoryAdjustmentReason": {
-        "description": "The reason for a manual inventory adjustment. `damaged`, `theft`, and `lost` move stock to waste and must reduce stock. `correction` fixes a miscount in either direction and requires notes.",
+        "description": "Use `damaged`, `theft`, or `lost` to remove stock. Use `correction` with a note to adjust a miscount up or down.",
         "examples": ["damaged"],
         "type": "string",
         "enum": ["damaged", "theft", "lost", "correction"]
@@ -6308,7 +6308,7 @@
                 "type": "null"
               }
             ],
-            "description": "The employee credited with the adjustments, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant. Omit or send `null` to credit the signed-in account's employee. The credited employee needs the `manage_inventory` permission and access to the location; owners have both.",
+            "description": "The enabled employee responsible for the adjustment. They need `manage_inventory` and access to the location. Omit or send `null` to use the signed-in employee.",
             "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           },
           "line_items": {
@@ -6494,7 +6494,7 @@
           },
           "stock_status": {
             "$ref": "#/components/schemas/StockStatus",
-            "description": "The stock availability at the location, computed from on_hand, low_stock_threshold, and last_restock_at.",
+            "description": "Availability at this location based on the quantity on hand, the low-stock threshold, and whether stock has ever been received.",
             "examples": ["in_stock"]
           }
         },
@@ -6539,13 +6539,13 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 999999999,
-            "description": "Opening stock at this location. A positive value records an `initial_stock` movement at the item's unit cost and sets the level's restock timestamps, which also locks `unit_cost`. Zero records nothing."
+            "description": "Opening quantity at this location. A positive quantity records an `initial_stock` movement and fixes the item's starting unit cost. Zero does not record a movement."
           },
           "low_stock_threshold": {
             "type": "integer",
             "minimum": 0,
             "maximum": 999999999,
-            "description": "Stock at or below this quantity is reported as `low_stock`. Zero disables the alert. Must be lower than `optimal_stock_level` when that value is positive."
+            "description": "Positive stock at or below this quantity counts as low. Zero disables the threshold. If the target stock level is positive, the threshold must be lower."
           },
           "optimal_stock_level": {
             "type": "integer",
@@ -6882,7 +6882,7 @@
                 "type": "null"
               }
             ],
-            "description": "The tax rate configured for the location, expressed as a decimal string. Returns `null` if no rate is configured.",
+            "description": "Tax rate configured for the location. Checkout does not add tax to the sale total.",
             "examples": [null]
           },
           "next_sale_number": {
@@ -6902,7 +6902,7 @@
           "allow_backorders": {
             "default": false,
             "type": "boolean",
-            "description": "Whether the location allows sales with quantities that exceed available stock.",
+            "description": "Whether web checkouts can record a pending sale when stock is short. Android and iOS checkouts can record shortages regardless of this setting.",
             "examples": [false]
           },
           "receipt_header_text": {
@@ -6930,7 +6930,7 @@
           "exchange_rate": {
             "type": "string",
             "pattern": "^\\d+(\\.\\d{1,2})?$",
-            "description": "Local currency per US dollar, used for cash_dollar sale payments."
+            "description": "Local currency units per US dollar. Checkout uses this rate for `cash_dollar` payments."
           }
         },
         "required": [
@@ -7019,7 +7019,7 @@
       "ObjectId": {
         "type": "string",
         "pattern": "^(?=.{24}$)(?:(?:merch|account|req|empl|loc|loca|coll|prod|img|var|optgr|opt|prod_opt|var_opt|inv|invm|inv_pct|cust|sale|sal_ite|sal_pay|supp|purc|purc_ite|supp_prod|evt)_)?[0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ]+$",
-        "description": "An opaque resource identifier that is exactly 24 characters long, including any prefix and underscore.",
+        "description": "Use the complete 24-character ID returned by the API, including its prefix when present.",
         "examples": ["merch_40KUNF3IWJGFJGPSHC"]
       },
       "OptionGroup": {
@@ -7144,7 +7144,7 @@
         },
         "required": ["id", "name", "slug", "position", "created_at", "updated_at"],
         "additionalProperties": false,
-        "description": "A selectable value in a product option group, such as a size or color.",
+        "description": "One choice within an option group, such as medium for size or blue for color.",
         "examples": [
           {
             "id": "opt_PJNM1SLZALTDWKKB39TZ",
@@ -7175,7 +7175,7 @@
         },
         "required": ["limit"],
         "additionalProperties": false,
-        "description": "Parameters for requesting a page of records. Omit `cursor` to start; use the cursor from the response to continue. The page limit defaults to 50 and accepts values from 1 to 100.",
+        "description": "Omit the cursor for the first page and use the cursor from the response to continue.",
         "examples": [
           {
             "limit": 50
@@ -7230,7 +7230,7 @@
         "enum": ["cash", "cash_dollar", "non_integrated_card", "wire_transfer"]
       },
       "PosPermission": {
-        "description": "A permission that controls an employee's access to point-of-sale features such as checkout, catalog management, discounts, transaction access, sale voiding, or employee management.",
+        "description": "A point-of-sale action an employee can perform. Owners have all permissions.",
         "examples": ["checkout"],
         "type": "string",
         "enum": [
@@ -7267,13 +7267,13 @@
         "examples": ["https://strawhatpirates.example.com/images/tangerines.jpg"]
       },
       "ProductStatus": {
-        "description": "The state of a product in a merchant's catalog: active, draft, or archived. Only active products can be sold. A draft item becomes active once its stock is initialized, through opening stock or a purchase; archived products stay archived.",
+        "description": "Only active products can be sold. Positive opening stock or a purchase activates a draft item.",
         "examples": ["active"],
         "type": "string",
         "enum": ["active", "draft", "archived"]
       },
       "StockStatus": {
-        "description": "The stock availability of a variant at a location. not_stocked when on_hand is 0 and the variant has never been restocked there; out_of_stock when on_hand is 0 after a restock; low_stock when low_stock_threshold is greater than 0 and on_hand is at or below it; otherwise in_stock.",
+        "description": "Zero on hand means `not_stocked` before the first restock and `out_of_stock` afterward. Positive stock at or below the low-stock threshold is `low_stock`. Higher quantities are `in_stock`.",
         "examples": ["in_stock"],
         "type": "string",
         "enum": ["in_stock", "low_stock", "out_of_stock", "not_stocked"]
@@ -7735,7 +7735,7 @@
                 }
               ]
             },
-            "description": "The sellable variants. Creating a product returns one default variant with the product name and price.",
+            "description": "Variants of this product, with their option values. A new product starts with one variant at the product's price.",
             "examples": [
               [
                 {
@@ -7816,7 +7816,7 @@
           "archived_at"
         ],
         "additionalProperties": false,
-        "description": "A good or service offered in a merchant's catalog. Collections group related products, and variants represent the options available for sale.",
+        "description": "A catalog item or service, with its collection, variants, and any location-specific stock levels.",
         "examples": [
           {
             "id": "prod_JNG8424CGQ92NO85MA4",
@@ -8256,7 +8256,7 @@
           "suppliers"
         ],
         "additionalProperties": false,
-        "description": "The result of a resource synchronization request. A full sync returns the supported resource collections; an incremental sync returns changes since the previous token. Save `syncToken` to continue.",
+        "description": "A full or incremental snapshot of merchant records, with a token for the next sync.",
         "examples": [
           {
             "syncToken": "example-opaque-sync-token",
@@ -8417,7 +8417,7 @@
         ]
       },
       "SaleStatus": {
-        "description": "The fulfillment state of a sale: pending, fulfilled, or voided.",
+        "description": "A fulfilled sale completes checkout. A pending sale has a stock shortage. A voided sale records a reversal.",
         "examples": ["fulfilled"],
         "type": "string",
         "enum": ["fulfilled", "pending", "voided"]
@@ -8440,12 +8440,12 @@
                 "type": "null"
               }
             ],
-            "description": "The employee credited with voiding the sale, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant. Omit or send `null` to credit the signed-in account's employee. It only labels the void: permissions, discount limits, and location access are still checked against the signed-in account.",
+            "description": "An enabled employee to credit for the reversal. Omit or send `null` to credit the signed-in employee. Naming someone else does not grant their permissions.",
             "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           }
         },
         "additionalProperties": false,
-        "description": "Optional details for voiding a sale. You can omit the reason.",
+        "description": "An optional reason and the employee to credit for voiding the checkout.",
         "examples": [
           {},
           {
@@ -8485,7 +8485,7 @@
                 "type": "null"
               }
             ],
-            "description": "The sale-wide discount as a fractional decimal string. For example, `0.10` means 10%. Applied to the submitted line prices. Returns `null` when no discount applies.",
+            "description": "Sale-wide discount applied to each submitted line price. For example, `0.10` means 10%. Returns `null` if no rate was supplied.",
             "examples": [null]
           },
           "location_id": {
@@ -8528,7 +8528,7 @@
                 "type": "null"
               }
             ],
-            "description": "The identifier and name of the customer associated with the sale. Returns `null` if no customer is associated.",
+            "description": "The linked customer's ID and current name, or `null` for a sale without a customer.",
             "examples": [
               {
                 "id": "cust_MJZA01GLEB9SDPU8YQ6",
@@ -8695,7 +8695,7 @@
                 "type": "null"
               }
             ],
-            "description": "The employee who recorded the checkout. Returns `null` if no employee is associated.",
+            "description": "The employee credited with the checkout, if recorded.",
             "examples": [
               {
                 "id": "empl_YJHP5ULEG3QP1M786T3",
@@ -8840,7 +8840,7 @@
           },
           "name": {
             "type": "string",
-            "description": "The display name of the supplier.",
+            "description": "The supplier's display name. Multiple suppliers can have the same name.",
             "examples": ["Red Hair Pirates"]
           },
           "email": {
@@ -9119,7 +9119,7 @@
                 "type": "null"
               }
             ],
-            "description": "The employee credited with any `initial_stock` movements, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant and is validated whenever it is sent, even when no stock is recorded. Omit or send `null` to credit the signed-in account's employee.",
+            "description": "An enabled employee to credit for opening stock. Omit or send `null` to credit the signed-in employee. If supplied, the ID must be valid even when no stock is added.",
             "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           }
         },
@@ -9209,7 +9209,7 @@
           },
           "unit_cost": {
             "$ref": "#/components/schemas/Decimal",
-            "description": "Item cost per unit. For items, it must be greater than zero and can only change before an inventory movement."
+            "description": "A physical item's unit cost must be positive. You can change it directly only before the product's first inventory movement."
           },
           "collection_id": {
             "anyOf": [
@@ -9252,7 +9252,7 @@
                 "type": "null"
               }
             ],
-            "description": "The employee credited with any `initial_stock` movements, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant and is validated whenever it is sent, even when no stock is recorded. Omit or send `null` to credit the signed-in account's employee.",
+            "description": "An enabled employee to credit for opening stock. Omit or send `null` to credit the signed-in employee. If supplied, the ID must be valid even when no stock is added.",
             "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           }
         },
@@ -9276,6 +9276,7 @@
         ]
       },
       "AuthorizeProductImageUploadRequest": {
+        "description": "Declare the exact byte size of the WebP file you intend to upload.",
         "type": "object",
         "properties": {
           "byte_size": {
@@ -9288,6 +9289,7 @@
         "required": ["byte_size"]
       },
       "ProductImageUploadAuthorization": {
+        "description": "Upload the file using this URL and headers. Keep the upload ID to verify the image afterward.",
         "type": "object",
         "properties": {
           "id": {
@@ -9297,7 +9299,7 @@
           "upload_url": {
             "type": "string",
             "format": "uri",
-            "description": "Temporary URL for a single-object PUT to storage."
+            "description": "Send the WebP file to this URL with a PUT request before `expires_at`."
           },
           "expires_at": {
             "type": "string",
@@ -9373,7 +9375,7 @@
       },
       "UpdateCollectionRequest": {
         "type": "object",
-        "description": "The name to assign to a collection. Omit `name` to keep it unchanged; an empty object is valid.",
+        "description": "A new collection name. An empty object keeps the current name and slug.",
         "properties": {
           "name": {
             "type": "string",
@@ -9573,7 +9575,7 @@
       },
       "CreateSaleRequest": {
         "type": "object",
-        "description": "The information needed to record a checkout. Include a location, business timestamp, at least one line item, and payments that equal the final sale total.",
+        "description": "Record a checkout for active products at one location. Staff need `checkout` permission and access to the location.",
         "required": ["location_id", "business_date", "line_items", "payments"],
         "properties": {
           "source": {
@@ -9614,7 +9616,7 @@
                 "type": "null"
               }
             ],
-            "description": "The employee credited with the sale, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant. Omit or send `null` to credit the signed-in account's employee. It only labels the sale: permissions, discount limits, and location access are still checked against the signed-in account.",
+            "description": "An enabled employee to credit for the sale. Omit or send `null` to credit the signed-in employee. Naming someone else does not grant their permissions.",
             "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           },
           "notes": {
@@ -9626,13 +9628,13 @@
           "discount_rate": {
             "type": ["string", "null"],
             "pattern": "^(?:0+(?:\\.\\d{1,2})?|0*1(?:\\.0{1,2})?)$",
-            "description": "Optional fractional rate between 0.00 and 1.00. For example, 0.10 means 10%. Omitted or null means no discount.",
+            "description": "Fraction deducted from every line's submitted price. For staff, the total discount from the catalog price requires `apply_discounts` and must stay within their per-line limit. Omit or send `null` for no sale-wide discount.",
             "examples": ["0.10", null]
           },
           "line_items": {
             "type": "array",
             "minItems": 1,
-            "description": "Each variant must appear exactly once. Only active products and unarchived variants may be sold. Quantities are positive integers.",
+            "description": "Include each variant once. Only active products and unarchived variants can be sold.",
             "items": {
               "type": "object",
               "required": ["variant_id", "price", "quantity"],
@@ -9644,7 +9646,7 @@
                 },
                 "price": {
                   "$ref": "#/components/schemas/Decimal",
-                  "description": "Nonnegative decimal string with at most two fractional digits."
+                  "description": "Selling price per unit before the sale-wide discount. The price after discounts must cover the unit cost."
                 },
                 "quantity": {
                   "type": "integer",
@@ -9657,7 +9659,7 @@
           },
           "payments": {
             "type": "array",
-            "description": "The amounts applied to the sale, excluding change. Payments must exactly match the sale total. Repeated methods are allowed. Use an empty list for a zero total. US-dollar payments use the location exchange rate.",
+            "description": "Amounts applied to the sale, excluding change. Match the total after discounts, with no added tax. Round each discounted line total and each converted US-dollar payment to cents, half up. Payment methods can repeat. Use an empty list for a zero total.",
             "items": {
               "type": "object",
               "required": ["method", "amount"],
@@ -9717,7 +9719,7 @@
                 "type": "null"
               }
             ],
-            "description": "The employee credited with the purchase, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant. Omit or send `null` to credit the signed-in account's employee. It only labels the purchase: permissions, discount limits, and location access are still checked against the signed-in account.",
+            "description": "An enabled employee to credit for the delivery. Omit or send `null` to credit the signed-in employee. Naming someone else does not grant their permissions.",
             "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           },
           "notes": {
@@ -9767,7 +9769,7 @@
         ]
       },
       "PurchaseStatus": {
-        "description": "The fulfillment state of a purchase: fulfilled or voided.",
+        "description": "A fulfilled purchase has added stock at the receiving location. A voided purchase has reversed that receipt.",
         "examples": ["fulfilled"],
         "type": "string",
         "enum": ["fulfilled", "voided"]
@@ -9809,7 +9811,7 @@
             },
             "required": ["id", "name"],
             "additionalProperties": false,
-            "description": "The identifier and name of the supplier associated with the delivery.",
+            "description": "The supplier's ID and current name.",
             "examples": [
               {
                 "id": "supp_AM6MZ6Z74KJFAAB1Y0Y",
@@ -9957,7 +9959,7 @@
                 "type": "null"
               }
             ],
-            "description": "The employee who recorded the delivery. Returns `null` if no employee is associated.",
+            "description": "The employee credited with the delivery, if recorded.",
             "examples": [
               {
                 "id": "empl_YJHP5ULEG3QP1M786T3",
@@ -10030,7 +10032,7 @@
           "voided_at"
         ],
         "additionalProperties": false,
-        "description": "A record of products received from a supplier at a location. It preserves the quantities and costs recorded for each variant.",
+        "description": "A delivery received from a supplier, with the quantities and unit costs recorded at the time of receipt.",
         "examples": [
           {
             "id": "purc_RAT344W9WX6R57EVUI6",
@@ -10146,12 +10148,12 @@
                 "type": "null"
               }
             ],
-            "description": "The employee credited with voiding the purchase, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant. Omit or send `null` to credit the signed-in account's employee. It only labels the void: permissions, discount limits, and location access are still checked against the signed-in account.",
+            "description": "An enabled employee to credit for the reversal. Omit or send `null` to credit the signed-in employee. Naming someone else does not grant their permissions.",
             "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           }
         },
         "additionalProperties": false,
-        "description": "Optional reason for voiding a purchase.",
+        "description": "An optional reason and the employee to credit for reversing the delivery.",
         "examples": [
           {},
           {
@@ -10173,7 +10175,7 @@
         "name": "Idempotency-Key",
         "in": "header",
         "required": false,
-        "description": "Use a UUID v4 or opaque key (max 255 characters) for POST retries. Keys are scoped to the authenticated user across POST endpoints; do not include sensitive data.\n\nReuse the key with the same path, query values, and JSON body. Match JSON field/array order, repeated query-value order, and types; whitespace and query-parameter order may differ. Original status and response are replayed except for `validation_error`, which can be corrected and retried with the same key. Different requests return `idempotency_key_mismatch`.\n\nKeys expire 24 hours after the first valid request. In-progress retries may return `idempotency_request_in_progress`; verify the outcome before using another key. Expired keys may execute again. Retries require authentication, permissions, and rate limits.",
+        "description": "Use a unique key for each new action. For 24 hours, the same user can replay the original response by sending the same key, path, query values, and JSON body. Keep JSON fields, array items, and repeated query values in the same order.\n\nAfter `validation_error`, you can correct the request and reuse the key. For `idempotency_request_in_progress`, retry the original request with the same key. Reusing an expired key can run the action again.",
         "schema": {
           "type": "string",
           "minLength": 1,
