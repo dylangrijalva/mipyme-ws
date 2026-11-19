@@ -33,6 +33,7 @@ async function setup() {
     externalId: `user_${accountId}`,
     email: "nami@strawhatpirates.example.com",
     phone: "+593987654321",
+    phoneVerified: true,
   });
   return { db, merchantId, otherMerchantId, waterSevenId, loguetownId, foreignLocationId, accountId };
 }
@@ -117,7 +118,12 @@ describe("EmployeeFinder", () => {
         maxDiscountRate: "0.15",
         status: "enabled",
         permissions: ["checkout", "view_transactions"],
-        account: { id: accountId, email: "nami@strawhatpirates.example.com", phone: "+593987654321" },
+        account: {
+          id: accountId,
+          email: "nami@strawhatpirates.example.com",
+          phone: "+593987654321",
+          phoneVerified: true,
+        },
         locationIds: [waterSevenId, loguetownId].sort(),
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -126,7 +132,12 @@ describe("EmployeeFinder", () => {
       expect.objectContaining({
         id: disabledId,
         status: "disabled",
-        account: { id: phonelessAccountId, email: "sanji@strawhatpirates.example.com", phone: null },
+        account: {
+          id: phonelessAccountId,
+          email: "sanji@strawhatpirates.example.com",
+          phone: null,
+          phoneVerified: false,
+        },
         locationIds: [waterSevenId],
       }),
     ]);
@@ -222,5 +233,41 @@ describe("EmployeeFinder", () => {
     });
 
     expect(employees).toEqual([]);
+  });
+
+  it("reports a phone number as existing when an employee of any merchant has an account with it", async () => {
+    const { db, otherMerchantId, accountId, merchantId } = await setup();
+    const finder = new EmployeeFinder();
+    const lawAccountId = generateId({ model: "account" });
+    await db.insert(tables.account).values({
+      id: lawAccountId,
+      merchantId: otherMerchantId,
+      externalId: `user_${lawAccountId}`,
+      email: "law@heartpirates.example.com",
+      phone: "+573001234567",
+    });
+    await db.insert(tables.employee).values([
+      { id: generateId({ model: "employee" }), merchantId, name: "Nami", accountId },
+      { id: generateId({ model: "employee" }), merchantId: otherMerchantId, name: "Law", accountId: lawAccountId },
+    ]);
+
+    const [namiPhone, lawPhone, unknownPhone] = await Promise.all([
+      finder.exists(db, { phone: "+593987654321" }),
+      finder.exists(db, { phone: "+573001234567" }),
+      finder.exists(db, { phone: "+525512345678" }),
+    ]);
+
+    expect(namiPhone).toBe(true);
+    expect(lawPhone).toBe(true);
+    expect(unknownPhone).toBe(false);
+  });
+
+  it("does not report a phone number held only by an account without a linked employee", async () => {
+    const { db } = await setup();
+    const finder = new EmployeeFinder();
+
+    const exists = await finder.exists(db, { phone: "+593987654321" });
+
+    expect(exists).toBe(false);
   });
 });

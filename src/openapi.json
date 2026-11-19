@@ -4337,15 +4337,21 @@
                     "pattern": "^\\+[1-9]\\d{7,14}$",
                     "description": "The personal phone number of the linked account in E.164 format. Collected from owners during onboarding; returns `null` if the account has no phone number.",
                     "examples": ["+593987654321"]
+                  },
+                  "phone_verified": {
+                    "type": "boolean",
+                    "description": "Whether the phone number of the linked account has been verified. Defaults to `false`.",
+                    "examples": [false]
                   }
                 },
-                "required": ["id", "email", "phone"],
+                "required": ["id", "email", "phone", "phone_verified"],
                 "additionalProperties": false,
                 "examples": [
                   {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
                     "email": "nami@strawhatpirates.example.com",
-                    "phone": "+593987654321"
+                    "phone": "+593987654321",
+                    "phone_verified": false
                   }
                 ]
               },
@@ -4358,7 +4364,8 @@
               {
                 "id": "account_RJ9LZ5VTZ4W6P9RR",
                 "email": "nami@strawhatpirates.example.com",
-                "phone": "+593987654321"
+                "phone": "+593987654321",
+                "phone_verified": false
               }
             ]
           },
@@ -4403,7 +4410,8 @@
             "account": {
               "id": "account_RJ9LZ5VTZ4W6P9RR",
               "email": "nami@strawhatpirates.example.com",
-              "phone": "+593987654321"
+              "phone": "+593987654321",
+              "phone_verified": false
             },
             "created_at": "2026-09-23T09:00:00.000Z",
             "updated_at": "2026-09-23T09:00:00.000Z",
@@ -4465,15 +4473,21 @@
                     "pattern": "^\\+[1-9]\\d{7,14}$",
                     "description": "The personal phone number of the linked account in E.164 format. Collected from owners during onboarding; returns `null` if the account has no phone number.",
                     "examples": ["+593987654321"]
+                  },
+                  "phone_verified": {
+                    "type": "boolean",
+                    "description": "Whether the phone number of the linked account has been verified. Defaults to `false`.",
+                    "examples": [false]
                   }
                 },
-                "required": ["id", "email", "phone"],
+                "required": ["id", "email", "phone", "phone_verified"],
                 "additionalProperties": false,
                 "examples": [
                   {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
                     "email": "nami@strawhatpirates.example.com",
-                    "phone": "+593987654321"
+                    "phone": "+593987654321",
+                    "phone_verified": false
                   }
                 ]
               },
@@ -4486,7 +4500,8 @@
               {
                 "id": "account_RJ9LZ5VTZ4W6P9RR",
                 "email": "nami@strawhatpirates.example.com",
-                "phone": "+593987654321"
+                "phone": "+593987654321",
+                "phone_verified": false
               }
             ]
           },
@@ -4540,7 +4555,8 @@
             "account": {
               "id": "account_RJ9LZ5VTZ4W6P9RR",
               "email": "nami@strawhatpirates.example.com",
-              "phone": "+593987654321"
+              "phone": "+593987654321",
+              "phone_verified": false
             },
             "created_at": "2026-09-23T09:00:00.000Z",
             "updated_at": "2026-09-23T09:00:00.000Z",
@@ -6601,7 +6617,8 @@
                   "account": {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
                     "email": "nami@strawhatpirates.example.com",
-                    "phone": "+593987654321"
+                    "phone": "+593987654321",
+                    "phone_verified": false
                   },
                   "createdAt": "2026-09-23T09:00:00.000Z",
                   "updatedAt": "2026-09-23T09:00:00.000Z"
@@ -6620,7 +6637,8 @@
                   "account": {
                     "id": "account_RJ9LZ5VTZ4W6P9RR",
                     "email": "nami@strawhatpirates.example.com",
-                    "phone": "+593987654321"
+                    "phone": "+593987654321",
+                    "phone_verified": false
                   },
                   "createdAt": "2026-09-23T09:00:00.000Z",
                   "updatedAt": "2026-09-23T09:00:00.000Z"
@@ -6826,7 +6844,8 @@
                 "account": {
                   "id": "account_RJ9LZ5VTZ4W6P9RR",
                   "email": "nami@strawhatpirates.example.com",
-                  "phone": "+593987654321"
+                  "phone": "+593987654321",
+                  "phone_verified": false
                 },
                 "createdAt": "2026-09-23T09:00:00.000Z",
                 "updatedAt": "2026-09-23T09:00:00.000Z"

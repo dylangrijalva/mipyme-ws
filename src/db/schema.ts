@@ -48,6 +48,7 @@ export const account = mysqlTable(
     id: char({ length: ID_LENGTH }).primaryKey(),
     email: varchar({ length: 320 }).notNull(),
     phone: varchar({ length: 32 }),
+    phoneVerified: boolean().notNull().default(false),
     externalId: varchar({ length: 128 }).notNull(),
     merchantId: char({ length: ID_LENGTH })
       .references(() => merchant.id)

@@ -4,12 +4,19 @@ import type { Database } from "../db/index.ts";
 import { tables } from "../db/schema.ts";
 import { type SyncCriteria, syncWindow } from "./sync-criteria.ts";
 
+type Criteria = { phone?: string };
+
 class EmployeeFinder {
   async findForSync(db: Database, criteria: SyncCriteria): Promise<Array<SyncEmployee>> {
     const records = await db
       .select({
         employee: tables.employee,
-        account: { id: tables.account.id, email: tables.account.email, phone: tables.account.phone },
+        account: {
+          id: tables.account.id,
+          email: tables.account.email,
+          phone: tables.account.phone,
+          phoneVerified: tables.account.phoneVerified,
+        },
       })
       .from(tables.employee)
       .leftJoin(
@@ -42,6 +49,26 @@ class EmployeeFinder {
         locationIds: locationIdsByEmployee.get(record.employee.id) ?? [],
       }),
     );
+  }
+
+  async exists(db: Database, criteria: Criteria): Promise<boolean> {
+    const [record] = await db
+      .select({ id: tables.employee.id })
+      .from(tables.employee)
+      .innerJoin(
+        tables.account,
+        and(
+          eq(tables.account.id, tables.employee.accountId),
+          eq(tables.account.merchantId, tables.employee.merchantId),
+        ),
+      )
+      .where(this.where(criteria))
+      .limit(1);
+    return record !== undefined;
+  }
+
+  private where(criteria: Criteria) {
+    return and(criteria.phone !== undefined ? eq(tables.account.phone, criteria.phone) : undefined);
   }
 
   private async findLocationIdsByEmployee(

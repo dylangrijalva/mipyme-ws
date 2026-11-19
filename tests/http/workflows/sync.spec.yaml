@@ -166,6 +166,9 @@ tests:
               $.employees[?(@.is_owner == true)].account.phone:
                 - eq:
                     - "+12015550100"
+              $.employees[?(@.is_owner == true)].account.phone_verified:
+                - eq:
+                    - false
               $.merchant.id:
                 - match: ^merch_[A-Z0-9]+$
           captures:

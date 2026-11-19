@@ -1,4 +1,4 @@
-import { and, eq, ne, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 import z from "zod";
 import { codes, type BusinessError } from "../../contracts/business-error.ts";
@@ -10,6 +10,7 @@ import type { Merchant } from "../../contracts/merchant.ts";
 import { PHONE_NUMBER_REGEX } from "../../contracts/regexs.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
+import type { EmployeeFinder } from "../../finders/employee-finder.ts";
 import type { MerchantFinder } from "../../finders/merchant-finder.ts";
 import type { IdentityProvider } from "../../integrations/identity-provider.ts";
 import { assertFound } from "../../utils/assert-found.ts";
@@ -22,6 +23,7 @@ type InjectedDependencies = {
   db: Database;
   identity: IdentityProvider;
   merchantFinder: MerchantFinder;
+  employeeFinder: EmployeeFinder;
   claims: JsonWebTokenPayload;
 };
 
@@ -50,6 +52,7 @@ class ProvisionAccountService extends BaseService<OnboardAccountRequest, Merchan
   private readonly db: Database;
   private readonly identity: IdentityProvider;
   private readonly merchantFinder: MerchantFinder;
+  private readonly employeeFinder: EmployeeFinder;
   private readonly claims: JsonWebTokenPayload;
 
   constructor(
@@ -57,17 +60,26 @@ class ProvisionAccountService extends BaseService<OnboardAccountRequest, Merchan
     db: Database,
     identity: IdentityProvider,
     merchantFinder: MerchantFinder,
+    employeeFinder: EmployeeFinder,
     claims: JsonWebTokenPayload,
   ) {
     super(logger);
     this.db = db;
     this.identity = identity;
     this.merchantFinder = merchantFinder;
+    this.employeeFinder = employeeFinder;
     this.claims = claims;
   }
 
-  static create({ logger, db, identity, merchantFinder, claims }: InjectedDependencies): ProvisionAccountService {
-    return new ProvisionAccountService(logger, db, identity, merchantFinder, claims);
+  static create({
+    logger,
+    db,
+    identity,
+    merchantFinder,
+    employeeFinder,
+    claims,
+  }: InjectedDependencies): ProvisionAccountService {
+    return new ProvisionAccountService(logger, db, identity, merchantFinder, employeeFinder, claims);
   }
 
   async execute(request: OnboardAccountRequest): Promise<Result<Merchant, BusinessError>> {
@@ -125,45 +137,16 @@ class ProvisionAccountService extends BaseService<OnboardAccountRequest, Merchan
     return ok(merchant);
   }
 
-  // Clerk is updated before the database so a number Clerk rejects is never stored; a retry after a
-  // failed transaction finds the number already on the Clerk user and skips adding it again.
   private async provisionMerchant(
     request: OnboardAccountRequest,
     identityAccount: IdentityAccount,
   ): Promise<Result<Merchant, BusinessError>> {
-    const [phoneOwner] = await this.db
-      .select({ id: tables.account.id })
-      .from(tables.account)
-      .where(and(eq(tables.account.phone, request.phone), ne(tables.account.externalId, identityAccount.id)))
-      .limit(1);
-
-    if (phoneOwner) {
+    const isPhoneTaken = await this.employeeFinder.exists(this.db, { phone: request.phone });
+    if (isPhoneTaken) {
       return err(PHONE_NUMBER_ALREADY_EXISTS);
     }
 
-    if (!identityAccount.phoneNumbers.includes(request.phone)) {
-      const { success, error } = await this.identity.addPhoneNumber({
-        accountId: identityAccount.id,
-        phoneNumber: request.phone,
-      });
-
-      if (!success && !(await this.isConcurrentlyAddedToIdentity(error, request.phone))) {
-        return err(error);
-      }
-    }
-
     return this.createMerchant(request, identityAccount);
-  }
-
-  // A concurrent onboarding request from the same owner may have added the number to Clerk after this
-  // request read the identity; Clerk then reports it as taken even though it belongs to this owner.
-  private async isConcurrentlyAddedToIdentity(error: BusinessError, phone: string): Promise<boolean> {
-    if (error.code !== codes.phoneNumberAlreadyExists) {
-      return false;
-    }
-
-    const { success, value: identityAccount } = await this.identity.find(this.claims.sub);
-    return success && identityAccount.phoneNumbers.includes(phone);
   }
 
   private async createMerchant(

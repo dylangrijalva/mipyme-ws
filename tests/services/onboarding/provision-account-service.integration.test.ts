@@ -5,6 +5,7 @@ import { codes, type BusinessError } from "../../../src/contracts/business-error
 import type { IdentityAccount } from "../../../src/contracts/identity-account.ts";
 import type { Database } from "../../../src/db/index.ts";
 import { tables } from "../../../src/db/schema.ts";
+import { EmployeeFinder } from "../../../src/finders/employee-finder.ts";
 import { MerchantFinder } from "../../../src/finders/merchant-finder.ts";
 import type { IdentityProvider } from "../../../src/integrations/identity-provider.ts";
 import {
@@ -19,7 +20,6 @@ const IDENTITY_ACCOUNT: IdentityAccount = {
   id: "user_luffy",
   name: "Luffy",
   email: "luffy@strawhatpirates.example.com",
-  phoneNumbers: [],
   pictureUrl: "https://strawhatpirates.example.com/luffy.png",
   publicMetadata: {},
 };
@@ -47,17 +47,18 @@ async function setup() {
   const identity = {
     find: vi.fn<IdentityProvider["find"]>().mockResolvedValue(ok(IDENTITY_ACCOUNT)),
     assignToMerchant: vi.fn<IdentityProvider["assignToMerchant"]>().mockResolvedValue(ok(IDENTITY_ACCOUNT)),
-    addPhoneNumber: vi.fn<IdentityProvider["addPhoneNumber"]>().mockResolvedValue(ok(undefined)),
   };
+  const employeeFinder = new EmployeeFinder();
   const service = ProvisionAccountService.create({
     logger: pino({ enabled: false }),
     db,
     identity: identity as unknown as IdentityProvider,
     merchantFinder: new MerchantFinder(),
+    employeeFinder,
     claims: { sub: IDENTITY_ACCOUNT.id, email: "old.luffy@strawhatpirates.example.com" },
   });
 
-  return { db, identity, service };
+  return { db, identity, employeeFinder, service };
 }
 
 async function readState(db: Database) {
@@ -129,7 +130,12 @@ describe("ProvisionAccountService", () => {
     const location = after.locations.find((record) => record.merchantId === merchant.id)!;
     expect(result).toEqual(ok(merchant));
     expect(merchant).toMatchObject({ name: "Straw Hat Pirates", country: "ni" });
-    expect(account).toMatchObject({ externalId: "user_luffy", email: IDENTITY_ACCOUNT.email, phone: "+593987654321" });
+    expect(account).toMatchObject({
+      externalId: "user_luffy",
+      email: IDENTITY_ACCOUNT.email,
+      phone: "+593987654321",
+      phoneVerified: false,
+    });
     expect(employee).toMatchObject({
       accountId: account.id,
       name: "Monkey D. Luffy",
@@ -138,10 +144,6 @@ describe("ProvisionAccountService", () => {
     });
     expect(location).toMatchObject({ name: "Straw Hat Pirates", businessType: "restaurant" });
     expect(identity.find).toHaveBeenCalledExactlyOnceWith("user_luffy");
-    expect(identity.addPhoneNumber).toHaveBeenCalledExactlyOnceWith({
-      accountId: "user_luffy",
-      phoneNumber: "+593987654321",
-    });
     expect(identity.assignToMerchant).toHaveBeenCalledExactlyOnceWith({
       accountId: "user_luffy",
       merchantId: merchant.id,
@@ -158,7 +160,6 @@ describe("ProvisionAccountService", () => {
     await seedBusiness(db);
     const before = await readState(db);
     identity.assignToMerchant.mockClear();
-    identity.addPhoneNumber.mockClear();
     identity.find.mockResolvedValue(ok({ ...IDENTITY_ACCOUNT, email: "captain@strawhatpirates.example.com" }));
 
     vi.mocked(Date.now).mockReturnValue(new Date("2026-01-16T12:00:00Z").getTime());
@@ -172,7 +173,6 @@ describe("ProvisionAccountService", () => {
 
     expect(result).toEqual(first);
     expect(await readState(db)).toEqual(before);
-    expect(identity.addPhoneNumber).not.toHaveBeenCalled();
     const employee = before.employees.find((record) => record.merchantId === first.value?.id)!;
     expect(identity.assignToMerchant).toHaveBeenCalledExactlyOnceWith({
       accountId: "user_luffy",
@@ -183,7 +183,7 @@ describe("ProvisionAccountService", () => {
     });
   });
 
-  it("rejects a phone number owned by another account without contacting Clerk or creating records", async () => {
+  it("rejects a phone number owned by another merchant's account without creating records", async () => {
     const { db, identity, service } = await setup();
     await seedBusiness(db, true, "user_law", REQUEST.phone);
     const before = await readState(db);
@@ -192,57 +192,16 @@ describe("ProvisionAccountService", () => {
 
     expect(result).toEqual(err(PHONE_NUMBER_ALREADY_EXISTS));
     expect(await readState(db)).toEqual(before);
-    expect(identity.addPhoneNumber).not.toHaveBeenCalled();
     expect(identity.assignToMerchant).not.toHaveBeenCalled();
-  });
-
-  it("returns Clerk's rejection of the phone number without creating records", async () => {
-    const { db, identity, service } = await setup();
-    await seedBusiness(db);
-    const before = await readState(db);
-    identity.addPhoneNumber.mockResolvedValue(err(PHONE_NUMBER_ALREADY_EXISTS));
-
-    const result = await service.execute(REQUEST);
-
-    expect(result).toEqual(err(PHONE_NUMBER_ALREADY_EXISTS));
-    expect(await readState(db)).toEqual(before);
-    expect(identity.assignToMerchant).not.toHaveBeenCalled();
-  });
-
-  it("stores the phone number without adding it to Clerk again when the identity already has it", async () => {
-    const { db, identity, service } = await setup();
-    identity.find.mockResolvedValue(ok({ ...IDENTITY_ACCOUNT, phoneNumbers: ["+593987654321"] }));
-
-    const result = await service.execute(REQUEST);
-
-    expect(result.success).toBe(true);
-    const { accounts } = await readState(db);
-    expect(accounts).toEqual([expect.objectContaining({ externalId: "user_luffy", phone: "+593987654321" })]);
-    expect(identity.addPhoneNumber).not.toHaveBeenCalled();
-    expect(identity.assignToMerchant).toHaveBeenCalledOnce();
-  });
-
-  it("provisions the business when Clerk reports the number as taken because the same owner just added it", async () => {
-    const { db, identity, service } = await setup();
-    identity.find
-      .mockResolvedValueOnce(ok(IDENTITY_ACCOUNT))
-      .mockResolvedValueOnce(ok({ ...IDENTITY_ACCOUNT, phoneNumbers: ["+593987654321"] }));
-    identity.addPhoneNumber.mockResolvedValue(err(PHONE_NUMBER_ALREADY_EXISTS));
-
-    const result = await service.execute(REQUEST);
-
-    const state = await readState(db);
-    expect(result).toEqual(ok(state.merchants[0]));
-    expect(state.accounts).toEqual([expect.objectContaining({ externalId: "user_luffy", phone: "+593987654321" })]);
-    expect(identity.find).toHaveBeenNthCalledWith(2, "user_luffy");
-    expect(identity.assignToMerchant).toHaveBeenCalledOnce();
   });
 
   it("rejects the signup without creating records when a concurrent signup claims the phone number first", async () => {
-    const { db, identity, service } = await setup();
-    identity.addPhoneNumber.mockImplementation(async () => {
+    const { db, identity, employeeFinder, service } = await setup();
+    const exists = employeeFinder.exists.bind(employeeFinder);
+    vi.spyOn(employeeFinder, "exists").mockImplementation(async (database, criteria) => {
+      const isTaken = await exists(database, criteria);
       await seedBusiness(db, true, "user_zoro", REQUEST.phone);
-      return ok(undefined);
+      return isTaken;
     });
 
     const result = await service.execute(REQUEST);
@@ -314,7 +273,6 @@ describe("ProvisionAccountService", () => {
 
     expect(retried).toEqual(ok(committed.merchants[0]));
     expect(await readState(db)).toEqual(committed);
-    expect(identity.addPhoneNumber).toHaveBeenCalledOnce();
     expect(identity.assignToMerchant).toHaveBeenCalledTimes(2);
     for (const call of identity.assignToMerchant.mock.calls) {
       expect(call).toEqual([

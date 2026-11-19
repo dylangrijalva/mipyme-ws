@@ -21,12 +21,6 @@ const ClerkUser = z.object({
       emailAddress: z.email(),
     }),
   ),
-  phoneNumbers: z.array(
-    z.object({
-      id: z.string(),
-      phoneNumber: z.string(),
-    }),
-  ),
   firstName: z.string().nullable(),
   lastName: z.string().nullable(),
   imageUrl: z.url(),
@@ -53,11 +47,6 @@ type AssignToMerchantParams = {
   merchantId: string;
   employeeId: string;
   accountType: AccountType;
-};
-
-type AddPhoneNumberParams = {
-  accountId: string;
-  phoneNumber: string;
 };
 
 class IdentityProvider {
@@ -165,46 +154,10 @@ class IdentityProvider {
     return ok(account);
   }
 
-  // The number is only contact data, so it stays unverified; the account owner can verify it through Clerk later.
-  async addPhoneNumber(params: AddPhoneNumberParams): Promise<Result<void, BusinessError>> {
-    const response = await fetch(`${CLERK_API_BASE_URL}/phone_numbers`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.env.CLERK_SECRET_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(
-        snakeCaseKeys({
-          userId: params.accountId,
-          phoneNumber: params.phoneNumber,
-          verified: false,
-          primary: true,
-        }),
-      ),
-    });
-
-    if (response.ok) {
-      return ok(undefined);
-    }
-
-    const data = await response.json();
-    const clerkError = ClerkErrorResponse.parse(camelCaseKeys(data));
-    if (head(clerkError.errors)?.code === "form_identifier_exists") {
-      return err({
-        code: codes.phoneNumberAlreadyExists,
-        message: "The phone number is already in use by another account.",
-        details: [],
-      });
-    }
-
-    return err(this.asError(clerkError));
-  }
-
   private asDomain(user: ClerkUser): IdentityAccount {
     return {
       id: user.id,
       email: head(user.emailAddresses)?.emailAddress || null,
-      phoneNumbers: user.phoneNumbers.map((phoneNumber) => phoneNumber.phoneNumber),
       name: `${user.firstName} ${user.lastName}`,
       pictureUrl: user.imageUrl,
       publicMetadata: user.publicMetadata,

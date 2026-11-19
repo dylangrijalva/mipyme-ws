@@ -3,6 +3,7 @@ CREATE TABLE `accounts` (
 	`id` char(24) NOT NULL,
 	`email` varchar(320) NOT NULL,
 	`phone` varchar(32),
+	`phoneVerified` boolean NOT NULL DEFAULT false,
 	`externalId` varchar(128) NOT NULL,
 	`merchantId` char(24) NOT NULL,
 	`createdAt` datetime(6) NOT NULL,
