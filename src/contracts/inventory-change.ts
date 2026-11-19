@@ -5,6 +5,7 @@ import { InventoryPhysicalCount } from "./inventory-physical-count.ts";
 const InventoryChange = z.discriminatedUnion("type", [
   InventoryMovement.extend({
     type: z.literal("movement"),
+    onHandAfter: z.number(),
   }),
   InventoryPhysicalCount.extend({
     type: z.literal("physical_count"),

@@ -1023,7 +1023,8 @@ describe("UpdateProductService item inventory levels", () => {
         success: false,
         error: {
           code: codes.validationError,
-          message: "The on-hand quantity can only be set before the product's first inventory movement.",
+          message:
+            "The on-hand quantity can only be set before the product's first inventory movement. Use inventory adjustments to change it.",
           details: [],
         },
       });

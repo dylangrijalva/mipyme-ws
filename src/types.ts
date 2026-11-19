@@ -7,6 +7,7 @@ import type { Database } from "./db/index.ts";
 import type { CollectionFinder } from "./finders/collection-finder.ts";
 import type { CustomerFinder } from "./finders/customer-finder.ts";
 import type { EmployeeFinder } from "./finders/employee-finder.ts";
+import type { InventoryChangeFinder } from "./finders/inventory-change-finder.ts";
 import type { InvitationFinder } from "./finders/invitation-finder.ts";
 import type { LocationFinder } from "./finders/location-finder.ts";
 import type { MerchantFinder } from "./finders/merchant-finder.ts";
@@ -43,6 +44,7 @@ type MipymeEnv = {
     collectionFinder: CollectionFinder;
     customerFinder: CustomerFinder;
     employeeFinder: EmployeeFinder;
+    inventoryChangeFinder: InventoryChangeFinder;
     invitationFinder: InvitationFinder;
     locationFinder: LocationFinder;
     supplierFinder: SupplierFinder;

@@ -8,6 +8,7 @@ const InventoryMovement = z.object({
   variantId: z.string(),
   locationId: z.string(),
   referenceId: z.string().nullable(),
+  notes: z.string().nullable(),
   reason: InventoryMovementReason,
   fromState: InventoryState,
   toState: InventoryState,

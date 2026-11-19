@@ -15,6 +15,13 @@
       "when": 1795062031449,
       "tag": "0001_special_red_ghost",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1795121426168,
+      "tag": "0002_sudden_machine_man",
+      "breakpoints": true
     }
   ]
 }

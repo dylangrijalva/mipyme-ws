@@ -531,6 +531,7 @@ export const inventoryMovement = mysqlTable(
     quantityDelta: int().notNull(),
     unitCost: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }).notNull(),
     referenceId: char({ length: ID_LENGTH }),
+    notes: varchar({ length: 256 }),
     occurredAt: datetime({ mode: "date", fsp: 6 })
       .notNull()
       .$defaultFn(() => now()),
@@ -551,9 +552,15 @@ export const inventoryMovement = mysqlTable(
       .notNull(),
   },
   (table) => [
-    index("inventory_movements_level_occurred_at_idx").on(table.inventoryLevelId, table.occurredAt),
+    // Covers the quantity delta so the history's running on-hand can be summed from the index alone.
+    index("inventory_movements_level_occurred_at_delta_idx").on(
+      table.inventoryLevelId,
+      table.occurredAt,
+      table.id,
+      table.quantityDelta,
+    ),
     index("inventory_movements_created_by_id_idx").on(table.createdById),
-    index("inventory_movements_merchant_id_idx").on(table.merchantId),
+    index("inventory_movements_merchant_occurred_at_idx").on(table.merchantId, table.occurredAt, table.id),
     index("inventory_movements_reference_id_idx").on(table.referenceId),
     unique("inventory_movements_merchant_id_unique").on(table.merchantId, table.id),
     foreignKey({

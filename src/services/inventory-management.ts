@@ -97,7 +97,8 @@ class InventoryManagement {
     if (isInitialized && setsOnHand) {
       return err({
         code: codes.validationError,
-        message: "The on-hand quantity can only be set before the product's first inventory movement.",
+        message:
+          "The on-hand quantity can only be set before the product's first inventory movement. Use inventory adjustments to change it.",
         details: [],
       });
     }
@@ -192,4 +193,4 @@ class InventoryManagement {
   }
 }
 
-export { InventoryLevelInput, InventoryManagement, type ResolvedInventoryLevel };
+export { InventoryLevelInput, InventoryManagement, MAX_STOCK_QUANTITY, type ResolvedInventoryLevel };

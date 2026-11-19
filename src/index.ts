@@ -6,6 +6,7 @@ import { createDrizzle } from "./db/index.ts";
 import { CollectionFinder } from "./finders/collection-finder.ts";
 import { CustomerFinder } from "./finders/customer-finder.ts";
 import { EmployeeFinder } from "./finders/employee-finder.ts";
+import { InventoryChangeFinder } from "./finders/inventory-change-finder.ts";
 import { InvitationFinder } from "./finders/invitation-finder.ts";
 import { LocationFinder } from "./finders/location-finder.ts";
 import { MerchantFinder } from "./finders/merchant-finder.ts";
@@ -53,6 +54,7 @@ async function run() {
   const collectionFinder = new CollectionFinder();
   const customerFinder = new CustomerFinder();
   const employeeFinder = new EmployeeFinder();
+  const inventoryChangeFinder = new InventoryChangeFinder();
   const invitationFinder = new InvitationFinder();
   const locationFinder = new LocationFinder();
   const supplierFinder = new SupplierFinder();
@@ -77,6 +79,7 @@ async function run() {
     collectionFinder,
     customerFinder,
     employeeFinder,
+    inventoryChangeFinder,
     invitationFinder,
     locationFinder,
     supplierFinder,

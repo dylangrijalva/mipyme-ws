@@ -7,6 +7,7 @@ import { tables } from "../../../../src/db/schema.ts";
 import { CollectionFinder } from "../../../../src/finders/collection-finder.ts";
 import { CustomerFinder } from "../../../../src/finders/customer-finder.ts";
 import { EmployeeFinder } from "../../../../src/finders/employee-finder.ts";
+import { InventoryChangeFinder } from "../../../../src/finders/inventory-change-finder.ts";
 import { InvitationFinder } from "../../../../src/finders/invitation-finder.ts";
 import { LocationFinder } from "../../../../src/finders/location-finder.ts";
 import { MerchantFinder } from "../../../../src/finders/merchant-finder.ts";
@@ -66,6 +67,7 @@ async function setupRoutes() {
     collectionFinder: new CollectionFinder(),
     customerFinder: new CustomerFinder(),
     employeeFinder: new EmployeeFinder(),
+    inventoryChangeFinder: new InventoryChangeFinder(),
     invitationFinder: new InvitationFinder(),
     locationFinder: new LocationFinder(),
     supplierFinder: new SupplierFinder(),

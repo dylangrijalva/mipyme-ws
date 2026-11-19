@@ -8,6 +8,7 @@ import type { Database } from "./db/index.ts";
 import type { CollectionFinder } from "./finders/collection-finder.ts";
 import type { CustomerFinder } from "./finders/customer-finder.ts";
 import type { EmployeeFinder } from "./finders/employee-finder.ts";
+import type { InventoryChangeFinder } from "./finders/inventory-change-finder.ts";
 import type { InvitationFinder } from "./finders/invitation-finder.ts";
 import type { LocationFinder } from "./finders/location-finder.ts";
 import type { MerchantFinder } from "./finders/merchant-finder.ts";
@@ -39,6 +40,7 @@ import OpenAPIDocument from "./openapi.json" with { type: "json" };
 import { collectionsRouter } from "./routes/collections.router.ts";
 import { customersRouter } from "./routes/customers.router.ts";
 import { employeesRouter } from "./routes/employees.router.ts";
+import { inventoryRouter } from "./routes/inventory.router.ts";
 import { invitationsRouter } from "./routes/invitations.router.ts";
 import { locationsRouter } from "./routes/locations.router.ts";
 import { onboardingRouter } from "./routes/onboarding.router.ts";
@@ -71,6 +73,7 @@ type InjectedDependencies = {
   collectionFinder: CollectionFinder;
   customerFinder: CustomerFinder;
   employeeFinder: EmployeeFinder;
+  inventoryChangeFinder: InventoryChangeFinder;
   invitationFinder: InvitationFinder;
   locationFinder: LocationFinder;
   supplierFinder: SupplierFinder;
@@ -104,6 +107,7 @@ function createApp(dependencies: InjectedDependencies): MipymeHono {
   app.route("/v1/suppliers", suppliersRouter());
   app.route("/v1/sales", salesRouter());
   app.route("/v1/purchases", purchasesRouter());
+  app.route("/v1/inventory", inventoryRouter());
   app.route("/v1/realtime", realtimeRouter());
   app.route("/v1/sync", syncRouter());
 

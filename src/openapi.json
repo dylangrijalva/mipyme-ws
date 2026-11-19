@@ -55,6 +55,10 @@
       "description": "A purchase records stock received from a supplier at a location. Use it to track where inventory came from and what it cost."
     },
     {
+      "name": "Inventory",
+      "description": "Manual stock adjustments and the stock history of every variant at every location. Set opening stock on the product, receive supplier stock through purchases, and record any other change as an adjustment."
+    },
+    {
       "name": "Health",
       "description": "The health endpoint reports whether the API is available."
     },
@@ -1806,7 +1810,7 @@
         "tags": ["Products"],
         "operationId": "updateProduct",
         "summary": "Update a product",
-        "description": "Updates supplied fields; omitted fields are unchanged. Use `null` to clear `sku`, `barcode`, `collection_id`, or `image_url`. For items, `unit_cost` must be positive and may change only before stock moves; `price` cannot be below `unit_cost`. `inventory_levels` changes only the listed locations: thresholds can change at any time, while `on_hand` sets opening stock, recorded as an `initial_stock` movement that makes a draft item active, and is accepted only before the product's first inventory movement at any location. Services ignore `inventory_levels`.",
+        "description": "Updates supplied fields; omitted fields are unchanged. Use `null` to clear `sku`, `barcode`, `collection_id`, or `image_url`. For items, `unit_cost` must be positive and may change only before stock moves; `price` cannot be below `unit_cost`. `inventory_levels` changes only the listed locations: thresholds can change at any time, while `on_hand` sets opening stock, recorded as an `initial_stock` movement that makes a draft item active, and is accepted only before the product's first inventory movement at any location. Later stock changes go through `POST /v1/inventory/adjustments`. Services ignore `inventory_levels`.",
         "security": [
           {
             "bearerAuth": []
@@ -4088,6 +4092,290 @@
           }
         }
       }
+    },
+    "/v1/inventory/adjustments": {
+      "post": {
+        "tags": ["Inventory"],
+        "operationId": "createInventoryAdjustments",
+        "summary": "Adjust inventory",
+        "description": "Adds or removes stock at one location after a product's opening stock has been set, recording one movement per line valued at the product's current unit cost. All lines apply together or none do. `damaged`, `theft`, and `lost` move stock to waste and must reduce it; `correction` fixes a miscount in either direction and requires notes. Stock can never drop below zero. A positive `correction` at a location without stock creates its inventory level. Adjustments never change the product's unit cost, and purchases made before an adjustment can no longer be voided. The credited employee needs `manage_inventory` and access to the location.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInventoryAdjustmentsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "201": {
+            "description": "Returns the recorded movements and the adjusted inventory levels.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryAdjustments"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request contains invalid JSON or values, a repeated variant, a service product, a product whose opening stock has not been set, a `damaged`, `theft`, or `lost` line that adds stock, or a `correction` without notes. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership is not provisioned (`account_not_provisioned`), or the credited employee is disabled, lacks `manage_inventory`, or cannot access the location (`forbidden_error`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The location, credited employee, or one of the variants does not exist within your merchant, or the variant or its product is archived. Returns `resource_not_found`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The adjustments would reduce stock below zero at the location (`stock_insufficient`), with one detail per short line. With `Idempotency-Key`, may also return `idempotency_key_mismatch` or `idempotency_request_in_progress`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the adjustment. No stock changes are applied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/IdempotencyUnavailable"
+          }
+        }
+      }
+    },
+    "/v1/inventory/changes": {
+      "get": {
+        "tags": ["Inventory"],
+        "operationId": "listInventoryChanges",
+        "summary": "List inventory history",
+        "description": "Lists stock movements newest first, from opening stock, sales, purchases, voids, and adjustments, each with the on-hand quantity right after it. List filters take comma-separated values; values within a filter match any, and different filters must all match. Continue with `next_cursor` and unchanged filters. Owners see every location; staff need `view_inventory_reports` and see only the locations they can access.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "The maximum number of changes to return. Defaults to 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The opaque base64url `next_cursor` value returned by the previous page. Keep the other filters unchanged when using it.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 128,
+              "examples": ["example-opaque-page-cursor"]
+            }
+          },
+          {
+            "name": "variant_ids",
+            "in": "query",
+            "required": false,
+            "style": "form",
+            "explode": false,
+            "description": "Comma-separated variant IDs, up to 100. Returns changes for any of them.",
+            "schema": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/components/schemas/ObjectId"
+              }
+            }
+          },
+          {
+            "name": "location_ids",
+            "in": "query",
+            "required": false,
+            "style": "form",
+            "explode": false,
+            "description": "Comma-separated location IDs, up to 100. Staff receive `forbidden_error` if any of them is outside their location access.",
+            "schema": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/components/schemas/ObjectId"
+              }
+            }
+          },
+          {
+            "name": "reasons",
+            "in": "query",
+            "required": false,
+            "style": "form",
+            "explode": false,
+            "description": "Comma-separated movement reasons, such as `damaged,theft,lost` for losses.",
+            "schema": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/components/schemas/InventoryMovementReason"
+              }
+            }
+          },
+          {
+            "name": "created_by_ids",
+            "in": "query",
+            "required": false,
+            "style": "form",
+            "explode": false,
+            "description": "Comma-separated IDs of the employees credited with the changes, up to 100.",
+            "schema": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/components/schemas/ObjectId"
+              }
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "Inclusive lower bound on occurred_at. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "Inclusive upper bound on occurred_at. ISO 8601 timestamp with an explicit timezone. Either bound may be omitted; from must not exceed to.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "200": {
+            "description": "Returns a page of inventory changes and pagination information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryChangePaginationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filters, limit, cursor, timestamps, or reversed date range. Returns `validation_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing, invalid, or expired. Returns `invalid_oauth_token`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership is not provisioned (`account_not_provisioned`), or the employee is not enabled, lacks `view_inventory_reports`, or requested a location outside their access (`forbidden_error`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error prevented the inventory history from being listed. Returns `internal_server_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MipymeError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "x-realtime-events": {
@@ -5712,47 +6000,52 @@
                 "description": "The identifier of the inventory movement.",
                 "examples": ["invm_T3DU0MU3D6NW1486YJR"]
               },
-              "variantId": {
+              "variant_id": {
                 "type": "string",
                 "description": "The identifier of the product variant associated with the stock entry.",
                 "examples": ["var_SPPWCBGNASKMHJSHXH38"]
               },
-              "locationId": {
+              "location_id": {
                 "type": "string",
                 "description": "The identifier of the location associated with the stock entry.",
                 "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
               },
-              "referenceId": {
+              "reference_id": {
                 "type": ["string", "null"],
                 "description": "The identifier of the related business record, such as a sale or purchase order. Returns `null` when no related record is associated.",
                 "examples": ["sale_5TZND2TVGAU9823UPMV"]
               },
+              "notes": {
+                "type": ["string", "null"],
+                "description": "Why the stock changed, as recorded with a manual inventory adjustment. Always present for `correction` adjustments. Returns `null` when no notes were recorded, such as for sales, purchases, voids, and opening stock.",
+                "examples": ["Water leak in the storeroom"]
+              },
               "reason": {
                 "$ref": "#/components/schemas/InventoryMovementReason",
-                "description": "The business reason for the inventory movement.",
+                "description": "The business reason for the inventory movement. Manual adjustments use `damaged`, `theft`, `lost`, or `correction`.",
                 "examples": ["sale"]
               },
-              "fromState": {
+              "from_state": {
                 "$ref": "#/components/schemas/InventoryState",
                 "description": "The inventory state from which the stock moved.",
                 "examples": ["in_stock"]
               },
-              "toState": {
+              "to_state": {
                 "$ref": "#/components/schemas/InventoryState",
                 "description": "The inventory state to which the stock moved.",
                 "examples": ["sold"]
               },
-              "quantityDelta": {
+              "quantity_delta": {
                 "type": "number",
                 "description": "The signed change in stock quantity. Positive values add stock; negative values remove stock.",
                 "examples": [-2]
               },
-              "unitCost": {
+              "unit_cost": {
                 "$ref": "#/components/schemas/Decimal",
                 "description": "The cost per unit captured for the movement, expressed as a decimal string.",
                 "examples": ["80.00"]
               },
-              "createdBy": {
+              "created_by": {
                 "type": "object",
                 "properties": {
                   "id": {
@@ -5768,7 +6061,7 @@
                 },
                 "required": ["id", "name"],
                 "additionalProperties": false,
-                "description": "The employee who recorded the stock entry.",
+                "description": "The employee credited with the stock entry.",
                 "examples": [
                   {
                     "id": "empl_YJHP5ULEG3QP1M786T3",
@@ -5776,23 +6069,29 @@
                   }
                 ]
               },
-              "occurredAt": {
+              "occurred_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "The date and time assigned to the stock event, in RFC 3339 format.",
                 "examples": ["2026-09-23T09:00:00.000Z"]
               },
-              "createdAt": {
+              "created_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "The date and time when the inventory movement was created, in RFC 3339 format.",
                 "examples": ["2026-09-23T09:00:00.000Z"]
               },
-              "updatedAt": {
+              "updated_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "The date and time when the inventory movement was last updated, in RFC 3339 format.",
                 "examples": ["2026-09-23T09:00:00.000Z"]
+              },
+              "on_hand_after": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "The variant's on-hand quantity at the location right after this movement. Computed from the current on-hand quantity and the movements recorded after this one, so it is exact even when filters hide some of them.",
+                "examples": [7]
               },
               "type": {
                 "type": "string",
@@ -5803,43 +6102,47 @@
             },
             "required": [
               "id",
-              "variantId",
-              "locationId",
-              "referenceId",
+              "variant_id",
+              "location_id",
+              "reference_id",
+              "notes",
               "reason",
-              "fromState",
-              "toState",
-              "quantityDelta",
-              "unitCost",
-              "createdBy",
-              "occurredAt",
-              "createdAt",
-              "updatedAt",
+              "from_state",
+              "to_state",
+              "quantity_delta",
+              "unit_cost",
+              "created_by",
+              "occurred_at",
+              "created_at",
+              "updated_at",
+              "on_hand_after",
               "type"
             ],
             "additionalProperties": false,
             "examples": [
               {
                 "id": "invm_T3DU0MU3D6NW1486YJR",
-                "variantId": "var_SPPWCBGNASKMHJSHXH38",
-                "locationId": "loc_AGGD8EJA69JRL3UTU79K",
-                "referenceId": "sale_5TZND2TVGAU9823UPMV",
+                "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+                "location_id": "loc_AGGD8EJA69JRL3UTU79K",
+                "reference_id": "sale_5TZND2TVGAU9823UPMV",
+                "notes": null,
                 "reason": "sale",
-                "fromState": "in_stock",
-                "toState": "sold",
-                "quantityDelta": -2,
-                "unitCost": "80.00",
-                "createdBy": {
+                "from_state": "in_stock",
+                "to_state": "sold",
+                "quantity_delta": -2,
+                "unit_cost": "80.00",
+                "created_by": {
                   "id": "empl_YJHP5ULEG3QP1M786T3",
                   "name": "Nami"
                 },
-                "occurredAt": "2026-09-23T09:00:00.000Z",
-                "createdAt": "2026-09-23T09:00:00.000Z",
-                "updatedAt": "2026-09-23T09:00:00.000Z",
+                "occurred_at": "2026-09-23T09:00:00.000Z",
+                "created_at": "2026-09-23T09:00:00.000Z",
+                "updated_at": "2026-09-23T09:00:00.000Z",
+                "on_hand_after": 7,
                 "type": "movement"
               }
             ],
-            "description": "Records a product variant's stock change at a location: quantity delta, inventory states, unit cost, responsible employee, and an optional reference to a related sale or purchase order."
+            "description": "Records a product variant's stock change at a location: quantity delta, resulting on-hand quantity, inventory states, unit cost, credited employee, optional notes, and an optional reference to a related sale or purchase order."
           },
           {
             "type": "object",
@@ -5849,12 +6152,12 @@
                 "description": "The identifier of the physical count.",
                 "examples": ["inv_pct_JCVLX946VEMLDQAW"]
               },
-              "variantId": {
+              "variant_id": {
                 "type": "string",
                 "description": "The identifier of the product variant associated with the stock entry.",
                 "examples": ["var_SPPWCBGNASKMHJSHXH38"]
               },
-              "locationId": {
+              "location_id": {
                 "type": "string",
                 "description": "The identifier of the location associated with the stock entry.",
                 "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
@@ -5864,7 +6167,7 @@
                 "description": "The absolute number of units observed during the physical count.",
                 "examples": [18]
               },
-              "createdBy": {
+              "created_by": {
                 "type": "object",
                 "properties": {
                   "id": {
@@ -5888,19 +6191,19 @@
                   }
                 ]
               },
-              "occurredAt": {
+              "occurred_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "The date and time of the physical count, in RFC 3339 format.",
                 "examples": ["2026-09-23T09:00:00.000Z"]
               },
-              "createdAt": {
+              "created_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "The date and time when the physical count was created, in RFC 3339 format.",
                 "examples": ["2026-09-23T09:00:00.000Z"]
               },
-              "updatedAt": {
+              "updated_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "The date and time when the physical count was last updated, in RFC 3339 format.",
@@ -5915,29 +6218,29 @@
             },
             "required": [
               "id",
-              "variantId",
-              "locationId",
+              "variant_id",
+              "location_id",
               "quantity",
-              "createdBy",
-              "occurredAt",
-              "createdAt",
-              "updatedAt",
+              "created_by",
+              "occurred_at",
+              "created_at",
+              "updated_at",
               "type"
             ],
             "additionalProperties": false,
             "examples": [
               {
                 "id": "inv_pct_JCVLX946VEMLDQAW",
-                "variantId": "var_SPPWCBGNASKMHJSHXH38",
-                "locationId": "loc_AGGD8EJA69JRL3UTU79K",
+                "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+                "location_id": "loc_AGGD8EJA69JRL3UTU79K",
                 "quantity": 18,
-                "createdBy": {
+                "created_by": {
                   "id": "empl_YJHP5ULEG3QP1M786T3",
                   "name": "Nami"
                 },
-                "occurredAt": "2026-09-23T09:00:00.000Z",
-                "createdAt": "2026-09-23T09:00:00.000Z",
-                "updatedAt": "2026-09-23T09:00:00.000Z",
+                "occurred_at": "2026-09-23T09:00:00.000Z",
+                "created_at": "2026-09-23T09:00:00.000Z",
+                "updated_at": "2026-09-23T09:00:00.000Z",
                 "type": "physical_count"
               }
             ],
@@ -5980,6 +6283,142 @@
             "type": "physical_count"
           }
         ]
+      },
+      "InventoryAdjustmentReason": {
+        "description": "The reason for a manual inventory adjustment. `damaged`, `theft`, and `lost` move stock to waste and must reduce stock. `correction` fixes a miscount in either direction and requires notes.",
+        "examples": ["damaged"],
+        "type": "string",
+        "enum": ["damaged", "theft", "lost", "correction"]
+      },
+      "CreateInventoryAdjustmentsRequest": {
+        "type": "object",
+        "description": "Manual stock changes for one location, applied together or not at all. Use purchases to receive stock from suppliers.",
+        "required": ["location_id", "line_items"],
+        "properties": {
+          "location_id": {
+            "$ref": "#/components/schemas/ObjectId",
+            "description": "The location whose stock changes. Must belong to your merchant and be accessible to the credited employee."
+          },
+          "created_by_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee credited with the adjustments, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant. Omit or send `null` to credit the signed-in account's employee. The credited employee needs the `manage_inventory` permission and access to the location; owners have both.",
+            "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
+          },
+          "line_items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "description": "The stock changes to apply. Each variant may appear only once, and every product must be an item whose opening stock has been set.",
+            "items": {
+              "type": "object",
+              "required": ["variant_id", "reason", "quantity_delta"],
+              "properties": {
+                "variant_id": {
+                  "$ref": "#/components/schemas/ObjectId",
+                  "description": "The variant whose stock changes. Each variant may appear only once in the request."
+                },
+                "reason": {
+                  "$ref": "#/components/schemas/InventoryAdjustmentReason",
+                  "description": "Why the stock changes."
+                },
+                "quantity_delta": {
+                  "type": "integer",
+                  "minimum": -999999999,
+                  "maximum": 999999999,
+                  "not": {
+                    "const": 0
+                  },
+                  "description": "The signed change in stock. Positive values add stock and are only allowed for `correction`; negative values remove stock. Zero is not allowed, and the result cannot drop below zero at the location.",
+                  "examples": [-3]
+                },
+                "notes": {
+                  "type": ["string", "null"],
+                  "maxLength": 256,
+                  "description": "Why the stock changes. Required for `correction` and optional for other reasons. Surrounding whitespace is removed, and blank notes are stored as `null`.",
+                  "examples": ["Water leak in the storeroom"]
+                }
+              }
+            }
+          }
+        },
+        "examples": [
+          {
+            "location_id": "loc_AGGD8EJA69JRL3UTU79K",
+            "line_items": [
+              {
+                "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+                "reason": "damaged",
+                "quantity_delta": -3,
+                "notes": "Water leak in the storeroom"
+              },
+              {
+                "variant_id": "var_T3DU0MU3D6NW1486YJR0",
+                "reason": "correction",
+                "quantity_delta": 2,
+                "notes": "Miscounted the opening stock"
+              }
+            ]
+          }
+        ]
+      },
+      "InventoryAdjustments": {
+        "type": "object",
+        "description": "The movements recorded by an inventory adjustment and the resulting stock at the location.",
+        "required": ["movements", "inventory_levels"],
+        "properties": {
+          "movements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryMovement"
+            },
+            "description": "One movement per line item, in request order."
+          },
+          "inventory_levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryLevel"
+            },
+            "description": "The adjusted inventory levels after the change, ordered by variant ID."
+          }
+        },
+        "additionalProperties": false
+      },
+      "InventoryChangePaginationResponse": {
+        "type": "object",
+        "description": "A page of inventory history with the information needed to request the next page.",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryChange"
+            },
+            "description": "The inventory changes returned in this page, newest first."
+          },
+          "next_cursor": {
+            "type": ["string", "null"],
+            "description": "The opaque cursor to pass when requesting the next page. Returns `null` on the final page."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether more inventory changes are available after this page."
+          }
+        },
+        "required": ["results", "next_cursor", "has_more"],
+        "examples": [
+          {
+            "results": [],
+            "next_cursor": null,
+            "has_more": false
+          }
+        ],
+        "additionalProperties": false
       },
       "InventoryLevel": {
         "type": "object",
@@ -6037,7 +6476,7 @@
                 "type": "null"
               }
             ],
-            "description": "The date and time of the last purchase that received stock of the variant at the location, in RFC 3339 format. Voiding a purchase does not change it. Returns `null` if the variant has never been restocked there.",
+            "description": "The date and time stock was last received at the location, through opening stock, a purchase, or a positive `correction` adjustment, in RFC 3339 format. Voiding a purchase does not change it. Returns `null` if the variant has never been restocked there.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
           "last_inventory_adjustment_at": {
@@ -6149,47 +6588,52 @@
             "description": "The identifier of the inventory movement.",
             "examples": ["invm_T3DU0MU3D6NW1486YJR"]
           },
-          "variantId": {
+          "variant_id": {
             "type": "string",
             "description": "The identifier of the product variant associated with the stock entry.",
             "examples": ["var_SPPWCBGNASKMHJSHXH38"]
           },
-          "locationId": {
+          "location_id": {
             "type": "string",
             "description": "The identifier of the location associated with the stock entry.",
             "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
           },
-          "referenceId": {
+          "reference_id": {
             "type": ["string", "null"],
             "description": "The identifier of the related business record, such as a sale or purchase order. Returns `null` when no related record is associated.",
             "examples": ["sale_5TZND2TVGAU9823UPMV"]
           },
+          "notes": {
+            "type": ["string", "null"],
+            "description": "Why the stock changed, as recorded with a manual inventory adjustment. Always present for `correction` adjustments. Returns `null` when no notes were recorded, such as for sales, purchases, voids, and opening stock.",
+            "examples": ["Water leak in the storeroom"]
+          },
           "reason": {
             "$ref": "#/components/schemas/InventoryMovementReason",
-            "description": "The business reason for the inventory movement.",
+            "description": "The business reason for the inventory movement. Manual adjustments use `damaged`, `theft`, `lost`, or `correction`.",
             "examples": ["sale"]
           },
-          "fromState": {
+          "from_state": {
             "$ref": "#/components/schemas/InventoryState",
             "description": "The inventory state from which the stock moved.",
             "examples": ["in_stock"]
           },
-          "toState": {
+          "to_state": {
             "$ref": "#/components/schemas/InventoryState",
             "description": "The inventory state to which the stock moved.",
             "examples": ["sold"]
           },
-          "quantityDelta": {
+          "quantity_delta": {
             "type": "number",
             "description": "The signed change in stock quantity. Positive values add stock; negative values remove stock.",
             "examples": [-2]
           },
-          "unitCost": {
+          "unit_cost": {
             "$ref": "#/components/schemas/Decimal",
             "description": "The cost per unit captured for the movement, expressed as a decimal string.",
             "examples": ["80.00"]
           },
-          "createdBy": {
+          "created_by": {
             "type": "object",
             "properties": {
               "id": {
@@ -6205,7 +6649,7 @@
             },
             "required": ["id", "name"],
             "additionalProperties": false,
-            "description": "The employee who recorded the stock entry.",
+            "description": "The employee credited with the stock entry.",
             "examples": [
               {
                 "id": "empl_YJHP5ULEG3QP1M786T3",
@@ -6213,19 +6657,19 @@
               }
             ]
           },
-          "occurredAt": {
+          "occurred_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time assigned to the stock event, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the inventory movement was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the inventory movement was last updated, in RFC 3339 format.",
@@ -6234,39 +6678,41 @@
         },
         "required": [
           "id",
-          "variantId",
-          "locationId",
-          "referenceId",
+          "variant_id",
+          "location_id",
+          "reference_id",
+          "notes",
           "reason",
-          "fromState",
-          "toState",
-          "quantityDelta",
-          "unitCost",
-          "createdBy",
-          "occurredAt",
-          "createdAt",
-          "updatedAt"
+          "from_state",
+          "to_state",
+          "quantity_delta",
+          "unit_cost",
+          "created_by",
+          "occurred_at",
+          "created_at",
+          "updated_at"
         ],
         "additionalProperties": false,
-        "description": "A record of stock changing at a location. It can link the change to the sale or purchase that caused it.",
+        "description": "A record of stock changing at a location. It can link the change to the sale or purchase that caused it, or carry the notes recorded with a manual inventory adjustment.",
         "examples": [
           {
             "id": "invm_T3DU0MU3D6NW1486YJR",
-            "variantId": "var_SPPWCBGNASKMHJSHXH38",
-            "locationId": "loc_AGGD8EJA69JRL3UTU79K",
-            "referenceId": "sale_5TZND2TVGAU9823UPMV",
+            "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+            "location_id": "loc_AGGD8EJA69JRL3UTU79K",
+            "reference_id": "sale_5TZND2TVGAU9823UPMV",
+            "notes": null,
             "reason": "sale",
-            "fromState": "in_stock",
-            "toState": "sold",
-            "quantityDelta": -2,
-            "unitCost": "80.00",
-            "createdBy": {
+            "from_state": "in_stock",
+            "to_state": "sold",
+            "quantity_delta": -2,
+            "unit_cost": "80.00",
+            "created_by": {
               "id": "empl_YJHP5ULEG3QP1M786T3",
               "name": "Nami"
             },
-            "occurredAt": "2026-09-23T09:00:00.000Z",
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "occurred_at": "2026-09-23T09:00:00.000Z",
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z"
           }
         ]
       },
@@ -6278,12 +6724,12 @@
             "description": "The identifier of the physical count.",
             "examples": ["inv_pct_JCVLX946VEMLDQAW"]
           },
-          "variantId": {
+          "variant_id": {
             "type": "string",
             "description": "The identifier of the product variant associated with the stock entry.",
             "examples": ["var_SPPWCBGNASKMHJSHXH38"]
           },
-          "locationId": {
+          "location_id": {
             "type": "string",
             "description": "The identifier of the location associated with the stock entry.",
             "examples": ["loc_AGGD8EJA69JRL3UTU79K"]
@@ -6293,7 +6739,7 @@
             "description": "The absolute number of units observed during the physical count.",
             "examples": [18]
           },
-          "createdBy": {
+          "created_by": {
             "type": "object",
             "properties": {
               "id": {
@@ -6317,41 +6763,50 @@
               }
             ]
           },
-          "occurredAt": {
+          "occurred_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time of the physical count, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the physical count was created, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "The date and time when the physical count was last updated, in RFC 3339 format.",
             "examples": ["2026-09-23T09:00:00.000Z"]
           }
         },
-        "required": ["id", "variantId", "locationId", "quantity", "createdBy", "occurredAt", "createdAt", "updatedAt"],
+        "required": [
+          "id",
+          "variant_id",
+          "location_id",
+          "quantity",
+          "created_by",
+          "occurred_at",
+          "created_at",
+          "updated_at"
+        ],
         "additionalProperties": false,
         "description": "The quantity observed for one product variant at a location during a physical stock count.",
         "examples": [
           {
             "id": "inv_pct_JCVLX946VEMLDQAW",
-            "variantId": "var_SPPWCBGNASKMHJSHXH38",
-            "locationId": "loc_AGGD8EJA69JRL3UTU79K",
+            "variant_id": "var_SPPWCBGNASKMHJSHXH38",
+            "location_id": "loc_AGGD8EJA69JRL3UTU79K",
             "quantity": 18,
-            "createdBy": {
+            "created_by": {
               "id": "empl_YJHP5ULEG3QP1M786T3",
               "name": "Nami"
             },
-            "occurredAt": "2026-09-23T09:00:00.000Z",
-            "createdAt": "2026-09-23T09:00:00.000Z",
-            "updatedAt": "2026-09-23T09:00:00.000Z"
+            "occurred_at": "2026-09-23T09:00:00.000Z",
+            "created_at": "2026-09-23T09:00:00.000Z",
+            "updated_at": "2026-09-23T09:00:00.000Z"
           }
         ]
       },
