@@ -285,8 +285,10 @@ describe("CreateProductService inventory levels", () => {
     });
 
     expect(result.success).toBe(true);
+    expect(result.value?.status).toBe("active");
     const [product] = await db.select().from(tables.product);
     const [variant] = await db.select().from(tables.variant);
+    expect(product.status).toBe("active");
     expect(product.lastRestockAt).toEqual(NOW);
     const levels = await readLevelsByLocation(db, variant.id);
     expect(levels.size).toBe(2);
@@ -348,8 +350,10 @@ describe("CreateProductService inventory levels", () => {
     });
 
     expect(result.success).toBe(true);
+    expect(result.value?.status).toBe("draft");
     const [product] = await db.select().from(tables.product);
     const [variant] = await db.select().from(tables.variant);
+    expect(product.status).toBe("draft");
     expect(product.lastRestockAt).toBeNull();
     const levels = await readLevelsByLocation(db, variant.id);
     expect(levels.get(thousandSunnyId)).toMatchObject({

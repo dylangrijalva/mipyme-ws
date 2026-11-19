@@ -334,6 +334,7 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
         .select({
           price: tables.product.price,
           unitCost: tables.product.unitCost,
+          status: tables.product.status,
           updatedAt: tables.product.updatedAt,
         })
         .from(tables.product)
@@ -408,6 +409,8 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
         .set({
           ...productValues,
           ...(hasInitialStock ? { lastRestockAt: updatedAt } : {}),
+          // Opening stock initializes the item, which puts a draft on sale without reviving an archived one.
+          ...(hasInitialStock && currentProduct.status === "draft" ? { status: "active" as const } : {}),
           updatedAt: nextUpdatedAt,
         })
         .where(and(eq(tables.product.id, product.id), eq(tables.product.merchantId, this.user.merchantId)));

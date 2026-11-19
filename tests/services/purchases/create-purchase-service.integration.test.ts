@@ -209,6 +209,25 @@ async function waitForProductRowLockWaits(db: Database, expectedWaits: number): 
 afterEach(() => vi.restoreAllMocks());
 
 describe("CreatePurchaseService", () => {
+  it.each([
+    { before: "draft" as const, after: "active" },
+    { before: "active" as const, after: "active" },
+    { before: "archived" as const, after: "archived" },
+  ])("leaves a $before item $after once the purchase receives its stock", async ({ before, after }) => {
+    const { db, service, merchantId, supplierId, locationId, productId, mandarinVariantId } = await setup();
+    await db.update(tables.product).set({ status: before }).where(eq(tables.product.id, productId));
+
+    const result = await service.execute({
+      supplierId,
+      locationId,
+      lineItems: [{ variantId: mandarinVariantId, quantity: 2, unitCost: "9.00" }],
+    });
+
+    expect(result.success).toBe(true);
+    const { products } = await readState(db, merchantId);
+    expect(products.find((product) => product.id === productId)).toMatchObject({ status: after });
+  });
+
   it("creates a fulfilled purchase, receives stock at one location, and recalculates the product-wide unit cost", async () => {
     const {
       broadcast,

@@ -309,7 +309,8 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
       unitCost: request.unitCost,
       lastRestockAt: hasInitialStock ? stockedAt : null,
       type: request.productType,
-      status: "draft",
+      // Sales only accept active products, so an item goes on sale once its stock is initialized.
+      status: hasInitialStock ? "active" : "draft",
       collectionId: request.collectionId ?? null,
     };
 

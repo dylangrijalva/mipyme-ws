@@ -827,6 +827,8 @@ tests:
             schema:
               $ref: "#/components/schemas/Product"
             jsonpath:
+              $.status:
+                - eq: active
               $.variants[0].inventory_levels[?(@.on_hand > 0)].location_id:
                 - eq:
                     - ${{captures.locationId}}
@@ -913,6 +915,8 @@ tests:
             schema:
               $ref: "#/components/schemas/Product"
             jsonpath:
+              $.status:
+                - eq: draft
               $.variants[0].inventory_levels.length:
                 - gte: 1
               $.variants[0].inventory_levels[?(@.on_hand > 0)]:
@@ -955,6 +959,8 @@ tests:
               $.variants[0].inventory_levels[?(@.on_hand > 0)].stock_status:
                 - eq:
                     - in_stock
+              $.status:
+                - eq: active
       - name: captures the catalog before rejected inventory requests
         http:
           url: ${{env.baseUrl}}/v1/products

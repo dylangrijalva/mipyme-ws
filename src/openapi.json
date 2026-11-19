@@ -1617,7 +1617,7 @@
         "tags": ["Products"],
         "operationId": "createProduct",
         "summary": "Create a product",
-        "description": "Creates a product and its initial variant. Items start as drafts, require positive `unit_cost`, and get an inventory level at every location of your merchant. Use `inventory_levels` to set opening stock and stock thresholds per location; opening stock is recorded as an `initial_stock` movement. Services start active, do not track inventory, and ignore `inventory_levels`. Requires an enabled owner or staff member.",
+        "description": "Creates a product and its initial variant. Items start as drafts unless they are created with opening stock, require positive `unit_cost`, and get an inventory level at every location of your merchant. Use `inventory_levels` to set opening stock and stock thresholds per location; opening stock is recorded as an `initial_stock` movement and makes the item `active`. Services start active, do not track inventory, and ignore `inventory_levels`. Requires an enabled owner or staff member.",
         "security": [
           {
             "bearerAuth": []
@@ -1636,7 +1636,7 @@
         "responses": {
           "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "201": {
-            "description": "Returns the created product and its default variant. Items start as draft; services start as active.",
+            "description": "Returns the created product and its default variant. Items start as draft, or active when created with opening stock; services start as active.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1806,7 +1806,7 @@
         "tags": ["Products"],
         "operationId": "updateProduct",
         "summary": "Update a product",
-        "description": "Updates supplied fields; omitted fields are unchanged. Use `null` to clear `sku`, `barcode`, `collection_id`, or `image_url`. For items, `unit_cost` must be positive and may change only before stock moves; `price` cannot be below `unit_cost`. `inventory_levels` changes only the listed locations: thresholds can change at any time, while `on_hand` sets opening stock, recorded as an `initial_stock` movement, and is accepted only before the product's first inventory movement at any location. Services ignore `inventory_levels`.",
+        "description": "Updates supplied fields; omitted fields are unchanged. Use `null` to clear `sku`, `barcode`, `collection_id`, or `image_url`. For items, `unit_cost` must be positive and may change only before stock moves; `price` cannot be below `unit_cost`. `inventory_levels` changes only the listed locations: thresholds can change at any time, while `on_hand` sets opening stock, recorded as an `initial_stock` movement that makes a draft item active, and is accepted only before the product's first inventory movement at any location. Services ignore `inventory_levels`.",
         "security": [
           {
             "bearerAuth": []
@@ -3205,7 +3205,7 @@
         "tags": ["Purchases"],
         "operationId": "createPurchase",
         "summary": "Create a purchase",
-        "description": "Receives supplier stock at a location, increasing inventory and average unit costs. Supplier, location, and unique variants must belong to your merchant; services cannot be purchased. Requires an enabled owner or staff member.",
+        "description": "Receives supplier stock at a location, increasing inventory and average unit costs. Draft items in the purchase become active. Supplier, location, and unique variants must belong to your merchant; services cannot be purchased. Requires an enabled owner or staff member.",
         "security": [
           {
             "bearerAuth": []
@@ -6812,7 +6812,7 @@
         "examples": ["https://strawhatpirates.example.com/images/tangerines.jpg"]
       },
       "ProductStatus": {
-        "description": "The state of a product in a merchant's catalog: active, draft, or archived.",
+        "description": "The state of a product in a merchant's catalog: active, draft, or archived. Only active products can be sold. A draft item becomes active once its stock is initialized, through opening stock or a purchase; archived products stay archived.",
         "examples": ["active"],
         "type": "string",
         "enum": ["active", "draft", "archived"]
@@ -7057,7 +7057,7 @@
           },
           "status": {
             "$ref": "#/components/schemas/ProductStatus",
-            "description": "The catalog state of the product: active, draft, or archived.",
+            "description": "The catalog state of the product: active, draft, or archived. A draft item becomes active once its stock is initialized, through opening stock or a purchase.",
             "examples": ["active"]
           },
           "image_url": {

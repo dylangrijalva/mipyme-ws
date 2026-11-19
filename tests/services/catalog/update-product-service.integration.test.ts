@@ -952,7 +952,39 @@ describe("UpdateProductService item inventory levels", () => {
     expect(after.movements).toHaveLength(2);
     const [product] = after.products.filter((storedProduct) => storedProduct.id === productId);
     expect(product.lastRestockAt).toEqual(NOW);
+    expect(product.status).toBe("active");
+    expect(result.value?.status).toBe("active");
   });
+
+  it.each([
+    { scenario: "only its thresholds change", level: { lowStockThreshold: 1 } },
+    { scenario: "its opening stock is explicitly zero", level: { onHand: 0 } },
+  ])("keeps a draft item in draft when $scenario", async ({ level }) => {
+    const { db, service, productId, thousandSunnyId } = await setup("item");
+
+    const result = await service.execute([productId, { inventoryLevels: [{ locationId: thousandSunnyId, ...level }] }]);
+
+    expect(result.value?.status).toBe("draft");
+    const [product] = await db.select().from(tables.product).where(eq(tables.product.id, productId));
+    expect(product).toMatchObject({ status: "draft", lastRestockAt: null });
+  });
+
+  it.each(["active", "archived"] as const)(
+    "keeps the status of an %s item when its opening stock is set",
+    async (status) => {
+      const { db, service, productId, thousandSunnyId } = await setup("item");
+      await db.update(tables.product).set({ status }).where(eq(tables.product.id, productId));
+
+      const result = await service.execute([
+        productId,
+        { inventoryLevels: [{ locationId: thousandSunnyId, onHand: 4 }] },
+      ]);
+
+      expect(result.value?.status).toBe(status);
+      const [product] = await db.select().from(tables.product).where(eq(tables.product.id, productId));
+      expect(product).toMatchObject({ status, lastRestockAt: expect.any(Date) });
+    },
+  );
 
   it("records initial stock at a new unit cost, credits the requested employee, and then locks the cost", async () => {
     const { db, service, productId, waterSevenId, namiId } = await setup("item");

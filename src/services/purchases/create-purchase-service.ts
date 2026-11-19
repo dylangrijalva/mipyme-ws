@@ -6,6 +6,7 @@ import { codes, type BusinessError } from "../../contracts/business-error.ts";
 import type { CurrentUser } from "../../contracts/current-user.ts";
 import { PositiveDecimal } from "../../contracts/decimal.ts";
 import { ObjectId } from "../../contracts/object-id.ts";
+import type { ProductStatus } from "../../contracts/product-status.ts";
 import type { Purchase } from "../../contracts/purchase.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
@@ -68,6 +69,7 @@ type InjectedDependencies = {
 
 type ProductPurchase = {
   productId: string;
+  status: ProductStatus;
   unitCost: string;
   updatedAt: Date;
   receivedQuantity: string;
@@ -174,6 +176,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
             price: tables.variant.price,
             productId: tables.product.id,
             productType: tables.product.type,
+            productStatus: tables.product.status,
             unitCost: tables.product.unitCost,
             updatedAt: tables.product.updatedAt,
           })
@@ -218,6 +221,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
           const productId = purchaseLine.variant.productId;
           const productPurchase = productPurchases.get(productId) ?? {
             productId,
+            status: purchaseLine.variant.productStatus,
             unitCost: purchaseLine.variant.unitCost,
             updatedAt: purchaseLine.variant.updatedAt,
             receivedQuantity: "0",
@@ -323,6 +327,8 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
             .set({
               unitCost: nextUnitCosts.get(productPurchase.productId)!,
               lastRestockAt: createdAt,
+              // Receiving stock initializes a draft item, which puts it on sale.
+              ...(productPurchase.status === "draft" ? { status: "active" as const } : {}),
               updatedAt: new Date(Math.max(createdAt.getTime(), productPurchase.updatedAt.getTime() + 1)),
             })
             .where(
