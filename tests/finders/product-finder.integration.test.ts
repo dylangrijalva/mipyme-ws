@@ -222,6 +222,9 @@ describe("ProductFinder", () => {
         onHand: 17,
         lowStockThreshold: 3,
         optimalStockLevel: 25,
+        lastSoldAt: new Date("2026-01-03T00:00:00Z"),
+        lastRestockAt: new Date("2026-01-02T00:00:00Z"),
+        lastInventoryAdjustmentAt: new Date("2026-01-03T00:00:00Z"),
       },
     ]);
 
@@ -276,6 +279,9 @@ describe("ProductFinder", () => {
         onHand: 17,
         lowStockThreshold: 3,
         optimalStockLevel: 25,
+        lastSoldAt: new Date("2026-01-03T00:00:00Z"),
+        lastRestockAt: new Date("2026-01-02T00:00:00Z"),
+        lastInventoryAdjustmentAt: new Date("2026-01-03T00:00:00Z"),
         stockStatus: "in_stock",
       },
       {
@@ -285,6 +291,9 @@ describe("ProductFinder", () => {
         onHand: 0,
         lowStockThreshold: 0,
         optimalStockLevel: 0,
+        lastSoldAt: null,
+        lastRestockAt: null,
+        lastInventoryAdjustmentAt: null,
         stockStatus: "out_of_stock",
       },
     ]);
@@ -296,6 +305,9 @@ describe("ProductFinder", () => {
         onHand: 99,
         lowStockThreshold: 0,
         optimalStockLevel: 0,
+        lastSoldAt: null,
+        lastRestockAt: null,
+        lastInventoryAdjustmentAt: null,
         stockStatus: "in_stock",
       },
     ]);

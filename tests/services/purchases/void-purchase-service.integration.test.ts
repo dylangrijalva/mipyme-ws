@@ -176,7 +176,7 @@ describe("VoidPurchaseService", () => {
     const before = await readState(context.db);
     expect(before.products.find((product) => product.id === context.productId)).toMatchObject({
       unitCost: "12.00",
-      lastInventoryChangedAt: PURCHASE_TIME,
+      lastRestockAt: PURCHASE_TIME,
       lastSoldAt: null,
     });
     expect(before.items).toEqual(
@@ -217,21 +217,40 @@ describe("VoidPurchaseService", () => {
       ...before.products.find((product) => product.id === context.productId),
       unitCost: "8.00",
       archivedAt,
-      lastInventoryChangedAt: voidedAt,
       updatedAt: voidedAt,
     });
     expect(after.products.find((product) => product.id === otherProductId)).toEqual({
       ...before.products.find((product) => product.id === otherProductId),
       unitCost: "5.00",
-      lastInventoryChangedAt: voidedAt,
       updatedAt: voidedAt,
     });
     expect(after.levels).toHaveLength(4);
     expect(after.levels).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ variantId: context.variantId, locationId: context.locationId, onHand: 6 }),
-        expect.objectContaining({ variantId: context.siblingVariantId, locationId: context.locationId, onHand: 0 }),
-        expect.objectContaining({ variantId: otherVariantId, locationId: context.locationId, onHand: 0 }),
+        expect.objectContaining({
+          variantId: context.variantId,
+          locationId: context.locationId,
+          onHand: 6,
+          lastSoldAt: null,
+          lastRestockAt: PURCHASE_TIME,
+          lastInventoryAdjustmentAt: voidedAt,
+        }),
+        expect.objectContaining({
+          variantId: context.siblingVariantId,
+          locationId: context.locationId,
+          onHand: 0,
+          lastSoldAt: null,
+          lastRestockAt: PURCHASE_TIME,
+          lastInventoryAdjustmentAt: voidedAt,
+        }),
+        expect.objectContaining({
+          variantId: otherVariantId,
+          locationId: context.locationId,
+          onHand: 0,
+          lastSoldAt: null,
+          lastRestockAt: PURCHASE_TIME,
+          lastInventoryAdjustmentAt: voidedAt,
+        }),
         before.levels.find((level) => level.locationId === context.otherLocationId),
       ]),
     );
@@ -305,9 +324,8 @@ describe("VoidPurchaseService", () => {
     expect(context.broadcast).not.toHaveBeenCalled();
   });
 
-  it("rejects voiding after a manual unit cost change without changing state", async () => {
+  it("rejects a manual unit cost change after the purchase so voiding restores the prior cost", async () => {
     const context = await setup();
-    await context.db.update(tables.product).set({ status: "draft" }).where(eq(tables.product.id, context.productId));
     const purchase = await createPurchase(context);
     const updateProductService = UpdateProductService.create({
       db: context.db,
@@ -320,15 +338,11 @@ describe("VoidPurchaseService", () => {
     });
 
     const updateResult = await updateProductService.execute([context.productId, { unitCost: "15.00" }]);
-    expect(updateResult.success).toBe(true);
-    context.broadcast.mockClear();
-    const before = await readState(context.db);
-
     const result = await context.voidService.execute(purchase.id);
 
-    expect(result).toMatchObject({ success: false, error: { code: codes.validationError } });
-    expect(await readState(context.db)).toEqual(before);
-    expect(context.broadcast).not.toHaveBeenCalled();
+    expect(updateResult).toMatchObject({ success: false, error: { code: codes.validationError } });
+    expect(result).toMatchObject({ success: true, value: { status: "voided" } });
+    expect((await readState(context.db)).products[0].unitCost).toBe("8.00");
   });
 
   it.each(["sale", "sale_void", "purchase", "purchase_void"])(
@@ -346,9 +360,12 @@ describe("VoidPurchaseService", () => {
           context.clock.mockReturnValue(PURCHASE_TIME.getTime() + 2000);
           const voided = await context.voidSaleService.execute(sale.value.id);
           expect(voided.success).toBe(true);
-          const [product] = await context.db.select().from(tables.product);
-          expect(product.lastSoldAt).toEqual(new Date(PURCHASE_TIME.getTime() + 1000));
-          expect(product.lastInventoryChangedAt).toEqual(new Date(PURCHASE_TIME.getTime() + 2000));
+          const [level] = await context.db
+            .select()
+            .from(tables.inventoryLevel)
+            .where(eq(tables.inventoryLevel.locationId, context.otherLocationId));
+          expect(level.lastSoldAt).toEqual(new Date(PURCHASE_TIME.getTime() + 1000));
+          expect(level.lastInventoryAdjustmentAt).toEqual(new Date(PURCHASE_TIME.getTime() + 2000));
         }
       }
       if (movement.startsWith("purchase")) {
@@ -396,14 +413,8 @@ describe("VoidPurchaseService", () => {
           .where(eq(tables.inventoryLevel.locationId, context.otherLocationId));
         await context.db.transaction(async (transaction) => {
           await transaction
-            .update(tables.product)
-            .set({
-              lastInventoryChangedAt: PURCHASE_TIME,
-            })
-            .where(eq(tables.product.id, context.productId));
-          await transaction
             .update(tables.inventoryLevel)
-            .set({ onHand: 5 })
+            .set({ onHand: 5, lastInventoryAdjustmentAt: PURCHASE_TIME })
             .where(eq(tables.inventoryLevel.id, level.id));
           await transaction.insert(tables.inventoryMovement).values({
             id: generateId({ model: "inventoryMovement" }),
@@ -421,7 +432,10 @@ describe("VoidPurchaseService", () => {
         });
       }
       const before = await readState(context.db);
-      expect(before.products[0].lastInventoryChangedAt).toEqual(purchase.createdAt);
+      expect(before.levels.map((level) => level.lastInventoryAdjustmentAt)).toEqual([
+        purchase.createdAt,
+        purchase.createdAt,
+      ]);
 
       const result = await context.voidService.execute(purchase.id);
 
@@ -479,14 +493,11 @@ describe("VoidPurchaseService", () => {
     await context.db.transaction(async (transaction) => {
       await transaction
         .update(tables.product)
-        .set({
-          lastInventoryChangedAt: adjustedAt,
-          updatedAt: adjustedAt,
-        })
+        .set({ updatedAt: adjustedAt })
         .where(eq(tables.product.id, otherProductId));
       await transaction
         .update(tables.inventoryLevel)
-        .set({ onHand: 1, updatedAt: adjustedAt })
+        .set({ onHand: 1, lastInventoryAdjustmentAt: adjustedAt, updatedAt: adjustedAt })
         .where(eq(tables.inventoryLevel.id, level.id));
       await transaction.insert(tables.inventoryMovement).values({
         id: generateId({ model: "inventoryMovement" }),
@@ -508,6 +519,58 @@ describe("VoidPurchaseService", () => {
 
     expect(result).toMatchObject({ success: false, error: { code: codes.validationError } });
     expect(await readState(context.db)).toEqual(before);
+  });
+
+  it("allows voiding when only a product outside the purchase changed inventory", async () => {
+    const context = await setup();
+    const purchase = await createPurchase(context);
+    const unrelatedProductId = generateId({ model: "product" });
+    const unrelatedVariantId = generateId({ model: "variant" });
+    const unrelatedLevelId = generateId({ model: "inventoryLevel" });
+    await context.db.insert(tables.product).values({
+      id: unrelatedProductId,
+      merchantId: context.merchantId,
+      name: "Sanji's rice",
+      slug: unrelatedProductId,
+      price: "30.00",
+      unitCost: "5.00",
+      type: "item",
+      status: "active",
+    });
+    await context.db.insert(tables.variant).values({
+      id: unrelatedVariantId,
+      merchantId: context.merchantId,
+      productId: unrelatedProductId,
+      name: "Rice sack",
+      price: "30.00",
+    });
+    await context.db.insert(tables.inventoryLevel).values({
+      id: unrelatedLevelId,
+      merchantId: context.merchantId,
+      variantId: unrelatedVariantId,
+      locationId: context.locationId,
+      onHand: 4,
+      lastInventoryAdjustmentAt: new Date(PURCHASE_TIME.getTime() + 1000),
+    });
+    await context.db.insert(tables.inventoryMovement).values({
+      id: generateId({ model: "inventoryMovement" }),
+      merchantId: context.merchantId,
+      inventoryLevelId: unrelatedLevelId,
+      reason: "correction",
+      fromState: "in_stock",
+      toState: "in_stock",
+      quantityDelta: 4,
+      unitCost: "5.00",
+      createdById: context.employeeId,
+      occurredAt: PURCHASE_TIME,
+    });
+
+    const result = await context.voidService.execute(purchase.id);
+
+    expect(result).toMatchObject({ success: true, value: { status: "voided" } });
+    const after = await readState(context.db);
+    expect(after.products.find((product) => product.id === context.productId)?.unitCost).toBe("8.00");
+    expect(after.levels.find((level) => level.id === unrelatedLevelId)?.onHand).toBe(4);
   });
 
   it("allows a void after a pending sale that did not move inventory", async () => {

@@ -9,6 +9,9 @@ const InventoryLevel = z
     onHand: z.number(),
     lowStockThreshold: z.number(),
     optimalStockLevel: z.number(),
+    lastSoldAt: z.date().nullable(),
+    lastRestockAt: z.date().nullable(),
+    lastInventoryAdjustmentAt: z.date().nullable(),
   })
   .transform((inventoryLevel) => ({ ...inventoryLevel, stockStatus: getStockStatus(inventoryLevel) }));
 

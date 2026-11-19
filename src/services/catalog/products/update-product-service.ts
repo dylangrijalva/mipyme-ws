@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import type { Logger } from "pino";
 import z from "zod";
 import { codes, type BusinessError } from "../../../contracts/business-error.ts";
@@ -292,7 +292,6 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
         .select({
           price: tables.product.price,
           unitCost: tables.product.unitCost,
-          status: tables.product.status,
           updatedAt: tables.product.updatedAt,
         })
         .from(tables.product)
@@ -310,7 +309,28 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
       const unitCostChanged =
         request.unitCost !== undefined && subtract(request.unitCost, currentProduct.unitCost) !== "0";
 
-      if (unitCostChanged && currentProduct.status !== "draft") {
+      const [inventoryMovement] = unitCostChanged
+        ? await trx
+            .select({ id: tables.inventoryLevel.id })
+            .from(tables.inventoryLevel)
+            .innerJoin(
+              tables.variant,
+              and(
+                eq(tables.variant.id, tables.inventoryLevel.variantId),
+                eq(tables.variant.merchantId, this.user.merchantId),
+              ),
+            )
+            .where(
+              and(
+                eq(tables.inventoryLevel.merchantId, this.user.merchantId),
+                eq(tables.variant.productId, product.id),
+                isNotNull(tables.inventoryLevel.lastInventoryAdjustmentAt),
+              ),
+            )
+            .limit(1)
+        : [];
+
+      if (inventoryMovement) {
         return err({
           code: codes.validationError,
           message: "The unit cost cannot be changed after an inventory movement.",
@@ -332,7 +352,6 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
         .update(tables.product)
         .set({
           ...productValues,
-          lastInventoryChangedAt: unitCostChanged ? nextUpdatedAt : undefined,
           updatedAt: nextUpdatedAt,
         })
         .where(and(eq(tables.product.id, product.id), eq(tables.product.merchantId, this.user.merchantId)));

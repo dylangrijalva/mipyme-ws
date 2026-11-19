@@ -435,7 +435,12 @@ describe("CreateSaleService", () => {
       shortageQuantity: 0,
     });
     expect(state.payments.map((payment) => payment.amount).sort()).toEqual(["100.00", "120.00"]);
-    expect(state.levels.find((level) => level.locationId === locationId)?.onHand).toBe(3);
+    expect(state.levels.find((level) => level.locationId === locationId)).toMatchObject({
+      onHand: 3,
+      lastSoldAt: result.value.createdAt,
+      lastRestockAt: before.levels.find((level) => level.locationId === locationId)!.lastRestockAt,
+      lastInventoryAdjustmentAt: result.value.createdAt,
+    });
     expect(state.levels.find((level) => level.locationId === otherLocationId)).toEqual(
       before.levels.find((level) => level.locationId === otherLocationId),
     );
@@ -455,7 +460,6 @@ describe("CreateSaleService", () => {
     expect(state.products.find((product) => product.id === context.productId)).toMatchObject({
       unitCost: "50.00",
       lastSoldAt: result.value.createdAt,
-      lastInventoryChangedAt: result.value.createdAt,
     });
     expect(state.products.find((product) => product.id === context.serviceProductId)).toEqual({
       ...before.products.find((product) => product.id === context.serviceProductId),

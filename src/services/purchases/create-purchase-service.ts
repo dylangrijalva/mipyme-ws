@@ -301,7 +301,6 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
             .set({
               unitCost: nextUnitCosts.get(productPurchase.productId)!,
               lastRestockAt: createdAt,
-              lastInventoryChangedAt: createdAt,
               updatedAt: new Date(Math.max(createdAt.getTime(), productPurchase.updatedAt.getTime() + 1)),
             })
             .where(
@@ -373,7 +372,12 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
           if (previousLevel) {
             await trx
               .update(tables.inventoryLevel)
-              .set({ onHand: previousLevel.onHand + purchaseLine.quantity, updatedAt: createdAt })
+              .set({
+                onHand: previousLevel.onHand + purchaseLine.quantity,
+                lastRestockAt: createdAt,
+                lastInventoryAdjustmentAt: createdAt,
+                updatedAt: createdAt,
+              })
               .where(
                 and(
                   eq(tables.inventoryLevel.merchantId, this.user.merchantId),
@@ -384,6 +388,8 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
             await trx.insert(tables.inventoryLevel).values({
               id: inventoryLevelId,
               onHand: purchaseLine.quantity,
+              lastRestockAt: createdAt,
+              lastInventoryAdjustmentAt: createdAt,
               locationId: request.locationId,
               variantId: purchaseLine.variantId,
               merchantId: this.user.merchantId,

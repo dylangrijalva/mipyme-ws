@@ -256,7 +256,6 @@ class VoidSaleService extends BaseService<string, Sale> {
           const [updatedProduct] = await trx
             .update(tables.product)
             .set({
-              lastInventoryChangedAt: voidedAt,
               updatedAt: new Date(Math.max(voidedAt.getTime(), product.updatedAt.getTime() + 1)),
             })
             .where(
@@ -281,7 +280,11 @@ class VoidSaleService extends BaseService<string, Sale> {
 
           const [updatedLevel] = await trx
             .update(tables.inventoryLevel)
-            .set({ onHand: sql`${tables.inventoryLevel.onHand} + ${line.quantity}`, updatedAt: voidedAt })
+            .set({
+              onHand: sql`${tables.inventoryLevel.onHand} + ${line.quantity}`,
+              lastInventoryAdjustmentAt: voidedAt,
+              updatedAt: voidedAt,
+            })
             .where(
               and(
                 eq(tables.inventoryLevel.merchantId, this.user.merchantId),

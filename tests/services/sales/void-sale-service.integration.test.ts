@@ -253,8 +253,16 @@ describe("VoidSaleService", () => {
     const after = await readState(context.db, context.merchantId);
     expect(after.salePayments).toEqual(before.salePayments);
     expect(after.saleItems).toEqual(before.saleItems);
-    expect(after.inventoryLevels.find((level) => level.locationId === context.locationId)?.onHand).toBe(5);
-    expect(after.inventoryLevels.find((level) => level.locationId === context.otherLocationId)?.onHand).toBe(7);
+    const saleLevel = before.inventoryLevels.find((level) => level.locationId === context.locationId)!;
+    expect(after.inventoryLevels.find((level) => level.locationId === context.locationId)).toMatchObject({
+      onHand: 5,
+      lastSoldAt: sale.createdAt,
+      lastRestockAt: saleLevel.lastRestockAt,
+      lastInventoryAdjustmentAt: result.value.voidedAt,
+    });
+    expect(after.inventoryLevels.find((level) => level.locationId === context.otherLocationId)).toEqual(
+      before.inventoryLevels.find((level) => level.locationId === context.otherLocationId),
+    );
     expect(after.products.find((product) => product.id === context.productId)).toMatchObject({
       unitCost: "60.00",
       archivedAt,

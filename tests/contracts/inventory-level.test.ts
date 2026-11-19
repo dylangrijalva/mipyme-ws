@@ -8,6 +8,9 @@ const buildInventoryLevel = ({ onHand, lowStockThreshold }: { onHand: number; lo
   onHand,
   lowStockThreshold,
   optimalStockLevel: 24,
+  lastSoldAt: null,
+  lastRestockAt: null,
+  lastInventoryAdjustmentAt: null,
 });
 
 describe("InventoryLevel", () => {

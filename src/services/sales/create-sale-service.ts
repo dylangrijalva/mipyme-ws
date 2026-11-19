@@ -308,7 +308,6 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
               .update(tables.product)
               .set({
                 lastSoldAt: createdAt,
-                lastInventoryChangedAt: product.type === "item" ? createdAt : undefined,
                 updatedAt: new Date(Math.max(createdAt.getTime(), product.updatedAt.getTime() + 1)),
               })
               .where(
@@ -335,7 +334,12 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
 
             const [updatedLevel] = await trx
               .update(tables.inventoryLevel)
-              .set({ onHand: sql`${tables.inventoryLevel.onHand} - ${line.quantity}`, updatedAt: createdAt })
+              .set({
+                onHand: sql`${tables.inventoryLevel.onHand} - ${line.quantity}`,
+                lastSoldAt: createdAt,
+                lastInventoryAdjustmentAt: createdAt,
+                updatedAt: createdAt,
+              })
               .where(
                 and(
                   eq(tables.inventoryLevel.merchantId, this.user.merchantId),

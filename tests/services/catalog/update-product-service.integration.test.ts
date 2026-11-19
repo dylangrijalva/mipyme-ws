@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import pino from "pino";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { codes } from "../../../src/contracts/business-error.ts";
@@ -470,7 +470,6 @@ describe("UpdateProductService items", () => {
               price: "35.50",
               unitCost: "35.50",
               collectionId: replacementCollectionId,
-              lastInventoryChangedAt: expect.any(Date),
               updatedAt: expect.any(Date),
             }
           : product,
@@ -526,7 +525,6 @@ describe("UpdateProductService items", () => {
       ...(name !== undefined ? { name } : {}),
       ...(price !== undefined ? { price } : {}),
       ...(unitCost !== undefined ? { unitCost } : {}),
-      ...(unitCost !== undefined ? { lastInventoryChangedAt: expect.any(Date) } : {}),
     };
     const variantChanges = {
       ...(name !== undefined ? { name } : {}),
@@ -583,11 +581,20 @@ describe("UpdateProductService items", () => {
     expect(await readState(db)).toEqual(before);
   });
 
-  it.each(["active", "archived"] as const)(
-    "rejects a cost change on an %s item even when stock is zero",
+  it.each(["draft", "active", "archived"] as const)(
+    "rejects a cost change on a %s item after an inventory movement even when stock is zero",
     async (status) => {
       const { db, service, productId } = await setup("item");
+      const [variant] = await db.select().from(tables.variant).where(eq(tables.variant.productId, productId));
+      const [level] = await db
+        .select()
+        .from(tables.inventoryLevel)
+        .where(eq(tables.inventoryLevel.variantId, variant.id));
       await db.update(tables.product).set({ status }).where(eq(tables.product.id, productId));
+      await db
+        .update(tables.inventoryLevel)
+        .set({ lastInventoryAdjustmentAt: new Date("2026-10-15T18:00:00.000Z") })
+        .where(eq(tables.inventoryLevel.id, level.id));
       const before = await readState(db);
 
       const result = await service.execute([productId, { unitCost: "12.00", name: "Chopper's medicine" }]);
@@ -603,6 +610,42 @@ describe("UpdateProductService items", () => {
       expect(await readState(db)).toEqual(before);
     },
   );
+
+  it.each(["active", "archived"] as const)(
+    "changes the cost of a %s item that has no inventory movements",
+    async (status) => {
+      const { db, service, productId } = await setup("item");
+      await db.update(tables.product).set({ status }).where(eq(tables.product.id, productId));
+
+      const result = await service.execute([productId, { unitCost: "12.00" }]);
+
+      expect(result).toMatchObject({ success: true, value: { unitCost: "12.00", status } });
+      const [product] = await db.select().from(tables.product).where(eq(tables.product.id, productId));
+      expect(product.unitCost).toBe("12.00");
+    },
+  );
+
+  it("changes the cost of an item when only other products have inventory movements", async () => {
+    const { db, service, productId, neighborProductId, otherProductId } = await setup("item");
+    const otherVariants = await db
+      .select({ id: tables.variant.id })
+      .from(tables.variant)
+      .where(inArray(tables.variant.productId, [neighborProductId, otherProductId]));
+    const [movedLevels] = await db
+      .update(tables.inventoryLevel)
+      .set({ lastInventoryAdjustmentAt: new Date("2026-10-15T18:00:00.000Z") })
+      .where(
+        inArray(
+          tables.inventoryLevel.variantId,
+          otherVariants.map((variant) => variant.id),
+        ),
+      );
+    expect(movedLevels.affectedRows).toBeGreaterThanOrEqual(2);
+
+    const result = await service.execute([productId, { unitCost: "12.00" }]);
+
+    expect(result).toMatchObject({ success: true, value: { unitCost: "12.00" } });
+  });
 
   it.each([
     { status: "active", unitCost: "10" },

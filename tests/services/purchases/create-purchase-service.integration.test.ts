@@ -332,15 +332,30 @@ describe("CreatePurchaseService", () => {
         locationId: tables.inventoryLevel.locationId,
         variantId: tables.inventoryLevel.variantId,
         onHand: tables.inventoryLevel.onHand,
+        lastSoldAt: tables.inventoryLevel.lastSoldAt,
+        lastRestockAt: tables.inventoryLevel.lastRestockAt,
+        lastInventoryAdjustmentAt: tables.inventoryLevel.lastInventoryAdjustmentAt,
       })
       .from(tables.inventoryLevel)
       .where(eq(tables.inventoryLevel.merchantId, merchantId));
+    const restocked = {
+      lastSoldAt: null,
+      lastRestockAt: result.value.createdAt,
+      lastInventoryAdjustmentAt: result.value.createdAt,
+    };
     expect(inventory).toHaveLength(3);
     expect(inventory).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ locationId, variantId: mandarinVariantId, onHand: 9 }),
-        expect.objectContaining({ locationId, variantId: seafoodVariantId, onHand: 2 }),
-        expect.objectContaining({ locationId: otherLocationId, variantId: seafoodVariantId, onHand: 4 }),
+        { locationId, variantId: mandarinVariantId, onHand: 9, ...restocked },
+        { locationId, variantId: seafoodVariantId, onHand: 2, ...restocked },
+        {
+          locationId: otherLocationId,
+          variantId: seafoodVariantId,
+          onHand: 4,
+          lastSoldAt: null,
+          lastRestockAt: null,
+          lastInventoryAdjustmentAt: null,
+        },
       ]),
     );
 

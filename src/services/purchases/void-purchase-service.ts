@@ -1,5 +1,5 @@
 import { ExponentialBackoff, fallback, handleWhen, retry } from "cockatiel";
-import { and, asc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 import z from "zod";
 import { codes, type BusinessError } from "../../contracts/business-error.ts";
@@ -182,16 +182,9 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
       throw new ConcurrentUpdateError();
     }
 
-    const [laterMovement] = await this.db
-      .select({ id: tables.inventoryMovement.id })
-      .from(tables.inventoryMovement)
-      .innerJoin(
-        tables.inventoryLevel,
-        and(
-          eq(tables.inventoryLevel.id, tables.inventoryMovement.inventoryLevelId),
-          eq(tables.inventoryLevel.merchantId, this.user.merchantId),
-        ),
-      )
+    const [laterInventoryChange] = await this.db
+      .select({ id: tables.inventoryLevel.id })
+      .from(tables.inventoryLevel)
       .innerJoin(
         tables.variant,
         and(
@@ -201,20 +194,45 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
       )
       .where(
         and(
-          eq(tables.inventoryMovement.merchantId, this.user.merchantId),
+          eq(tables.inventoryLevel.merchantId, this.user.merchantId),
           inArray(tables.variant.productId, [...productSnapshots.keys()]),
-          gte(tables.inventoryMovement.occurredAt, purchase.createdAt),
-          or(
-            ne(tables.inventoryMovement.reason, "purchase"),
-            isNull(tables.inventoryMovement.referenceId),
-            ne(tables.inventoryMovement.referenceId, purchase.id),
-          ),
+          gt(tables.inventoryLevel.lastInventoryAdjustmentAt, purchase.createdAt),
         ),
       )
       .limit(1);
-    const inventoryChanged =
-      Boolean(laterMovement) ||
-      products.some((product) => product.lastInventoryChangedAt?.getTime() !== purchase.createdAt.getTime());
+    const [simultaneousMovement] = laterInventoryChange
+      ? []
+      : await this.db
+          .select({ id: tables.inventoryMovement.id })
+          .from(tables.inventoryMovement)
+          .innerJoin(
+            tables.inventoryLevel,
+            and(
+              eq(tables.inventoryLevel.id, tables.inventoryMovement.inventoryLevelId),
+              eq(tables.inventoryLevel.merchantId, this.user.merchantId),
+            ),
+          )
+          .innerJoin(
+            tables.variant,
+            and(
+              eq(tables.variant.id, tables.inventoryLevel.variantId),
+              eq(tables.variant.merchantId, this.user.merchantId),
+            ),
+          )
+          .where(
+            and(
+              eq(tables.inventoryMovement.merchantId, this.user.merchantId),
+              inArray(tables.variant.productId, [...productSnapshots.keys()]),
+              eq(tables.inventoryMovement.occurredAt, purchase.createdAt),
+              or(
+                ne(tables.inventoryMovement.reason, "purchase"),
+                isNull(tables.inventoryMovement.referenceId),
+                ne(tables.inventoryMovement.referenceId, purchase.id),
+              ),
+            ),
+          )
+          .limit(1);
+    const inventoryChanged = Boolean(laterInventoryChange) || Boolean(simultaneousMovement);
 
     if (inventoryChanged) {
       const [currentPurchase] = await this.db
@@ -269,14 +287,12 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
             .update(tables.product)
             .set({
               unitCost: snapshot.previousUnitCost!,
-              lastInventoryChangedAt: voidedAt,
               updatedAt: new Date(Math.max(voidedAt.getTime(), product.updatedAt.getTime() + 1)),
             })
             .where(
               and(
                 eq(tables.product.id, product.id),
                 eq(tables.product.merchantId, this.user.merchantId),
-                eq(tables.product.lastInventoryChangedAt, purchase.createdAt),
                 eq(tables.product.updatedAt, product.updatedAt),
               ),
             );
@@ -289,7 +305,11 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
           const level = inventoryLevelsByVariantId.get(item.variantId)!;
           const [updatedLevel] = await trx
             .update(tables.inventoryLevel)
-            .set({ onHand: sql`${tables.inventoryLevel.onHand} - ${item.quantity}`, updatedAt: voidedAt })
+            .set({
+              onHand: sql`${tables.inventoryLevel.onHand} - ${item.quantity}`,
+              lastInventoryAdjustmentAt: voidedAt,
+              updatedAt: voidedAt,
+            })
             .where(
               and(
                 eq(tables.inventoryLevel.id, level.id),

@@ -4958,6 +4958,45 @@
             "description": "The target stock quantity used when planning replenishment at the location.",
             "examples": [24]
           },
+          "last_sold_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The date and time of the last sale that removed stock of the variant at the location, in RFC 3339 format. Returns `null` if the variant has never been sold there.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "last_restock_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The date and time of the last purchase that received stock of the variant at the location, in RFC 3339 format. Voiding a purchase does not change it. Returns `null` if the variant has never been restocked there.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
+          "last_inventory_adjustment_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The date and time of the last change to `on_hand`, from any sale, purchase, void, or adjustment, in RFC 3339 format. Returns `null` if the quantity has never changed.",
+            "examples": ["2026-09-23T09:00:00.000Z"]
+          },
           "stock_status": {
             "$ref": "#/components/schemas/StockStatus",
             "description": "The stock availability at the location, computed from on_hand and low_stock_threshold.",
@@ -4971,6 +5010,9 @@
           "on_hand",
           "low_stock_threshold",
           "optimal_stock_level",
+          "last_sold_at",
+          "last_restock_at",
+          "last_inventory_adjustment_at",
           "stock_status"
         ],
         "additionalProperties": false,
@@ -4983,6 +5025,9 @@
             "on_hand": 18,
             "low_stock_threshold": 5,
             "optimal_stock_level": 24,
+            "last_sold_at": "2026-09-23T09:00:00.000Z",
+            "last_restock_at": "2026-09-22T09:00:00.000Z",
+            "last_inventory_adjustment_at": "2026-09-23T09:00:00.000Z",
             "stock_status": "in_stock"
           }
         ]
@@ -5787,6 +5832,9 @@
                   "on_hand": 18,
                   "low_stock_threshold": 5,
                   "optimal_stock_level": 24,
+                  "last_sold_at": "2026-09-23T09:00:00.000Z",
+                  "last_restock_at": "2026-09-22T09:00:00.000Z",
+                  "last_inventory_adjustment_at": "2026-09-23T09:00:00.000Z",
                   "stock_status": "in_stock"
                 }
               ]
@@ -5801,6 +5849,9 @@
                   "on_hand": 18,
                   "low_stock_threshold": 5,
                   "optimal_stock_level": 24,
+                  "last_sold_at": "2026-09-23T09:00:00.000Z",
+                  "last_restock_at": "2026-09-22T09:00:00.000Z",
+                  "last_inventory_adjustment_at": "2026-09-23T09:00:00.000Z",
                   "stock_status": "in_stock"
                 }
               ]
@@ -5856,6 +5907,9 @@
                 "on_hand": 18,
                 "low_stock_threshold": 5,
                 "optimal_stock_level": 24,
+                "last_sold_at": "2026-09-23T09:00:00.000Z",
+                "last_restock_at": "2026-09-22T09:00:00.000Z",
+                "last_inventory_adjustment_at": "2026-09-23T09:00:00.000Z",
                 "stock_status": "in_stock"
               }
             ],
@@ -6111,6 +6165,9 @@
                       "on_hand": 18,
                       "low_stock_threshold": 5,
                       "optimal_stock_level": 24,
+                      "last_sold_at": "2026-09-23T09:00:00.000Z",
+                      "last_restock_at": "2026-09-22T09:00:00.000Z",
+                      "last_inventory_adjustment_at": "2026-09-23T09:00:00.000Z",
                       "stock_status": "in_stock"
                     }
                   ],
@@ -6145,6 +6202,9 @@
                       "on_hand": 18,
                       "low_stock_threshold": 5,
                       "optimal_stock_level": 24,
+                      "last_sold_at": "2026-09-23T09:00:00.000Z",
+                      "last_restock_at": "2026-09-22T09:00:00.000Z",
+                      "last_inventory_adjustment_at": "2026-09-23T09:00:00.000Z",
                       "stock_status": "in_stock"
                     }
                   ],
@@ -6253,6 +6313,9 @@
                     "on_hand": 18,
                     "low_stock_threshold": 5,
                     "optimal_stock_level": 24,
+                    "last_sold_at": "2026-09-23T09:00:00.000Z",
+                    "last_restock_at": "2026-09-22T09:00:00.000Z",
+                    "last_inventory_adjustment_at": "2026-09-23T09:00:00.000Z",
                     "stock_status": "in_stock"
                   }
                 ],
@@ -6358,6 +6421,9 @@
                           "onHand": 18,
                           "lowStockThreshold": 5,
                           "optimalStockLevel": 24,
+                          "lastSoldAt": "2026-09-23T09:00:00.000Z",
+                          "lastRestockAt": "2026-09-22T09:00:00.000Z",
+                          "lastInventoryAdjustmentAt": "2026-09-23T09:00:00.000Z",
                           "stockStatus": "in_stock"
                         }
                       ],
@@ -6428,6 +6494,9 @@
                           "onHand": 18,
                           "lowStockThreshold": 5,
                           "optimalStockLevel": 24,
+                          "lastSoldAt": "2026-09-23T09:00:00.000Z",
+                          "lastRestockAt": "2026-09-22T09:00:00.000Z",
+                          "lastInventoryAdjustmentAt": "2026-09-23T09:00:00.000Z",
                           "stockStatus": "in_stock"
                         }
                       ],
@@ -6691,6 +6760,9 @@
                         "onHand": 18,
                         "lowStockThreshold": 5,
                         "optimalStockLevel": 24,
+                        "lastSoldAt": "2026-09-23T09:00:00.000Z",
+                        "lastRestockAt": "2026-09-22T09:00:00.000Z",
+                        "lastInventoryAdjustmentAt": "2026-09-23T09:00:00.000Z",
                         "stockStatus": "in_stock"
                       }
                     ],

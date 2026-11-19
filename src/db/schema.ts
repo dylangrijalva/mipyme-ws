@@ -201,7 +201,6 @@ export const product = mysqlTable(
     unitCost: decimal({ precision: FLOAT_PRECISION, scale: FLOAT_SCALE, mode: "string", unsigned: true }).notNull(),
     lastRestockAt: datetime({ mode: "date", fsp: 6 }),
     lastSoldAt: datetime({ mode: "date", fsp: 6 }),
-    lastInventoryChangedAt: datetime({ mode: "date", fsp: 6 }),
     status: varchar({ length: 24 }).$type<ProductStatus>().notNull().default("draft"),
     type: varchar({ length: 24 }).$type<ProductType>().notNull().default("item"),
     createdAt: datetime({ mode: "date", fsp: 6 })
@@ -434,6 +433,9 @@ export const inventoryLevel = mysqlTable(
     onHand: int({ unsigned: true }).notNull().default(0),
     lowStockThreshold: int({ unsigned: true }).notNull().default(0),
     optimalStockLevel: int({ unsigned: true }).notNull().default(0),
+    lastSoldAt: datetime({ mode: "date", fsp: 6 }),
+    lastRestockAt: datetime({ mode: "date", fsp: 6 }),
+    lastInventoryAdjustmentAt: datetime({ mode: "date", fsp: 6 }),
     createdAt: datetime({ mode: "date", fsp: 6 })
       .notNull()
       .$defaultFn(() => now()),
