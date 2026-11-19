@@ -311,6 +311,30 @@ describe("VoidPurchaseService", () => {
     },
   );
 
+  it("reports out_of_stock rather than not_stocked after voiding the only purchase at a location", async () => {
+    const context = await setup();
+    await context.db.update(tables.inventoryLevel).set({ onHand: 0 });
+    const purchase = await createPurchase(context);
+
+    const result = await context.voidService.execute(purchase.id);
+
+    expect(result).toMatchObject({ success: true, value: { status: "voided" } });
+    const product = await new ProductFinder().find(context.db, {
+      merchantId: context.merchantId,
+      id: context.productId,
+    });
+    const stockStatuses = product?.variants.flatMap((variant) =>
+      variant.inventoryLevels.map(({ variantId, onHand, stockStatus }) => ({ variantId, onHand, stockStatus })),
+    );
+    expect(stockStatuses).toHaveLength(2);
+    expect(stockStatuses).toEqual(
+      expect.arrayContaining([
+        { variantId: context.variantId, onHand: 0, stockStatus: "out_of_stock" },
+        { variantId: context.siblingVariantId, onHand: 0, stockStatus: "not_stocked" },
+      ]),
+    );
+  });
+
   it("rejects a legacy purchase missing previous costs without changing state", async () => {
     const context = await setup();
     const purchase = await createPurchase(context);

@@ -294,7 +294,7 @@ describe("ProductFinder", () => {
         lastSoldAt: null,
         lastRestockAt: null,
         lastInventoryAdjustmentAt: null,
-        stockStatus: "out_of_stock",
+        stockStatus: "not_stocked",
       },
     ]);
     expect(found?.variants[1].inventoryLevels).toEqual([
@@ -318,10 +318,13 @@ describe("ProductFinder", () => {
     const inStockLocationId = "loc_00000000000000000001";
     const lowStockLocationId = "loc_00000000000000000002";
     const outOfStockLocationId = "loc_00000000000000000003";
+    const notStockedLocationId = "loc_00000000000000000004";
+    const restockedAt = new Date("2026-01-02T00:00:00Z");
     await db.insert(tables.location).values([
       { id: inStockLocationId, merchantId, name: "Thousand Sunny" },
       { id: lowStockLocationId, merchantId, name: "Water 7" },
       { id: outOfStockLocationId, merchantId, name: "Sabaody" },
+      { id: notStockedLocationId, merchantId, name: "Fish-Man Island" },
     ]);
     await db.insert(tables.inventoryLevel).values([
       {
@@ -331,6 +334,7 @@ describe("ProductFinder", () => {
         locationId: inStockLocationId,
         onHand: 6,
         lowStockThreshold: 5,
+        lastRestockAt: restockedAt,
       },
       {
         id: "inv_00000000000000000002",
@@ -339,12 +343,22 @@ describe("ProductFinder", () => {
         locationId: lowStockLocationId,
         onHand: 5,
         lowStockThreshold: 5,
+        lastRestockAt: restockedAt,
       },
       {
         id: "inv_00000000000000000003",
         merchantId,
         variantId,
         locationId: outOfStockLocationId,
+        onHand: 0,
+        lowStockThreshold: 5,
+        lastRestockAt: restockedAt,
+      },
+      {
+        id: "inv_00000000000000000004",
+        merchantId,
+        variantId,
+        locationId: notStockedLocationId,
         onHand: 0,
         lowStockThreshold: 5,
       },
@@ -354,6 +368,7 @@ describe("ProductFinder", () => {
       { locationId: inStockLocationId, stockStatus: "in_stock" },
       { locationId: lowStockLocationId, stockStatus: "low_stock" },
       { locationId: outOfStockLocationId, stockStatus: "out_of_stock" },
+      { locationId: notStockedLocationId, stockStatus: "not_stocked" },
     ];
 
     const found = await finder.find(db, { merchantId, id: productId });

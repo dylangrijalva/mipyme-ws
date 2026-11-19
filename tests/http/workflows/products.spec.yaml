@@ -109,7 +109,7 @@ tests:
               $.variants[0].inventory_levels[0].on_hand:
                 - eq: 0
               $.variants[0].inventory_levels[0].stock_status:
-                - eq: out_of_stock
+                - eq: not_stocked
           captures:
             itemId:
               jsonpath: $.id

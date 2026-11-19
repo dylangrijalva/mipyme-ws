@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { InventoryLevel } from "../../src/contracts/inventory-level.ts";
 
-const buildInventoryLevel = ({ onHand, lowStockThreshold }: { onHand: number; lowStockThreshold: number }) => ({
+const RESTOCKED_AT = new Date("2026-10-15T18:00:00.000Z");
+const ADJUSTED_AT = new Date("2026-10-16T18:00:00.000Z");
+
+const buildInventoryLevel = ({
+  onHand,
+  lowStockThreshold,
+  lastRestockAt = RESTOCKED_AT,
+}: {
+  onHand: number;
+  lowStockThreshold: number;
+  lastRestockAt?: Date | null;
+}) => ({
   id: "inv_ZORO0000000000000001",
   variantId: "var_ZORO0000000000000001",
   locationId: "loc_ZORO0000000000000001",
@@ -9,8 +20,8 @@ const buildInventoryLevel = ({ onHand, lowStockThreshold }: { onHand: number; lo
   lowStockThreshold,
   optimalStockLevel: 24,
   lastSoldAt: null,
-  lastRestockAt: null,
-  lastInventoryAdjustmentAt: null,
+  lastRestockAt,
+  lastInventoryAdjustmentAt: ADJUSTED_AT,
 });
 
 describe("InventoryLevel", () => {
@@ -22,9 +33,25 @@ describe("InventoryLevel", () => {
     { onHand: 6, lowStockThreshold: 5, stockStatus: "in_stock" },
     { onHand: 10, lowStockThreshold: 0, stockStatus: "in_stock" },
   ])(
-    "computes $stockStatus when on hand is $onHand and the low stock threshold is $lowStockThreshold",
+    "computes $stockStatus for a restocked level when on hand is $onHand and the low stock threshold is $lowStockThreshold",
     ({ onHand, lowStockThreshold, stockStatus }) => {
       const inventoryLevel = InventoryLevel.parse(buildInventoryLevel({ onHand, lowStockThreshold }));
+
+      expect(inventoryLevel.stockStatus).toBe(stockStatus);
+    },
+  );
+
+  it.each([
+    { onHand: 0, lowStockThreshold: 0, stockStatus: "not_stocked" },
+    { onHand: 0, lowStockThreshold: 5, stockStatus: "not_stocked" },
+    { onHand: 3, lowStockThreshold: 5, stockStatus: "low_stock" },
+    { onHand: 6, lowStockThreshold: 5, stockStatus: "in_stock" },
+  ])(
+    "computes $stockStatus for a never restocked level when on hand is $onHand and the low stock threshold is $lowStockThreshold",
+    ({ onHand, lowStockThreshold, stockStatus }) => {
+      const inventoryLevel = InventoryLevel.parse(
+        buildInventoryLevel({ onHand, lowStockThreshold, lastRestockAt: null }),
+      );
 
       expect(inventoryLevel.stockStatus).toBe(stockStatus);
     },

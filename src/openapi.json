@@ -4999,7 +4999,7 @@
           },
           "stock_status": {
             "$ref": "#/components/schemas/StockStatus",
-            "description": "The stock availability at the location, computed from on_hand and low_stock_threshold.",
+            "description": "The stock availability at the location, computed from on_hand, low_stock_threshold, and last_restock_at.",
             "examples": ["in_stock"]
           }
         },
@@ -5714,10 +5714,10 @@
         "enum": ["active", "draft", "archived"]
       },
       "StockStatus": {
-        "description": "The stock availability of a variant at a location. out_of_stock when on_hand is 0; low_stock when low_stock_threshold is greater than 0 and on_hand is at or below it; otherwise in_stock.",
+        "description": "The stock availability of a variant at a location. not_stocked when on_hand is 0 and the variant has never been restocked there; out_of_stock when on_hand is 0 after a restock; low_stock when low_stock_threshold is greater than 0 and on_hand is at or below it; otherwise in_stock.",
         "examples": ["in_stock"],
         "type": "string",
-        "enum": ["in_stock", "low_stock", "out_of_stock"]
+        "enum": ["in_stock", "low_stock", "out_of_stock", "not_stocked"]
       },
       "ProductType": {
         "description": "Whether a product is a physical item or a service.",
