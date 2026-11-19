@@ -19,7 +19,7 @@ import { now } from "../../../utils/now.ts";
 import { err, ok, type Result } from "../../../utils/result.ts";
 import { BaseService } from "../../base-service.ts";
 import type { AuthorizedEmployee } from "../../employee-authorization-service.ts";
-import type { EmployeeManagement } from "./employee-management.ts";
+import type { EmployeeManagement } from "../../employee-management.ts";
 
 const INVITATION_VALIDITY_IN_DAYS = 7 as const;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;

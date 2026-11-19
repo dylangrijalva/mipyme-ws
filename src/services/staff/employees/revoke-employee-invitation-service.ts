@@ -12,7 +12,7 @@ import { assertFound } from "../../../utils/assert-found.ts";
 import { now } from "../../../utils/now.ts";
 import { err, ok, type Result } from "../../../utils/result.ts";
 import { BaseService } from "../../base-service.ts";
-import type { EmployeeManagement } from "./employee-management.ts";
+import type { EmployeeManagement } from "../../employee-management.ts";
 
 type RevokeEmployeeInvitationRequest = {
   employeeId: string;

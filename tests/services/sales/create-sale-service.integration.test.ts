@@ -9,7 +9,7 @@ import { PurchaseFinder } from "../../../src/finders/purchase-finder.ts";
 import { SaleFinder } from "../../../src/finders/sale-finder.ts";
 import { CreatePurchaseService } from "../../../src/services/purchases/create-purchase-service.ts";
 import { CreateSaleRequest, CreateSaleService } from "../../../src/services/sales/create-sale-service.ts";
-import { EmployeeManagement } from "../../../src/services/staff/employees/employee-management.ts";
+import { EmployeeManagement } from "../../../src/services/employee-management.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
 import {

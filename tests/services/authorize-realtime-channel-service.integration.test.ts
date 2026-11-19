@@ -21,7 +21,7 @@ import { generateId } from "../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../prepare-db.ts";
 import type { CurrentUser } from "../../src/contracts/current-user.ts";
 import { RealtimeEventPublisher } from "../../src/integrations/realtime-event-publisher.ts";
-import { EmployeeManagement } from "../../src/services/staff/employees/employee-management.ts";
+import { EmployeeManagement } from "../../src/services/employee-management.ts";
 import { AuthorizeRealtimeChannelService } from "../../src/services/authorize-realtime-channel-service.ts";
 import { err, ok } from "../../src/utils/result.ts";
 import { createRealtimeEnv } from "../test-utils/realtime-env.ts";

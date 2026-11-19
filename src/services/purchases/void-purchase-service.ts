@@ -16,7 +16,7 @@ import { generateId } from "../../utils/generate-id.ts";
 import { now } from "../../utils/now.ts";
 import { err, ok, type Result } from "../../utils/result.ts";
 import { BaseService } from "../base-service.ts";
-import type { EmployeeManagement } from "../staff/employees/employee-management.ts";
+import type { EmployeeManagement } from "../employee-management.ts";
 import { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
 
 const VoidPurchaseRequest = z.object({

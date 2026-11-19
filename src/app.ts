@@ -48,7 +48,7 @@ import { realtimeRouter } from "./routes/realtime.router.ts";
 import { salesRouter } from "./routes/sales.router.ts";
 import { suppliersRouter } from "./routes/suppliers.router.ts";
 import { syncRouter } from "./routes/sync.router.ts";
-import type { EmployeeManagement } from "./services/staff/employees/employee-management.ts";
+import type { EmployeeManagement } from "./services/employee-management.ts";
 import { MipymeHono } from "./types.ts";
 
 type InjectedDependencies = {

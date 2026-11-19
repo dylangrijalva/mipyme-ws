@@ -12,7 +12,7 @@ import { EmailSender } from "../../src/integrations/email-sender.ts";
 import type { IdentityProvider } from "../../src/integrations/identity-provider.ts";
 import { generateId } from "../../src/utils/generate-id.ts";
 import { ok } from "../../src/utils/result.ts";
-import { EmployeeManagement } from "../../src/services/staff/employees/employee-management.ts";
+import { EmployeeManagement } from "../../src/services/employee-management.ts";
 import { prepareDatabase } from "../prepare-db.ts";
 import { createRealtimeEnv } from "./realtime-env.ts";
 import { createRealtimeEventPublisherMock } from "./realtime-publisher-mock.ts";

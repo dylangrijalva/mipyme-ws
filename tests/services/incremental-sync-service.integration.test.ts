@@ -20,7 +20,7 @@ import { EmailSender } from "../../src/integrations/email-sender.ts";
 import { IdentityProvider } from "../../src/integrations/identity-provider.ts";
 import { ProductImageStore } from "../../src/integrations/product-image-store.ts";
 import { RealtimeEventPublisher } from "../../src/integrations/realtime-event-publisher.ts";
-import { EmployeeManagement } from "../../src/services/staff/employees/employee-management.ts";
+import { EmployeeManagement } from "../../src/services/employee-management.ts";
 import { IncrementalSyncService } from "../../src/services/sync/incremental-sync-service.ts";
 import { generateId } from "../../src/utils/generate-id.ts";
 import { ok } from "../../src/utils/result.ts";

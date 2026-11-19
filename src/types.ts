@@ -19,7 +19,7 @@ import type { EmailSender } from "./integrations/email-sender.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
 import type { ProductImageStore } from "./integrations/product-image-store.ts";
 import type { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
-import type { EmployeeManagement } from "./services/staff/employees/employee-management.ts";
+import type { EmployeeManagement } from "./services/employee-management.ts";
 
 type MipymeEnv = {
   Variables: {

@@ -15,7 +15,7 @@ import { now } from "../../../utils/now.ts";
 import { resolveInvitationStatus } from "../../../utils/resolve-invitation-status.ts";
 import { err, ok, type Result } from "../../../utils/result.ts";
 import { BaseService } from "../../base-service.ts";
-import type { EmployeeManagement } from "../employees/employee-management.ts";
+import type { EmployeeManagement } from "../../employee-management.ts";
 
 type StoredInvitation = typeof tables.employeeInvitation.$inferSelect;
 

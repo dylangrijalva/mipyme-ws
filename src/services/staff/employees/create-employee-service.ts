@@ -19,7 +19,7 @@ import {
   MaxDiscountRate,
   PIN_ALREADY_EXISTS,
   PIN_HOLDING_STATUSES,
-} from "./employee-management.ts";
+} from "../../employee-management.ts";
 
 const CreateEmployeeRequest = z.object({
   name: z.string().trim().nonempty().max(128),

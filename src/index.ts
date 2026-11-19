@@ -19,7 +19,7 @@ import { EmailSender } from "./integrations/email-sender.ts";
 import { IdentityProvider } from "./integrations/identity-provider.ts";
 import { ProductImageStore } from "./integrations/product-image-store.ts";
 import { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
-import { EmployeeManagement } from "./services/staff/employees/employee-management.ts";
+import { EmployeeManagement } from "./services/employee-management.ts";
 
 async function run() {
   console.clear();

@@ -14,7 +14,7 @@ import { CreatePurchaseService } from "../../../src/services/purchases/create-pu
 import { VoidPurchaseService } from "../../../src/services/purchases/void-purchase-service.ts";
 import { CreateSaleService } from "../../../src/services/sales/create-sale-service.ts";
 import { VoidSaleService } from "../../../src/services/sales/void-sale-service.ts";
-import { EmployeeManagement } from "../../../src/services/staff/employees/employee-management.ts";
+import { EmployeeManagement } from "../../../src/services/employee-management.ts";
 import { ConcurrentUpdateError } from "../../../src/utils/concurrent-update-error.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";

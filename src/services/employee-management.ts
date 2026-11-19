@@ -1,18 +1,18 @@
 import Big from "big.js";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
-import { codes, type BusinessError } from "../../../contracts/business-error.ts";
-import type { CurrentUser } from "../../../contracts/current-user.ts";
-import { Decimal } from "../../../contracts/decimal.ts";
-import { PERMISSIONS_DELIMITER } from "../../../contracts/employee.ts";
-import type { EmployeeStatus } from "../../../contracts/employee-status.ts";
-import { ObjectId } from "../../../contracts/object-id.ts";
-import { PosPermission } from "../../../contracts/pos-permission.ts";
-import type { Database } from "../../../db/index.ts";
-import { tables } from "../../../db/schema.ts";
-import { generateId } from "../../../utils/generate-id.ts";
-import { err, ok, type Result } from "../../../utils/result.ts";
-import { type AuthorizedEmployee, EmployeeAuthorizationService } from "../../employee-authorization-service.ts";
+import { codes, type BusinessError } from "../contracts/business-error.ts";
+import type { CurrentUser } from "../contracts/current-user.ts";
+import { Decimal } from "../contracts/decimal.ts";
+import { PERMISSIONS_DELIMITER } from "../contracts/employee.ts";
+import type { EmployeeStatus } from "../contracts/employee-status.ts";
+import { ObjectId } from "../contracts/object-id.ts";
+import { PosPermission } from "../contracts/pos-permission.ts";
+import type { Database } from "../db/index.ts";
+import { tables } from "../db/schema.ts";
+import { generateId } from "../utils/generate-id.ts";
+import { err, ok, type Result } from "../utils/result.ts";
+import { type AuthorizedEmployee, EmployeeAuthorizationService } from "./employee-authorization-service.ts";
 
 const EmployeePermissions = z.array(PosPermission).transform((permissions) => [...new Set(permissions)]);
 

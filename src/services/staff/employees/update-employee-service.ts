@@ -23,7 +23,7 @@ import {
   MaxDiscountRate,
   PIN_ALREADY_EXISTS,
   PIN_HOLDING_STATUSES,
-} from "./employee-management.ts";
+} from "../../employee-management.ts";
 
 const UpdateEmployeeRequest = z.object({
   name: z.string().trim().nonempty().max(128).optional(),
