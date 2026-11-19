@@ -39,7 +39,7 @@ type InjectedDependencies = {
   publisher: RealtimeEventPublisher;
   collectionFinder: CollectionFinder;
   productFinder: ProductFinder;
-  productImageStore: Pick<ProductImageStore, "isManagedUrl">;
+  productImageStore: ProductImageStore;
   user: CurrentUser;
 };
 
@@ -48,7 +48,7 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
   private readonly publisher: RealtimeEventPublisher;
   private readonly collectionFinder: CollectionFinder;
   private readonly productFinder: ProductFinder;
-  private readonly productImageStore: Pick<ProductImageStore, "isManagedUrl">;
+  private readonly productImageStore: ProductImageStore;
   private readonly user: CurrentUser;
 
   constructor(
@@ -56,7 +56,7 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
     db: Database,
     collectionFinder: CollectionFinder,
     productFinder: ProductFinder,
-    productImageStore: Pick<ProductImageStore, "isManagedUrl">,
+    productImageStore: ProductImageStore,
     publisher: RealtimeEventPublisher,
     user: CurrentUser,
   ) {

@@ -6,6 +6,8 @@ import type { Database } from "../../../src/db/index.ts";
 import { tables } from "../../../src/db/schema.ts";
 import { CollectionFinder } from "../../../src/finders/collection-finder.ts";
 import { ProductFinder } from "../../../src/finders/product-finder.ts";
+import { noopLogger } from "../../../src/infra/config.logger.ts";
+import { ProductImageStore } from "../../../src/integrations/product-image-store.ts";
 import { UpdateProductService } from "../../../src/services/catalog/products/update-product-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
@@ -13,6 +15,7 @@ import {
   createRealtimeEventPublisherMock,
   trackCommittedBroadcasts,
 } from "../../test-utils/realtime-publisher-mock.ts";
+import { createRealtimeEnv } from "../../test-utils/realtime-env.ts";
 import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
 
 async function readState(db: Database) {
@@ -26,7 +29,15 @@ async function readState(db: Database) {
 
 // Stands in for the bucket the product image store manages.
 const MANAGED_STORAGE_URL = "https://storage.thousand-sunny.example.com/mipyme/product-images/";
-const productImageStore = { isManagedUrl: (url: string) => url.startsWith(MANAGED_STORAGE_URL) };
+const productImageStore = new ProductImageStore({
+  env: {
+    ...createRealtimeEnv(),
+    BUCKET_STORAGE_ENDPOINT: "https://storage.thousand-sunny.example.com",
+    BUCKET_STORAGE_PUBLIC_BASE_URL: "https://storage.thousand-sunny.example.com",
+    BUCKET_STORAGE_BUCKET_NAME: "mipyme",
+  },
+  logger: noopLogger(),
+});
 
 async function setup(productType: "item" | "service" = "service") {
   const db = await prepareDatabase();

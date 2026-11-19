@@ -5,6 +5,8 @@ import { codes } from "../../../src/contracts/business-error.ts";
 import { tables } from "../../../src/db/schema.ts";
 import { CollectionFinder } from "../../../src/finders/collection-finder.ts";
 import { ProductFinder } from "../../../src/finders/product-finder.ts";
+import { noopLogger } from "../../../src/infra/config.logger.ts";
+import { ProductImageStore } from "../../../src/integrations/product-image-store.ts";
 import {
   CreateProductRequest,
   CreateProductService,
@@ -16,10 +18,19 @@ import {
   createRealtimeEventPublisherMock,
   trackCommittedBroadcasts,
 } from "../../test-utils/realtime-publisher-mock.ts";
+import { createRealtimeEnv } from "../../test-utils/realtime-env.ts";
 
 // Stands in for the bucket the product image store manages.
 const MANAGED_STORAGE_URL = "https://storage.thousand-sunny.example.com/mipyme/product-images/";
-const productImageStore = { isManagedUrl: (url: string) => url.startsWith(MANAGED_STORAGE_URL) };
+const productImageStore = new ProductImageStore({
+  env: {
+    ...createRealtimeEnv(),
+    BUCKET_STORAGE_ENDPOINT: "https://storage.thousand-sunny.example.com",
+    BUCKET_STORAGE_PUBLIC_BASE_URL: "https://storage.thousand-sunny.example.com",
+    BUCKET_STORAGE_BUCKET_NAME: "mipyme",
+  },
+  logger: noopLogger(),
+});
 
 async function setup() {
   const db = await prepareDatabase();

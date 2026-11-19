@@ -9,6 +9,7 @@ import { CollectionFinder } from "../../../src/finders/collection-finder.ts";
 import { ProductFinder } from "../../../src/finders/product-finder.ts";
 import { PurchaseFinder } from "../../../src/finders/purchase-finder.ts";
 import { SaleFinder } from "../../../src/finders/sale-finder.ts";
+import { ProductImageStore } from "../../../src/integrations/product-image-store.ts";
 import { UpdateProductService } from "../../../src/services/catalog/products/update-product-service.ts";
 import { CreatePurchaseService } from "../../../src/services/purchases/create-purchase-service.ts";
 import { VoidPurchaseService } from "../../../src/services/purchases/void-purchase-service.ts";
@@ -22,6 +23,7 @@ import {
   createRealtimeEventPublisherMock,
   trackCommittedBroadcasts,
 } from "../../test-utils/realtime-publisher-mock.ts";
+import { createRealtimeEnv } from "../../test-utils/realtime-env.ts";
 import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
 
 const PURCHASE_TIME = new Date("2026-10-15T18:00:00.000Z");
@@ -365,7 +367,7 @@ describe("VoidPurchaseService", () => {
       publisher: context.dependencies.publisher,
       collectionFinder: new CollectionFinder(),
       productFinder: new ProductFinder(),
-      productImageStore: { isManagedUrl: () => false },
+      productImageStore: new ProductImageStore({ env: createRealtimeEnv(), logger: pino({ enabled: false }) }),
       user: context.dependencies.user,
     });
 

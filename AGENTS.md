@@ -76,6 +76,7 @@ For `production`, migrations must be applied manually from the generated SQL fil
 - Don't throw exception unless it's exceptionally required. Prefer returning errors as values for 99% of the cases.
 - In classes, private methods must be declared after the public API methods have been declared.
 - Never use `try-catch`.
+- When injecting a dependency, type it as the full class or type (`productImageStore: ProductImageStore`), even if the consumer only uses some of its methods. Do not narrow it with `Pick` (e.g. `Pick<ProductImageStore, "isManagedUrl">`).
 
 ### Naming Conventions
 
