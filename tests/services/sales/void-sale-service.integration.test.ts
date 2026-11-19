@@ -21,6 +21,7 @@ import {
   createRealtimeEventPublisherMock,
   trackCommittedBroadcasts,
 } from "../../test-utils/realtime-publisher-mock.ts";
+import { EmployeeAuthorizationService } from "../../../src/services/employee-authorization-service.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -102,15 +103,16 @@ async function setup() {
   };
   const logger = pino({ enabled: false });
   const saleService = CreateSaleService.create({
-    employeeManagement: new EmployeeManagement(),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db })),
     publisher: createRealtimeEventPublisherMock().publisher,
     db,
+    employeeAuthorizationService: EmployeeAuthorizationService.create({ db }),
     user,
     logger,
     saleFinder: new SaleFinder(),
   });
   const purchaseService = CreatePurchaseService.create({
-    employeeManagement: new EmployeeManagement(),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db })),
     publisher: createRealtimeEventPublisherMock().publisher,
     db,
     user,
@@ -119,7 +121,7 @@ async function setup() {
   });
   const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const voidService = VoidSaleService.create({
-    employeeManagement: new EmployeeManagement(),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db })),
     publisher,
     db,
     user,
@@ -165,7 +167,7 @@ async function createSale(context: Awaited<ReturnType<typeof setup>>, request = 
 
 function createVoidService(context: Awaited<ReturnType<typeof setup>>, user = context.user) {
   return VoidSaleService.create({
-    employeeManagement: new EmployeeManagement(),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db: context.db })),
     publisher: createRealtimeEventPublisherMock().publisher,
     db: context.db,
     user,
@@ -497,7 +499,7 @@ describe("VoidSaleService", () => {
     const saleFinder = new SaleFinder();
     vi.spyOn(saleFinder, "find").mockRejectedValueOnce(new ConcurrentUpdateError());
     const service = VoidSaleService.create({
-      employeeManagement: new EmployeeManagement(),
+      employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db: context.db })),
       publisher: createRealtimeEventPublisherMock().publisher,
       db: context.db,
       user: context.user,
@@ -522,7 +524,7 @@ describe("VoidSaleService", () => {
     const saleFinder = new SaleFinder();
     vi.spyOn(saleFinder, "find").mockRejectedValue(new ConcurrentUpdateError());
     const service = VoidSaleService.create({
-      employeeManagement: new EmployeeManagement(),
+      employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db: context.db })),
       publisher: createRealtimeEventPublisherMock().publisher,
       db: context.db,
       user: context.user,

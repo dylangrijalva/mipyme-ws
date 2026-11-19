@@ -75,7 +75,7 @@ class CreateEmployeeService extends BaseService<CreateEmployeeRequest, Employee>
   }
 
   async execute(request: CreateEmployeeRequest): Promise<Result<Employee, BusinessError>> {
-    const authorization = await this.employeeManagement.authorize(this.db, this.user);
+    const authorization = await this.employeeManagement.authorize(this.user);
     if (!authorization.success) {
       return authorization;
     }

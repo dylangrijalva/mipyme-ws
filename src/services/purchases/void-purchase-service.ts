@@ -17,7 +17,7 @@ import { now } from "../../utils/now.ts";
 import { err, ok, type Result } from "../../utils/result.ts";
 import { BaseService } from "../base-service.ts";
 import type { EmployeeManagement } from "../employee-management.ts";
-import { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
+import type { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
 
 const VoidPurchaseRequest = z.object({
   reason: z
@@ -35,6 +35,7 @@ type VoidPurchaseRequest = z.infer<typeof VoidPurchaseRequest>;
 type InjectedDependencies = {
   logger: Logger;
   db: Database;
+  employeeAuthorizationService: EmployeeAuthorizationService;
   publisher: RealtimeEventPublisher;
   purchaseFinder: PurchaseFinder;
   user: CurrentUser;
@@ -56,14 +57,24 @@ const VOID_PURCHASE_FALLBACK_POLICY = fallback(handleWhen(isConcurrentUpdateErro
 
 class VoidPurchaseService extends BaseService<string, Purchase> {
   private readonly db: Database;
+  private readonly employeeAuthorizationService: EmployeeAuthorizationService;
   private readonly employeeManagement: EmployeeManagement;
   private readonly publisher: RealtimeEventPublisher;
   private readonly purchaseFinder: PurchaseFinder;
   private readonly user: CurrentUser;
 
-  constructor({ logger, db, publisher, purchaseFinder, user, employeeManagement }: InjectedDependencies) {
+  constructor({
+    logger,
+    db,
+    employeeAuthorizationService,
+    publisher,
+    purchaseFinder,
+    user,
+    employeeManagement,
+  }: InjectedDependencies) {
     super(logger);
     this.db = db;
+    this.employeeAuthorizationService = employeeAuthorizationService;
     this.employeeManagement = employeeManagement;
     this.publisher = publisher;
     this.purchaseFinder = purchaseFinder;
@@ -73,12 +84,21 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
   static create({
     logger,
     db,
+    employeeAuthorizationService,
     publisher,
     purchaseFinder,
     user,
     employeeManagement,
   }: InjectedDependencies): VoidPurchaseService {
-    return new VoidPurchaseService({ logger, db, publisher, purchaseFinder, user, employeeManagement });
+    return new VoidPurchaseService({
+      logger,
+      db,
+      employeeAuthorizationService,
+      publisher,
+      purchaseFinder,
+      user,
+      employeeManagement,
+    });
   }
 
   async execute(id: string, request: VoidPurchaseRequest = {}): Promise<Result<Purchase, BusinessError>> {
@@ -101,9 +121,7 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
     reason: string | null,
     voidedById: string | null | undefined,
   ): Promise<Result<Purchase, BusinessError>> {
-    const employeeAuthorization = EmployeeAuthorizationService.create({ db: this.db });
-
-    const authorization = await employeeAuthorization.authorizePermission({
+    const authorization = await this.employeeAuthorizationService.authorizePermission({
       employeeId: this.user.employeeId,
       merchantId: this.user.merchantId,
       permission: "void_transaction",
@@ -127,7 +145,7 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
     }
 
     const employee = authorization.value;
-    const locationAuthorization = await employeeAuthorization.authorizeLocationAccess({
+    const locationAuthorization = await this.employeeAuthorizationService.authorizeLocationAccess({
       employee,
       locationId: purchase.locationId,
     });

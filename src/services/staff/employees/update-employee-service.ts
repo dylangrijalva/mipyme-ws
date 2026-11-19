@@ -138,7 +138,7 @@ class UpdateEmployeeService extends BaseService<[string, UpdateEmployeeRequest],
       return ok(undefined);
     }
 
-    const authorization = await this.employeeManagement.authorize(this.db, this.user);
+    const authorization = await this.employeeManagement.authorize(this.user);
     if (!authorization.success) {
       return authorization;
     }

@@ -19,6 +19,7 @@ import {
 } from "../../test-utils/realtime-publisher-mock.ts";
 import { createRealtimeEnv } from "../../test-utils/realtime-env.ts";
 import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
+import { EmployeeAuthorizationService } from "../../../src/services/employee-authorization-service.ts";
 
 async function readState(db: Database) {
   return {
@@ -140,9 +141,9 @@ async function setup(productType: "item" | "service" = "service") {
     publisher,
     db,
     collectionFinder: new CollectionFinder(),
-    productFinder: new ProductFinder(),
+    productFinder: new ProductFinder(new CollectionFinder()),
     productImageStore,
-    employeeManagement: new EmployeeManagement(),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db })),
     inventoryManagement: new InventoryManagement(),
     logger: pino({ enabled: false }),
     user: {
@@ -278,7 +279,7 @@ describe("UpdateProductService services", () => {
     async (request) => {
       const { db, service, productId, merchantId } = await setup();
       const before = await readState(db);
-      const original = await new ProductFinder().find(db, { merchantId, id: productId });
+      const original = await new ProductFinder(new CollectionFinder()).find(db, { merchantId, id: productId });
 
       const result = await service.execute([productId, request]);
 
@@ -390,7 +391,7 @@ describe("UpdateProductService services", () => {
     async (request) => {
       const { db, service, productId, merchantId } = await setup();
       const before = await readState(db);
-      const original = await new ProductFinder().find(db, { merchantId, id: productId });
+      const original = await new ProductFinder(new CollectionFinder()).find(db, { merchantId, id: productId });
 
       const result = await service.execute([productId, request]);
 
@@ -793,7 +794,7 @@ describe("UpdateProductService items", () => {
   it("returns an item unchanged for an empty request", async () => {
     const { broadcast, db, service, productId, merchantId } = await setup("item");
     const before = await readState(db);
-    const product = await new ProductFinder().find(db, { merchantId, id: productId });
+    const product = await new ProductFinder(new CollectionFinder()).find(db, { merchantId, id: productId });
 
     const result = await service.execute([productId, {}]);
 
@@ -1126,7 +1127,7 @@ describe("UpdateProductService item inventory levels", () => {
   it("returns the item unchanged when only a credited employee is sent", async () => {
     const { db, service, productId, merchantId, namiId } = await setup("item");
     const before = await readState(db);
-    const product = await new ProductFinder().find(db, { merchantId, id: productId });
+    const product = await new ProductFinder(new CollectionFinder()).find(db, { merchantId, id: productId });
 
     const result = await service.execute([productId, { createdById: namiId }]);
 

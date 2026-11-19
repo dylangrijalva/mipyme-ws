@@ -8,6 +8,7 @@ import { SaleFinder } from "../../../src/finders/sale-finder.ts";
 import { ListSalesService } from "../../../src/services/sales/list-sales-service.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
+import { EmployeeAuthorizationService } from "../../../src/services/employee-authorization-service.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -93,7 +94,13 @@ async function setup() {
     email: "nami@strawhatpirates.example.com",
     accountType: "owner",
   };
-  const dependencies = { db, user, logger: pino({ enabled: false }), saleFinder: new SaleFinder() };
+  const dependencies = {
+    db,
+    employeeAuthorizationService: EmployeeAuthorizationService.create({ db }),
+    user,
+    logger: pino({ enabled: false }),
+    saleFinder: new SaleFinder(),
+  };
   return {
     ...dependencies,
     dependencies,

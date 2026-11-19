@@ -19,8 +19,10 @@ import type { EmailSender } from "./integrations/email-sender.ts";
 import type { IdentityProvider } from "./integrations/identity-provider.ts";
 import type { ProductImageStore } from "./integrations/product-image-store.ts";
 import type { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
+import type { EmployeeAuthorizationService } from "./services/employee-authorization-service.ts";
 import type { EmployeeManagement } from "./services/employee-management.ts";
 import type { InventoryManagement } from "./services/inventory-management.ts";
+import type { SyncTokenStore } from "./services/sync/sync-token-store.ts";
 
 type MipymeEnv = {
   Variables: {
@@ -31,8 +33,10 @@ type MipymeEnv = {
     cache: Redis;
     identity: IdentityProvider;
     emailSender: EmailSender;
+    employeeAuthorizationService: EmployeeAuthorizationService;
     employeeManagement: EmployeeManagement;
     inventoryManagement: InventoryManagement;
+    syncTokenStore: SyncTokenStore;
     productImageStore: ProductImageStore;
     publisher: RealtimeEventPublisher;
     merchantFinder: MerchantFinder;

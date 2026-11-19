@@ -109,7 +109,7 @@ class CreateEmployeeInvitationService extends BaseService<
   async execute([employeeId, request]: [string, CreateEmployeeInvitationRequest]): Promise<
     Result<EmployeeInvitation, BusinessError>
   > {
-    const authorization = await this.employeeManagement.authorize(this.db, this.user);
+    const authorization = await this.employeeManagement.authorize(this.user);
     if (!authorization.success) {
       return authorization;
     }

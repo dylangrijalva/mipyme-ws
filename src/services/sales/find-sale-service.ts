@@ -6,34 +6,42 @@ import type { Database } from "../../db/index.ts";
 import type { SaleFinder } from "../../finders/sale-finder.ts";
 import { err, ok, type Result } from "../../utils/result.ts";
 import { BaseService } from "../base-service.ts";
-import { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
+import type { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
 
 type InjectedDependencies = {
   logger: Logger;
   db: Database;
+  employeeAuthorizationService: EmployeeAuthorizationService;
   saleFinder: SaleFinder;
   user: CurrentUser;
 };
 
 class FindSaleService extends BaseService<string, Sale> {
   private readonly db: Database;
+  private readonly employeeAuthorizationService: EmployeeAuthorizationService;
   private readonly saleFinder: SaleFinder;
   private readonly user: CurrentUser;
 
-  constructor(logger: Logger, db: Database, saleFinder: SaleFinder, user: CurrentUser) {
+  constructor(
+    logger: Logger,
+    db: Database,
+    employeeAuthorizationService: EmployeeAuthorizationService,
+    saleFinder: SaleFinder,
+    user: CurrentUser,
+  ) {
     super(logger);
     this.db = db;
+    this.employeeAuthorizationService = employeeAuthorizationService;
     this.saleFinder = saleFinder;
     this.user = user;
   }
 
-  static create({ logger, db, saleFinder, user }: InjectedDependencies): FindSaleService {
-    return new FindSaleService(logger, db, saleFinder, user);
+  static create({ logger, db, employeeAuthorizationService, saleFinder, user }: InjectedDependencies): FindSaleService {
+    return new FindSaleService(logger, db, employeeAuthorizationService, saleFinder, user);
   }
 
   async execute(id: string): Promise<Result<Sale, BusinessError>> {
-    const employeeAuthorization = EmployeeAuthorizationService.create({ db: this.db });
-    const authorization = await employeeAuthorization.authorizePermission({
+    const authorization = await this.employeeAuthorizationService.authorizePermission({
       employeeId: this.user.employeeId,
       merchantId: this.user.merchantId,
       permission: "view_transactions",

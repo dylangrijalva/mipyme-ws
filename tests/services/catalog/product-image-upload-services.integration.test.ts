@@ -14,6 +14,7 @@ import {
   createRealtimeEventPublisherMock,
   trackCommittedBroadcasts,
 } from "../../test-utils/realtime-publisher-mock.ts";
+import { CollectionFinder } from "../../../src/finders/collection-finder.ts";
 
 const EXISTING_IMAGE = "https://strawhatpirates.example.com/sea-chart.webp";
 const PUBLISHED_IMAGE = "https://storage.example.com/product-photos/verified/sea-chart.webp";
@@ -85,7 +86,7 @@ async function setup() {
       }),
     ),
   };
-  const productFinder = new ProductFinder();
+  const productFinder = new ProductFinder(new CollectionFinder());
   const { publisher, broadcast } = createRealtimeEventPublisherMock();
   const user = {
     id: "nami",

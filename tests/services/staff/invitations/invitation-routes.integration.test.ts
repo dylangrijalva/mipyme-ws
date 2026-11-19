@@ -23,6 +23,8 @@ import { InventoryManagement } from "../../../../src/services/inventory-manageme
 import { ok } from "../../../../src/utils/result.ts";
 import { IDENTITY_ACCOUNT, insertInvitation, setupEmployees } from "../../../test-utils/employee-fixture.ts";
 import { createRealtimeEnv } from "../../../test-utils/realtime-env.ts";
+import { EmployeeAuthorizationService } from "../../../../src/services/employee-authorization-service.ts";
+import { SyncTokenStore } from "../../../../src/services/sync/sync-token-store.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -51,10 +53,12 @@ async function setupRoutes() {
     logger,
     env,
     db: context.db,
+    employeeAuthorizationService: EmployeeAuthorizationService.create({ db: context.db }),
     cache,
     identity,
     emailSender: new EmailSender({ env, logger }),
-    employeeManagement: new EmployeeManagement(),
+    syncTokenStore: new SyncTokenStore(cache, env.CLERK_SECRET_KEY),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db: context.db })),
     inventoryManagement: new InventoryManagement(),
     productImageStore: new ProductImageStore({ env, logger }),
     publisher: new RealtimeEventPublisher({ env, logger }),
@@ -65,7 +69,7 @@ async function setupRoutes() {
     invitationFinder: new InvitationFinder(),
     locationFinder: new LocationFinder(),
     supplierFinder: new SupplierFinder(),
-    productFinder: new ProductFinder(),
+    productFinder: new ProductFinder(new CollectionFinder()),
     purchaseFinder: new PurchaseFinder(),
     saleFinder: new SaleFinder(),
   });

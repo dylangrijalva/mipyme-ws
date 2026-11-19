@@ -6,34 +6,48 @@ import type { Database } from "../../db/index.ts";
 import type { PurchaseFinder } from "../../finders/purchase-finder.ts";
 import { err, ok, type Result } from "../../utils/result.ts";
 import { BaseService } from "../base-service.ts";
-import { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
+import type { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
 
 type InjectedDependencies = {
   logger: Logger;
   db: Database;
+  employeeAuthorizationService: EmployeeAuthorizationService;
   purchaseFinder: PurchaseFinder;
   user: CurrentUser;
 };
 
 class FindPurchaseService extends BaseService<string, Purchase> {
   private readonly db: Database;
+  private readonly employeeAuthorizationService: EmployeeAuthorizationService;
   private readonly purchaseFinder: PurchaseFinder;
   private readonly user: CurrentUser;
 
-  constructor(logger: Logger, db: Database, purchaseFinder: PurchaseFinder, user: CurrentUser) {
+  constructor(
+    logger: Logger,
+    db: Database,
+    employeeAuthorizationService: EmployeeAuthorizationService,
+    purchaseFinder: PurchaseFinder,
+    user: CurrentUser,
+  ) {
     super(logger);
     this.db = db;
+    this.employeeAuthorizationService = employeeAuthorizationService;
     this.purchaseFinder = purchaseFinder;
     this.user = user;
   }
 
-  static create({ logger, db, purchaseFinder, user }: InjectedDependencies): FindPurchaseService {
-    return new FindPurchaseService(logger, db, purchaseFinder, user);
+  static create({
+    logger,
+    db,
+    employeeAuthorizationService,
+    purchaseFinder,
+    user,
+  }: InjectedDependencies): FindPurchaseService {
+    return new FindPurchaseService(logger, db, employeeAuthorizationService, purchaseFinder, user);
   }
 
   async execute(id: string): Promise<Result<Purchase, BusinessError>> {
-    const employeeAuthorization = EmployeeAuthorizationService.create({ db: this.db });
-    const authorization = await employeeAuthorization.authorizePermission({
+    const authorization = await this.employeeAuthorizationService.authorizePermission({
       employeeId: this.user.employeeId,
       merchantId: this.user.merchantId,
       permission: "view_transactions",

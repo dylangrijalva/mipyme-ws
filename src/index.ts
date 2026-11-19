@@ -19,8 +19,10 @@ import { EmailSender } from "./integrations/email-sender.ts";
 import { IdentityProvider } from "./integrations/identity-provider.ts";
 import { ProductImageStore } from "./integrations/product-image-store.ts";
 import { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
+import { EmployeeAuthorizationService } from "./services/employee-authorization-service.ts";
 import { EmployeeManagement } from "./services/employee-management.ts";
 import { InventoryManagement } from "./services/inventory-management.ts";
+import { SyncTokenStore } from "./services/sync/sync-token-store.ts";
 
 async function run() {
   console.clear();
@@ -42,8 +44,10 @@ async function run() {
   const productImageStore = new ProductImageStore({ env, logger });
   const publisher = new RealtimeEventPublisher({ logger, env });
   const emailSender = new EmailSender({ logger, env });
-  const employeeManagement = new EmployeeManagement();
+  const employeeAuthorizationService = EmployeeAuthorizationService.create({ db });
+  const employeeManagement = new EmployeeManagement(employeeAuthorizationService);
   const inventoryManagement = new InventoryManagement();
+  const syncTokenStore = new SyncTokenStore(cache, env.CLERK_SECRET_KEY);
 
   const merchantFinder = new MerchantFinder();
   const collectionFinder = new CollectionFinder();
@@ -52,7 +56,7 @@ async function run() {
   const invitationFinder = new InvitationFinder();
   const locationFinder = new LocationFinder();
   const supplierFinder = new SupplierFinder();
-  const productFinder = new ProductFinder();
+  const productFinder = new ProductFinder(collectionFinder);
   const purchaseFinder = new PurchaseFinder();
   const saleFinder = new SaleFinder();
 
@@ -63,8 +67,10 @@ async function run() {
     cache,
     identity,
     emailSender,
+    employeeAuthorizationService,
     employeeManagement,
     inventoryManagement,
+    syncTokenStore,
     productImageStore,
     publisher,
     merchantFinder,

@@ -5,7 +5,7 @@ import { Product } from "../contracts/product.ts";
 import type { Database } from "../db/index.ts";
 import { tables } from "../db/schema.ts";
 import { paginate } from "../utils/paginate.ts";
-import { CollectionFinder } from "./collection-finder.ts";
+import type { CollectionFinder } from "./collection-finder.ts";
 import { type SyncCriteria, syncWindow } from "./sync-criteria.ts";
 
 type Criteria = {
@@ -27,6 +27,12 @@ function groupBy<TRecord>(records: Array<TRecord>, key: (record: TRecord) => str
 }
 
 class ProductFinder {
+  private readonly collectionFinder: CollectionFinder;
+
+  constructor(collectionFinder: CollectionFinder) {
+    this.collectionFinder = collectionFinder;
+  }
+
   async find(db: Database, criteria: Criteria): Promise<Product | null> {
     const [record] = await db
       .select()
@@ -40,7 +46,7 @@ class ProductFinder {
 
     const merchantId = criteria.merchantId;
     const collection = record.collectionId
-      ? await new CollectionFinder().find(db, { merchantId, id: record.collectionId })
+      ? await this.collectionFinder.find(db, { merchantId, id: record.collectionId })
       : null;
     const variants = await db
       .select()

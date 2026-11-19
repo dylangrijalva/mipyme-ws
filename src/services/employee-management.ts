@@ -12,7 +12,7 @@ import type { Database } from "../db/index.ts";
 import { tables } from "../db/schema.ts";
 import { generateId } from "../utils/generate-id.ts";
 import { err, ok, type Result } from "../utils/result.ts";
-import { type AuthorizedEmployee, EmployeeAuthorizationService } from "./employee-authorization-service.ts";
+import type { AuthorizedEmployee, EmployeeAuthorizationService } from "./employee-authorization-service.ts";
 
 const EmployeePermissions = z.array(PosPermission).transform((permissions) => [...new Set(permissions)]);
 
@@ -43,8 +43,14 @@ type ReplaceLocationAccessRequest = {
 };
 
 class EmployeeManagement {
-  async authorize(db: Database, user: CurrentUser): Promise<Result<AuthorizedEmployee, BusinessError>> {
-    const authorization = await EmployeeAuthorizationService.create({ db }).authorizePermission({
+  private readonly employeeAuthorizationService: EmployeeAuthorizationService;
+
+  constructor(employeeAuthorizationService: EmployeeAuthorizationService) {
+    this.employeeAuthorizationService = employeeAuthorizationService;
+  }
+
+  async authorize(user: CurrentUser): Promise<Result<AuthorizedEmployee, BusinessError>> {
+    const authorization = await this.employeeAuthorizationService.authorizePermission({
       employeeId: user.employeeId,
       merchantId: user.merchantId,
       permission: "manage_employees",

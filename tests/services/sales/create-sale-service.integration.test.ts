@@ -17,6 +17,7 @@ import {
   trackCommittedBroadcasts,
 } from "../../test-utils/realtime-publisher-mock.ts";
 import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
+import { EmployeeAuthorizationService } from "../../../src/services/employee-authorization-service.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -77,9 +78,10 @@ async function setup() {
   };
   const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const service = CreateSaleService.create({
-    employeeManagement: new EmployeeManagement(),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db })),
     publisher,
     db,
+    employeeAuthorizationService: EmployeeAuthorizationService.create({ db }),
     user,
     logger: pino({ enabled: false }),
     saleFinder: new SaleFinder(),
@@ -927,9 +929,10 @@ describe("CreateSaleService", () => {
     const context = await setup();
     const missingEmployeeId = generateId({ model: "employee" });
     const service = CreateSaleService.create({
-      employeeManagement: new EmployeeManagement(),
+      employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db: context.db })),
       publisher: createRealtimeEventPublisherMock().publisher,
       db: context.db,
+      employeeAuthorizationService: EmployeeAuthorizationService.create({ db: context.db }),
       user: { ...context.user, id: missingEmployeeId, employeeId: missingEmployeeId },
       logger: pino({ enabled: false }),
       saleFinder: new SaleFinder(),
@@ -1107,7 +1110,7 @@ describe("CreateSaleService", () => {
     const supplierId = generateId({ model: "supplier" });
     await db.insert(tables.supplier).values({ id: supplierId, merchantId, name: "Baratie" });
     const purchaseService = CreatePurchaseService.create({
-      employeeManagement: new EmployeeManagement(),
+      employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db })),
       publisher: createRealtimeEventPublisherMock().publisher,
       db,
       user,

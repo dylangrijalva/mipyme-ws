@@ -81,7 +81,7 @@ class RevokeEmployeeInvitationService extends BaseService<RevokeEmployeeInvitati
   }
 
   async execute(request: RevokeEmployeeInvitationRequest): Promise<Result<EmployeeInvitation, BusinessError>> {
-    const authorization = await this.employeeManagement.authorize(this.db, this.user);
+    const authorization = await this.employeeManagement.authorize(this.user);
     if (!authorization.success) {
       return authorization;
     }

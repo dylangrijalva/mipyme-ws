@@ -5,6 +5,7 @@ import type { Database } from "../../src/db/index.ts";
 import { tables } from "../../src/db/schema.ts";
 import { PurchaseFinder } from "../../src/finders/purchase-finder.ts";
 import { generateId } from "../../src/utils/generate-id.ts";
+import { EmployeeAuthorizationService } from "../../src/services/employee-authorization-service.ts";
 
 async function seedPurchaseReads(db: Database, reader?: { merchantId: string; employeeId: string }) {
   const merchantId = reader?.merchantId ?? generateId({ model: "merchant" });
@@ -87,7 +88,13 @@ async function seedPurchaseReads(db: Database, reader?: { merchantId: string; em
     email: "nami@strawhatpirates.example.com",
     accountType: "owner",
   };
-  const dependencies = { db, user, logger: pino({ enabled: false }), purchaseFinder: new PurchaseFinder() };
+  const dependencies = {
+    db,
+    employeeAuthorizationService: EmployeeAuthorizationService.create({ db }),
+    user,
+    logger: pino({ enabled: false }),
+    purchaseFinder: new PurchaseFinder(),
+  };
   return {
     dependencies,
     ids,

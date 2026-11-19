@@ -26,6 +26,7 @@ import {
 } from "../../test-utils/realtime-publisher-mock.ts";
 import { createRealtimeEnv } from "../../test-utils/realtime-env.ts";
 import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
+import { EmployeeAuthorizationService } from "../../../src/services/employee-authorization-service.ts";
 
 const PURCHASE_TIME = new Date("2026-10-15T18:00:00.000Z");
 
@@ -83,11 +84,12 @@ async function setup() {
   const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const dependencies = {
     db,
+    employeeAuthorizationService: EmployeeAuthorizationService.create({ db }),
     user,
     logger: pino({ enabled: false }),
     publisher,
     purchaseFinder: new PurchaseFinder(),
-    employeeManagement: new EmployeeManagement(),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db })),
   };
   const purchaseService = CreatePurchaseService.create({
     ...dependencies,
@@ -330,7 +332,7 @@ describe("VoidPurchaseService", () => {
     const result = await context.voidService.execute(purchase.id);
 
     expect(result).toMatchObject({ success: true, value: { status: "voided" } });
-    const product = await new ProductFinder().find(context.db, {
+    const product = await new ProductFinder(new CollectionFinder()).find(context.db, {
       merchantId: context.merchantId,
       id: context.productId,
     });
@@ -367,9 +369,9 @@ describe("VoidPurchaseService", () => {
       logger: pino({ enabled: false }),
       publisher: context.dependencies.publisher,
       collectionFinder: new CollectionFinder(),
-      productFinder: new ProductFinder(),
+      productFinder: new ProductFinder(new CollectionFinder()),
       productImageStore: new ProductImageStore({ env: createRealtimeEnv(), logger: pino({ enabled: false }) }),
-      employeeManagement: new EmployeeManagement(),
+      employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db: context.db })),
       inventoryManagement: new InventoryManagement(),
       user: context.dependencies.user,
     });

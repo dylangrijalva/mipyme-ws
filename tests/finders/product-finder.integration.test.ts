@@ -5,6 +5,7 @@ import { tables } from "../../src/db/schema.ts";
 import { ProductFinder } from "../../src/finders/product-finder.ts";
 import { generateId } from "../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../prepare-db.ts";
+import { CollectionFinder } from "../../src/finders/collection-finder.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -78,7 +79,7 @@ describe("ProductFinder", () => {
       type: "item",
       status: "active",
     });
-    const finder = new ProductFinder();
+    const finder = new ProductFinder(new CollectionFinder());
 
     const pages = await db.transaction(async (transaction) => {
       await transaction.insert(tables.product).values([
@@ -228,7 +229,7 @@ describe("ProductFinder", () => {
       },
     ]);
 
-    const found = await new ProductFinder().find(db, { merchantId, id: productId });
+    const found = await new ProductFinder(new CollectionFinder()).find(db, { merchantId, id: productId });
 
     expect(found).toEqual({
       id: productId,
@@ -363,7 +364,7 @@ describe("ProductFinder", () => {
         lowStockThreshold: 5,
       },
     ]);
-    const finder = new ProductFinder();
+    const finder = new ProductFinder(new CollectionFinder());
     const expectedStockStatuses = [
       { locationId: inStockLocationId, stockStatus: "in_stock" },
       { locationId: lowStockLocationId, stockStatus: "low_stock" },
@@ -404,7 +405,7 @@ describe("ProductFinder", () => {
       sku: "SUNNY-02",
       barcode: "20002",
     });
-    const finder = new ProductFinder();
+    const finder = new ProductFinder(new CollectionFinder());
 
     const matching = { merchantId, id: productId, sku: "SUNNY-01", barcode: "20001" };
 
@@ -486,7 +487,7 @@ describe("ProductFinder", () => {
       },
     ]);
 
-    const found = await new ProductFinder().find(db, { merchantId, id: productId });
+    const found = await new ProductFinder(new CollectionFinder()).find(db, { merchantId, id: productId });
 
     expect(found?.imageUrl).toBe("https://strawhatpirates.example.com/latest.webp");
 
@@ -495,14 +496,14 @@ describe("ProductFinder", () => {
       .set({ archivedAt: later })
       .where(and(eq(tables.productImage.productId, productId), eq(tables.productImage.status, "available")));
 
-    const withoutImage = await new ProductFinder().find(db, { merchantId, id: productId });
+    const withoutImage = await new ProductFinder(new CollectionFinder()).find(db, { merchantId, id: productId });
 
     expect(withoutImage?.imageUrl).toBeNull();
   });
 
   it("scopes id, SKU, barcode, and unfiltered product lookups to the merchant", async () => {
     const { db, merchantId, otherMerchantId, productId } = await setup();
-    const finder = new ProductFinder();
+    const finder = new ProductFinder(new CollectionFinder());
 
     for (const filter of [{ id: productId }, { sku: "SUNNY-01" }, { barcode: "20001" }, {}]) {
       expect((await finder.find(db, { merchantId, ...filter }))?.id).toBe(productId);

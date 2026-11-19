@@ -1,4 +1,3 @@
-import type { Redis } from "ioredis";
 import type { Logger } from "pino";
 import type { BusinessError } from "../../contracts/business-error.ts";
 import type { CurrentUser } from "../../contracts/current-user.ts";
@@ -11,19 +10,17 @@ import type { LocationFinder } from "../../finders/location-finder.ts";
 import type { MerchantFinder } from "../../finders/merchant-finder.ts";
 import type { ProductFinder } from "../../finders/product-finder.ts";
 import type { SupplierFinder } from "../../finders/supplier-finder.ts";
-import type { EnvVars } from "../../infra/config.env.ts";
 import { now } from "../../utils/now.ts";
 import { ok, type Result } from "../../utils/result.ts";
 import { BaseService } from "../base-service.ts";
-import { SyncTokenStore } from "./sync-token-store.ts";
+import type { SyncTokenStore } from "./sync-token-store.ts";
 
 const SYNC_OVERLAP_WINDOW_IN_MS = 60 * 60 * 1000;
 
 type InjectedDependencies = {
   logger: Logger;
   db: Database;
-  cache: Redis;
-  env: EnvVars;
+  syncTokenStore: SyncTokenStore;
   user: CurrentUser;
   merchantFinder: MerchantFinder;
   productFinder: ProductFinder;
@@ -35,7 +32,7 @@ type InjectedDependencies = {
 };
 
 class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
-  private readonly tokens: SyncTokenStore;
+  private readonly syncTokenStore: SyncTokenStore;
   private readonly db: Database;
   private readonly user: CurrentUser;
   private readonly merchantFinder: MerchantFinder;
@@ -49,8 +46,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
   constructor(
     logger: Logger,
     db: Database,
-    cache: Redis,
-    env: EnvVars,
+    syncTokenStore: SyncTokenStore,
     user: CurrentUser,
     merchantFinder: MerchantFinder,
     productFinder: ProductFinder,
@@ -61,7 +57,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
     employeeFinder: EmployeeFinder,
   ) {
     super(logger);
-    this.tokens = new SyncTokenStore(cache, env.CLERK_SECRET_KEY);
+    this.syncTokenStore = syncTokenStore;
     this.db = db;
     this.user = user;
     this.merchantFinder = merchantFinder;
@@ -76,8 +72,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
   static create({
     logger,
     db,
-    cache,
-    env,
+    syncTokenStore,
     user,
     merchantFinder,
     productFinder,
@@ -90,8 +85,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
     return new IncrementalSyncService(
       logger,
       db,
-      cache,
-      env,
+      syncTokenStore,
       user,
       merchantFinder,
       productFinder,
@@ -104,7 +98,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
   }
 
   async execute(request: SyncRequest): Promise<Result<SyncResponse, BusinessError>> {
-    const previous = await this.tokens.load(request.syncToken, this.user.merchantId);
+    const previous = await this.syncTokenStore.load(request.syncToken, this.user.merchantId);
     if (!previous.success) {
       return previous;
     }
@@ -132,7 +126,7 @@ class IncrementalSyncService extends BaseService<SyncRequest, SyncResponse> {
       { isolationLevel: "repeatable read", withConsistentSnapshot: true },
     );
 
-    const token = await this.tokens.save(currentSyncedAt, this.user.merchantId);
+    const token = await this.syncTokenStore.save(currentSyncedAt, this.user.merchantId);
     if (!token.success) {
       return token;
     }

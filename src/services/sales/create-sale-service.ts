@@ -22,7 +22,7 @@ import { err, ok, type Result } from "../../utils/result.ts";
 import { splitDistinct } from "../../utils/split-distinct.ts";
 import { BaseService } from "../base-service.ts";
 import type { EmployeeManagement } from "../employee-management.ts";
-import { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
+import type { EmployeeAuthorizationService } from "../employee-authorization-service.ts";
 
 const CreateSaleRequest = z.object({
   source: Source.default("pos.web"),
@@ -66,6 +66,7 @@ const CREATE_SALE_FALLBACK_POLICY = fallback(handleWhen(isConcurrentUpdateError)
 type InjectedDependencies = {
   logger: Logger;
   db: Database;
+  employeeAuthorizationService: EmployeeAuthorizationService;
   publisher: RealtimeEventPublisher;
   saleFinder: SaleFinder;
   user: CurrentUser;
@@ -74,6 +75,7 @@ type InjectedDependencies = {
 
 class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
   private readonly db: Database;
+  private readonly employeeAuthorizationService: EmployeeAuthorizationService;
   private readonly employeeManagement: EmployeeManagement;
   private readonly publisher: RealtimeEventPublisher;
   private readonly saleFinder: SaleFinder;
@@ -82,6 +84,7 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
   constructor(
     logger: Logger,
     db: Database,
+    employeeAuthorizationService: EmployeeAuthorizationService,
     saleFinder: SaleFinder,
     publisher: RealtimeEventPublisher,
     user: CurrentUser,
@@ -89,6 +92,7 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
   ) {
     super(logger);
     this.db = db;
+    this.employeeAuthorizationService = employeeAuthorizationService;
     this.employeeManagement = employeeManagement;
     this.publisher = publisher;
     this.saleFinder = saleFinder;
@@ -98,12 +102,21 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
   static create({
     logger,
     db,
+    employeeAuthorizationService,
     saleFinder,
     publisher,
     user,
     employeeManagement,
   }: InjectedDependencies): CreateSaleService {
-    return new CreateSaleService(logger, db, saleFinder, publisher, user, employeeManagement);
+    return new CreateSaleService(
+      logger,
+      db,
+      employeeAuthorizationService,
+      saleFinder,
+      publisher,
+      user,
+      employeeManagement,
+    );
   }
 
   async execute(request: CreateSaleRequest): Promise<Result<Sale, BusinessError>> {
@@ -134,8 +147,7 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
 
   private async createSale(request: CreateSaleRequest): Promise<Result<Sale, BusinessError>> {
     const variantIds = request.lineItems.map((line) => line.variantId);
-    const employeeAuthorization = EmployeeAuthorizationService.create({ db: this.db });
-    const authorization = await employeeAuthorization.authorizePermission({
+    const authorization = await this.employeeAuthorizationService.authorizePermission({
       employeeId: this.user.employeeId,
       merchantId: this.user.merchantId,
       permission: "checkout",
@@ -150,7 +162,7 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
     const employee = authorization.value;
     const permissions = splitDistinct(employee.permissions, " ");
 
-    const locationAuthorization = await employeeAuthorization.authorizeLocationAccess({
+    const locationAuthorization = await this.employeeAuthorizationService.authorizeLocationAccess({
       employee,
       locationId: request.locationId,
     });

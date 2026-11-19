@@ -17,6 +17,7 @@ import {
   trackCommittedBroadcasts,
 } from "../../test-utils/realtime-publisher-mock.ts";
 import { waitForBlockedUpdate } from "../../test-utils/wait-for-blocked-update.ts";
+import { EmployeeAuthorizationService } from "../../../src/services/employee-authorization-service.ts";
 
 async function setup() {
   const db = await prepareDatabase();
@@ -81,7 +82,7 @@ async function setup() {
 
   const { broadcast, publisher } = createRealtimeEventPublisherMock();
   const service = CreatePurchaseService.create({
-    employeeManagement: new EmployeeManagement(),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db })),
     publisher,
     db,
     purchaseFinder: new PurchaseFinder(),

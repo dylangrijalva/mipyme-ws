@@ -22,6 +22,7 @@ import {
   trackCommittedBroadcasts,
 } from "../../test-utils/realtime-publisher-mock.ts";
 import { createRealtimeEnv } from "../../test-utils/realtime-env.ts";
+import { EmployeeAuthorizationService } from "../../../src/services/employee-authorization-service.ts";
 
 // Stands in for the bucket the product image store manages.
 const MANAGED_STORAGE_URL = "https://storage.thousand-sunny.example.com/mipyme/product-images/";
@@ -68,9 +69,9 @@ async function setup() {
     publisher,
     db,
     collectionFinder: new CollectionFinder(),
-    productFinder: new ProductFinder(),
+    productFinder: new ProductFinder(new CollectionFinder()),
     productImageStore,
-    employeeManagement: new EmployeeManagement(),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db })),
     inventoryManagement: new InventoryManagement(),
     logger: pino({ enabled: false }),
     user: {

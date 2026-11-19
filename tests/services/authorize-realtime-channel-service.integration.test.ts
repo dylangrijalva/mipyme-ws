@@ -26,6 +26,8 @@ import { InventoryManagement } from "../../src/services/inventory-management.ts"
 import { AuthorizeRealtimeChannelService } from "../../src/services/authorize-realtime-channel-service.ts";
 import { err, ok } from "../../src/utils/result.ts";
 import { createRealtimeEnv } from "../test-utils/realtime-env.ts";
+import { EmployeeAuthorizationService } from "../../src/services/employee-authorization-service.ts";
+import { SyncTokenStore } from "../../src/services/sync/sync-token-store.ts";
 
 function setup(accountType: CurrentUser["accountType"] = "owner") {
   const user: CurrentUser = {
@@ -116,10 +118,12 @@ async function setupRoute(status: "enabled" | "disabled" | null) {
     logger,
     env,
     db,
+    employeeAuthorizationService: EmployeeAuthorizationService.create({ db }),
     cache,
     identity,
     emailSender: new EmailSender({ env, logger }),
-    employeeManagement: new EmployeeManagement(),
+    syncTokenStore: new SyncTokenStore(cache, env.CLERK_SECRET_KEY),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db })),
     inventoryManagement: new InventoryManagement(),
     productImageStore: new ProductImageStore({ env, logger }),
     publisher,
@@ -130,7 +134,7 @@ async function setupRoute(status: "enabled" | "disabled" | null) {
     invitationFinder: new InvitationFinder(),
     locationFinder: new LocationFinder(),
     supplierFinder: new SupplierFinder(),
-    productFinder: new ProductFinder(),
+    productFinder: new ProductFinder(new CollectionFinder()),
     purchaseFinder: new PurchaseFinder(),
     saleFinder: new SaleFinder(),
   });

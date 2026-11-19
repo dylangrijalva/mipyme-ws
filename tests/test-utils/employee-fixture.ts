@@ -16,6 +16,7 @@ import { EmployeeManagement } from "../../src/services/employee-management.ts";
 import { prepareDatabase } from "../prepare-db.ts";
 import { createRealtimeEnv } from "./realtime-env.ts";
 import { createRealtimeEventPublisherMock } from "./realtime-publisher-mock.ts";
+import { EmployeeAuthorizationService } from "../../src/services/employee-authorization-service.ts";
 
 const NOW = new Date("2026-05-10T15:00:00.000Z");
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -141,7 +142,7 @@ async function setupEmployees() {
     employeeFinder: new EmployeeFinder(),
     invitationFinder: new InvitationFinder(),
     merchantFinder: new MerchantFinder(),
-    employeeManagement: new EmployeeManagement(),
+    employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db })),
   });
 
   return {

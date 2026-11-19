@@ -27,6 +27,8 @@ import { generateId } from "../../src/utils/generate-id.ts";
 import { ok } from "../../src/utils/result.ts";
 import { prepareDatabase } from "../prepare-db.ts";
 import { createRealtimeEnv } from "../test-utils/realtime-env.ts";
+import { EmployeeAuthorizationService } from "../../src/services/employee-authorization-service.ts";
+import { SyncTokenStore } from "../../src/services/sync/sync-token-store.ts";
 
 const infrastructure: { container?: StartedRedisContainer; cache?: Redis } = {};
 
@@ -191,10 +193,11 @@ async function setup() {
     db,
     cache: infrastructure.cache!,
     env: createRealtimeEnv(),
+    syncTokenStore: new SyncTokenStore(infrastructure.cache!, createRealtimeEnv().CLERK_SECRET_KEY),
     logger: pino({ enabled: false }),
     user,
     merchantFinder: new MerchantFinder(),
-    productFinder: new ProductFinder(),
+    productFinder: new ProductFinder(new CollectionFinder()),
     collectionFinder: new CollectionFinder(),
     customerFinder: new CustomerFinder(),
     supplierFinder: new SupplierFinder(),
@@ -324,7 +327,10 @@ describe("IncrementalSyncService", () => {
     );
     const product = result.value!.products.find((record) => record.id === fixture.productId)!;
     expect(product).toEqual(
-      await new ProductFinder().find(fixture.db, { merchantId: fixture.merchantId, id: fixture.productId }),
+      await new ProductFinder(new CollectionFinder()).find(fixture.db, {
+        merchantId: fixture.merchantId,
+        id: fixture.productId,
+      }),
     );
     expect(product).toMatchObject({
       name: "Nami's mandarins",
@@ -509,7 +515,10 @@ describe("IncrementalSyncService", () => {
 
       expect(result.value!.products).toHaveLength(1);
       expect(result.value!.products[0]).toEqual(
-        await new ProductFinder().find(fixture.db, { merchantId: fixture.merchantId, id: fixture.productId }),
+        await new ProductFinder(new CollectionFinder()).find(fixture.db, {
+          merchantId: fixture.merchantId,
+          id: fixture.productId,
+        }),
       );
       expect(result.value!.products[0].variants[0].inventoryLevels).toHaveLength(2);
       expect(await fixture.db.select().from(tables.product).where(eq(tables.product.id, fixture.productId))).toEqual(
@@ -653,7 +662,10 @@ describe("IncrementalSyncService", () => {
       maxRetriesPerRequest: 0,
     });
     unavailableCache.disconnect();
-    const service = IncrementalSyncService.create({ ...fixture.dependencies, cache: unavailableCache });
+    const service = IncrementalSyncService.create({
+      ...fixture.dependencies,
+      syncTokenStore: new SyncTokenStore(unavailableCache, fixture.dependencies.env.CLERK_SECRET_KEY),
+    });
 
     const read = await service.execute({ syncToken: first.value!.syncToken });
     const write = await service.execute({ syncToken: "*" });
@@ -744,9 +756,14 @@ describe("IncrementalSyncService", () => {
       const app = createApp({
         ...fixture.dependencies,
         cache: dependency === "redis" ? unavailableCache : fixture.dependencies.cache,
+        syncTokenStore: new SyncTokenStore(
+          dependency === "redis" ? unavailableCache : fixture.dependencies.cache,
+          env.CLERK_SECRET_KEY,
+        ),
+        employeeAuthorizationService: EmployeeAuthorizationService.create({ db: fixture.db }),
         identity,
         emailSender: new EmailSender({ env, logger }),
-        employeeManagement: new EmployeeManagement(),
+        employeeManagement: new EmployeeManagement(EmployeeAuthorizationService.create({ db: fixture.db })),
         inventoryManagement: new InventoryManagement(),
         productImageStore: new ProductImageStore({ env, logger }),
         publisher: new RealtimeEventPublisher({ env, logger }),
@@ -756,7 +773,7 @@ describe("IncrementalSyncService", () => {
         invitationFinder: new InvitationFinder(),
         locationFinder: new LocationFinder(),
         supplierFinder: new SupplierFinder(),
-        productFinder: new ProductFinder(),
+        productFinder: new ProductFinder(new CollectionFinder()),
         purchaseFinder: new PurchaseFinder(),
         saleFinder: new SaleFinder(),
       });
