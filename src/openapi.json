@@ -1617,7 +1617,7 @@
         "tags": ["Products"],
         "operationId": "createProduct",
         "summary": "Create a product",
-        "description": "Creates a product and its initial variant. Items start as drafts with zero stock and require positive `unit_cost`; services start active and do not track inventory. Requires an enabled owner or staff member.",
+        "description": "Creates a product and its initial variant. Items start as drafts, require positive `unit_cost`, and get an inventory level at every location of your merchant. Use `inventory_levels` to set opening stock and stock thresholds per location; opening stock is recorded as an `initial_stock` movement. Services start active, do not track inventory, and ignore `inventory_levels`. Requires an enabled owner or staff member.",
         "security": [
           {
             "bearerAuth": []
@@ -1646,7 +1646,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or invalid field values, an item is missing unit_cost or has zero unit_cost, or an item's price is below its unit_cost. Returns validation_error or price_below_unit_cost, respectively.",
+            "description": "The request contains invalid JSON or invalid field values, an item is missing unit_cost or has zero unit_cost, an item's price is below its unit_cost, `inventory_levels` repeats a location, or a `low_stock_threshold` is not lower than a positive `optimal_stock_level`. Returns `price_below_unit_cost` when the price is below the unit cost and `validation_error` otherwise.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1666,7 +1666,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership (account_not_provisioned), or its employee is disabled or archived (forbidden_error).",
+            "description": "The account has no provisioned membership (account_not_provisioned), its employee is disabled or archived, or the `created_by_id` employee is not enabled (forbidden_error).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1676,7 +1676,7 @@
             }
           },
           "404": {
-            "description": "The collection does not exist or does not belong to your merchant. Returns `resource_not_found`.",
+            "description": "The collection, a location in `inventory_levels`, or the `created_by_id` employee does not exist or does not belong to your merchant. Returns `resource_not_found`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1806,7 +1806,7 @@
         "tags": ["Products"],
         "operationId": "updateProduct",
         "summary": "Update a product",
-        "description": "Updates supplied fields; omitted fields are unchanged. Use `null` to clear `sku`, `barcode`, `collection_id`, or `image_url`. For items, `unit_cost` must be positive and may change only before stock moves; `price` cannot be below `unit_cost`.",
+        "description": "Updates supplied fields; omitted fields are unchanged. Use `null` to clear `sku`, `barcode`, `collection_id`, or `image_url`. For items, `unit_cost` must be positive and may change only before stock moves; `price` cannot be below `unit_cost`. `inventory_levels` changes only the listed locations: thresholds can change at any time, while `on_hand` sets opening stock, recorded as an `initial_stock` movement, and is accepted only before the product's first inventory movement at any location. Services ignore `inventory_levels`.",
         "security": [
           {
             "bearerAuth": []
@@ -1846,7 +1846,7 @@
             }
           },
           "400": {
-            "description": "The request contains invalid JSON or field values, an item has an invalid unit cost, or its price is below its unit cost. Returns `validation_error` or `price_below_unit_cost`.",
+            "description": "The request contains invalid JSON or field values, an item has an invalid unit cost, its price is below its unit cost, `inventory_levels` repeats a location, sets `on_hand` after the product's first inventory movement, or leaves a `low_stock_threshold` that is not lower than a positive `optimal_stock_level`. Returns `price_below_unit_cost` when the price is below the unit cost and `validation_error` otherwise.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1866,7 +1866,7 @@
             }
           },
           "403": {
-            "description": "The account has no provisioned membership, or its employee is disabled or archived. Returns `account_not_provisioned` or `forbidden_error`.",
+            "description": "The account has no provisioned membership, its employee is disabled or archived, or the `created_by_id` employee is not enabled. Returns `account_not_provisioned` or `forbidden_error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1876,7 +1876,7 @@
             }
           },
           "404": {
-            "description": "The product or collection does not exist or does not belong to the current merchant. Returns `resource_not_found`.",
+            "description": "The product, collection, a location in `inventory_levels`, or the `created_by_id` employee does not exist or does not belong to the current merchant. Returns `resource_not_found`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6088,11 +6088,58 @@
           }
         ]
       },
+      "InventoryLevelInput": {
+        "type": "object",
+        "description": "Stock settings for one location. Each location can appear only once per request.",
+        "properties": {
+          "location_id": {
+            "$ref": "#/components/schemas/ObjectId",
+            "description": "A location belonging to your merchant."
+          },
+          "on_hand": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 999999999,
+            "description": "Opening stock at this location. A positive value records an `initial_stock` movement at the item's unit cost and sets the level's restock timestamps, which also locks `unit_cost`. Zero records nothing."
+          },
+          "low_stock_threshold": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 999999999,
+            "description": "Stock at or below this quantity is reported as `low_stock`. Zero disables the alert. Must be lower than `optimal_stock_level` when that value is positive."
+          },
+          "optimal_stock_level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 999999999,
+            "description": "The quantity to restock up to. Zero means no target is set."
+          }
+        },
+        "required": ["location_id"],
+        "examples": [
+          {
+            "location_id": "loc_AGGD8EJA69JRL3UTU79K",
+            "on_hand": 12,
+            "low_stock_threshold": 3,
+            "optimal_stock_level": 20
+          }
+        ]
+      },
       "InventoryMovementReason": {
-        "description": "The reason recorded for a stock movement, such as a sale, purchase, loss, damage, theft, or correction.",
+        "description": "The reason recorded for a stock movement, such as a sale, purchase, loss, damage, theft, correction, or the opening stock set on a product (`initial_stock`).",
         "examples": ["sale"],
         "type": "string",
-        "enum": ["sale", "sale_void", "purchase", "purchase_void", "lost", "damaged", "theft", "correction"]
+        "enum": [
+          "sale",
+          "sale_void",
+          "purchase",
+          "purchase_void",
+          "lost",
+          "damaged",
+          "theft",
+          "correction",
+          "initial_stock"
+        ]
       },
       "InventoryMovement": {
         "type": "object",
@@ -8600,6 +8647,25 @@
               }
             ],
             "description": "Optional HTTP or HTTPS URL for an externally hosted product image. Surrounding whitespace is removed. Managed storage URLs require the upload and verification endpoints."
+          },
+          "inventory_levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryLevelInput"
+            },
+            "description": "Optional stock settings per location for items. Omitted fields default to 0, and locations you leave out still get an empty inventory level. Services ignore this field."
+          },
+          "created_by_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee credited with any `initial_stock` movements, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant and is validated whenever it is sent, even when no stock is recorded. Omit or send `null` to credit the signed-in account's employee.",
+            "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           }
         },
         "required": ["name", "price"],
@@ -8629,7 +8695,15 @@
             "price": "25.50",
             "unit_cost": "10.00",
             "product_type": "item",
-            "sku": "SUNNY-01"
+            "sku": "SUNNY-01",
+            "inventory_levels": [
+              {
+                "location_id": "loc_AGGD8EJA69JRL3UTU79K",
+                "on_hand": 12,
+                "low_stock_threshold": 3,
+                "optimal_stock_level": 20
+              }
+            ]
           },
           {
             "name": "Chopper's consultation",
@@ -8706,12 +8780,39 @@
               }
             ],
             "description": "Optional external HTTP or HTTPS image URL. Setting this field replaces the active image and cancels any pending upload. Set to null to clear the image. Managed storage URLs require the upload and verification endpoints."
+          },
+          "inventory_levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryLevelInput"
+            },
+            "description": "Stock settings to change per location for items. Only the listed locations change, and omitted fields keep their current values. A location without an inventory level for this product gets one, with omitted fields set to 0. `on_hand` is accepted only before the product's first inventory movement at any location; thresholds can change at any time. Services ignore this field."
+          },
+          "created_by_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The employee credited with any `initial_stock` movements, such as whoever unlocked a shared device with their PIN. Must be an enabled employee of your merchant and is validated whenever it is sent, even when no stock is recorded. Omit or send `null` to credit the signed-in account's employee.",
+            "examples": ["empl_YJHP5ULEG3QP1M786T3", null]
           }
         },
         "examples": [
           {
             "name": "Updated product name",
             "price": "135.00"
+          },
+          {
+            "inventory_levels": [
+              {
+                "location_id": "loc_AGGD8EJA69JRL3UTU79K",
+                "low_stock_threshold": 5
+              }
+            ]
           },
           {
             "collection_id": null,

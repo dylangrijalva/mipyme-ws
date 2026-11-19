@@ -20,6 +20,7 @@ import { IdentityProvider } from "./integrations/identity-provider.ts";
 import { ProductImageStore } from "./integrations/product-image-store.ts";
 import { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
 import { EmployeeManagement } from "./services/employee-management.ts";
+import { InventoryManagement } from "./services/inventory-management.ts";
 
 async function run() {
   console.clear();
@@ -42,6 +43,7 @@ async function run() {
   const publisher = new RealtimeEventPublisher({ logger, env });
   const emailSender = new EmailSender({ logger, env });
   const employeeManagement = new EmployeeManagement();
+  const inventoryManagement = new InventoryManagement();
 
   const merchantFinder = new MerchantFinder();
   const collectionFinder = new CollectionFinder();
@@ -62,6 +64,7 @@ async function run() {
     identity,
     emailSender,
     employeeManagement,
+    inventoryManagement,
     productImageStore,
     publisher,
     merchantFinder,

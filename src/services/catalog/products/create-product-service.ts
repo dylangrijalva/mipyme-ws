@@ -21,6 +21,8 @@ import { now } from "../../../utils/now.ts";
 import { err, ok, type Result } from "../../../utils/result.ts";
 import { slugify } from "../../../utils/slugify.ts";
 import { BaseService } from "../../base-service.ts";
+import type { EmployeeManagement } from "../../employee-management.ts";
+import { InventoryLevelInput, type InventoryManagement } from "../../inventory-management.ts";
 
 const CreateProductRequest = z.object({
   name: z.string().trim().nonempty().max(128),
@@ -31,6 +33,8 @@ const CreateProductRequest = z.object({
   collectionId: ObjectId.nullish(),
   productType: ProductType.default("item"),
   imageUrl: ProductImageUrlInput.nullish(),
+  inventoryLevels: z.array(InventoryLevelInput).optional(),
+  createdById: ObjectId.nullish(),
 });
 
 type CreateProductRequest = z.infer<typeof CreateProductRequest>;
@@ -42,6 +46,8 @@ type InjectedDependencies = {
   collectionFinder: CollectionFinder;
   productFinder: ProductFinder;
   productImageStore: ProductImageStore;
+  employeeManagement: EmployeeManagement;
+  inventoryManagement: InventoryManagement;
   user: CurrentUser;
 };
 
@@ -51,6 +57,8 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
   private readonly collectionFinder: CollectionFinder;
   private readonly productFinder: ProductFinder;
   private readonly productImageStore: ProductImageStore;
+  private readonly employeeManagement: EmployeeManagement;
+  private readonly inventoryManagement: InventoryManagement;
   private readonly user: CurrentUser;
 
   constructor(
@@ -60,6 +68,8 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
     productFinder: ProductFinder,
     productImageStore: ProductImageStore,
     publisher: RealtimeEventPublisher,
+    employeeManagement: EmployeeManagement,
+    inventoryManagement: InventoryManagement,
     user: CurrentUser,
   ) {
     super(logger);
@@ -68,6 +78,8 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
     this.collectionFinder = collectionFinder;
     this.productFinder = productFinder;
     this.productImageStore = productImageStore;
+    this.employeeManagement = employeeManagement;
+    this.inventoryManagement = inventoryManagement;
     this.user = user;
   }
 
@@ -78,9 +90,21 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
     productFinder,
     productImageStore,
     publisher,
+    employeeManagement,
+    inventoryManagement,
     user,
   }: InjectedDependencies): CreateProductService {
-    return new CreateProductService(logger, db, collectionFinder, productFinder, productImageStore, publisher, user);
+    return new CreateProductService(
+      logger,
+      db,
+      collectionFinder,
+      productFinder,
+      productImageStore,
+      publisher,
+      employeeManagement,
+      inventoryManagement,
+      user,
+    );
   }
 
   async execute(request: CreateProductRequest): Promise<Result<Product, BusinessError>> {
@@ -92,7 +116,18 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
       });
     }
 
-    const result = await (request.productType === "service" ? this.createService(request) : this.createItem(request));
+    const creditedEmployee = await this.employeeManagement.resolveCreditedEmployeeId(this.db, {
+      merchantId: this.user.merchantId,
+      requestedEmployeeId: request.createdById,
+      defaultEmployeeId: this.user.employeeId,
+    });
+    if (!creditedEmployee.success) {
+      return creditedEmployee;
+    }
+
+    const result = await (request.productType === "service"
+      ? this.createService(request)
+      : this.createItem(request, creditedEmployee.value));
     if (result.success) {
       this.publisher.broadcast({
         merchantId: this.user.merchantId,
@@ -170,7 +205,10 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
     });
   }
 
-  private async createItem(request: CreateProductRequest): Promise<Result<Product, BusinessError>> {
+  private async createItem(
+    request: CreateProductRequest,
+    creditedEmployeeId: string,
+  ): Promise<Result<Product, BusinessError>> {
     if (request.unitCost === undefined) {
       return err({
         code: codes.validationError,
@@ -241,6 +279,27 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
     const slugSuffix = productId.toLowerCase();
     const slugName = (slugify(request.name) || "product").slice(0, 128 - slugSuffix.length - 1);
 
+    // Locations left out of the request still get a level, so the item is tracked everywhere.
+    const requestedLevels = request.inventoryLevels ?? [];
+    const requestedLocationIds = new Set(requestedLevels.map((inventoryLevel) => inventoryLevel.locationId));
+    const inventoryLevels = await this.inventoryManagement.resolveInventoryLevels(this.db, {
+      merchantId: this.user.merchantId,
+      variantId,
+      inventoryLevels: [
+        ...requestedLevels,
+        ...locations
+          .filter((location) => !requestedLocationIds.has(location.id))
+          .map((location) => ({ locationId: location.id })),
+      ],
+    });
+
+    if (!inventoryLevels.success) {
+      return inventoryLevels;
+    }
+
+    const stockedAt = now();
+    const hasInitialStock = inventoryLevels.value.some((inventoryLevel) => inventoryLevel.initialStock > 0);
+
     const productValues: typeof tables.product.$inferInsert = {
       id: productId,
       merchantId: this.user.merchantId,
@@ -248,6 +307,7 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
       slug: `${slugName}-${slugSuffix}`,
       price: request.price,
       unitCost: request.unitCost,
+      lastRestockAt: hasInitialStock ? stockedAt : null,
       type: request.productType,
       status: "draft",
       collectionId: request.collectionId ?? null,
@@ -274,14 +334,6 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
           activatedAt: now(),
         }
       : null;
-
-    const inventoryValues = locations.map((location) => ({
-      id: generateId({ model: "inventoryLevel" }),
-      merchantId: this.user.merchantId,
-      variantId,
-      locationId: location.id,
-      onHand: 0,
-    }));
 
     return this.db.transaction(async (trx) => {
       await trx.insert(tables.product).values(productValues);
@@ -324,9 +376,14 @@ class CreateProductService extends BaseService<CreateProductRequest, Product> {
         });
       }
 
-      if (inventoryValues.length > 0) {
-        await trx.insert(tables.inventoryLevel).values(inventoryValues);
-      }
+      await this.inventoryManagement.saveInventoryLevels(trx, {
+        merchantId: this.user.merchantId,
+        variantId,
+        unitCost: productValues.unitCost,
+        createdById: creditedEmployeeId,
+        occurredAt: stockedAt,
+        inventoryLevels: inventoryLevels.value,
+      });
 
       if (imageValues) {
         await trx.insert(tables.productImage).values(imageValues);

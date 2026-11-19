@@ -22,6 +22,7 @@ import { prepareDatabase } from "../prepare-db.ts";
 import type { CurrentUser } from "../../src/contracts/current-user.ts";
 import { RealtimeEventPublisher } from "../../src/integrations/realtime-event-publisher.ts";
 import { EmployeeManagement } from "../../src/services/employee-management.ts";
+import { InventoryManagement } from "../../src/services/inventory-management.ts";
 import { AuthorizeRealtimeChannelService } from "../../src/services/authorize-realtime-channel-service.ts";
 import { err, ok } from "../../src/utils/result.ts";
 import { createRealtimeEnv } from "../test-utils/realtime-env.ts";
@@ -119,6 +120,7 @@ async function setupRoute(status: "enabled" | "disabled" | null) {
     identity,
     emailSender: new EmailSender({ env, logger }),
     employeeManagement: new EmployeeManagement(),
+    inventoryManagement: new InventoryManagement(),
     productImageStore: new ProductImageStore({ env, logger }),
     publisher,
     merchantFinder: new MerchantFinder(),

@@ -9,6 +9,7 @@ const InventoryMovementReason = z.union([
   z.literal("damaged"),
   z.literal("theft"),
   z.literal("correction"),
+  z.literal("initial_stock"),
 ]);
 
 type InventoryMovementReason = z.infer<typeof InventoryMovementReason>;

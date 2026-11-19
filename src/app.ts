@@ -49,6 +49,7 @@ import { salesRouter } from "./routes/sales.router.ts";
 import { suppliersRouter } from "./routes/suppliers.router.ts";
 import { syncRouter } from "./routes/sync.router.ts";
 import type { EmployeeManagement } from "./services/employee-management.ts";
+import type { InventoryManagement } from "./services/inventory-management.ts";
 import { MipymeHono } from "./types.ts";
 
 type InjectedDependencies = {
@@ -59,6 +60,7 @@ type InjectedDependencies = {
   identity: IdentityProvider;
   emailSender: EmailSender;
   employeeManagement: EmployeeManagement;
+  inventoryManagement: InventoryManagement;
   productImageStore: ProductImageStore;
   publisher: RealtimeEventPublisher;
   merchantFinder: MerchantFinder;

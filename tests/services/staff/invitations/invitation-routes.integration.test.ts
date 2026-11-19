@@ -19,6 +19,7 @@ import { IdentityProvider } from "../../../../src/integrations/identity-provider
 import { ProductImageStore } from "../../../../src/integrations/product-image-store.ts";
 import { RealtimeEventPublisher } from "../../../../src/integrations/realtime-event-publisher.ts";
 import { EmployeeManagement } from "../../../../src/services/employee-management.ts";
+import { InventoryManagement } from "../../../../src/services/inventory-management.ts";
 import { ok } from "../../../../src/utils/result.ts";
 import { IDENTITY_ACCOUNT, insertInvitation, setupEmployees } from "../../../test-utils/employee-fixture.ts";
 import { createRealtimeEnv } from "../../../test-utils/realtime-env.ts";
@@ -54,6 +55,7 @@ async function setupRoutes() {
     identity,
     emailSender: new EmailSender({ env, logger }),
     employeeManagement: new EmployeeManagement(),
+    inventoryManagement: new InventoryManagement(),
     productImageStore: new ProductImageStore({ env, logger }),
     publisher: new RealtimeEventPublisher({ env, logger }),
     merchantFinder: new MerchantFinder(),

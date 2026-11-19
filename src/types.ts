@@ -20,6 +20,7 @@ import type { IdentityProvider } from "./integrations/identity-provider.ts";
 import type { ProductImageStore } from "./integrations/product-image-store.ts";
 import type { RealtimeEventPublisher } from "./integrations/realtime-event-publisher.ts";
 import type { EmployeeManagement } from "./services/employee-management.ts";
+import type { InventoryManagement } from "./services/inventory-management.ts";
 
 type MipymeEnv = {
   Variables: {
@@ -31,6 +32,7 @@ type MipymeEnv = {
     identity: IdentityProvider;
     emailSender: EmailSender;
     employeeManagement: EmployeeManagement;
+    inventoryManagement: InventoryManagement;
     productImageStore: ProductImageStore;
     publisher: RealtimeEventPublisher;
     merchantFinder: MerchantFinder;

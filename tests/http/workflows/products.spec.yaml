@@ -791,3 +791,299 @@ tests:
                 - eq: invalid_oauth_token
               $.status:
                 - eq: 401
+  inventory:
+    name: sets opening stock and thresholds through inventory levels
+    steps:
+      - name: captures the onboarding location
+        http:
+          url: ${{env.baseUrl}}/v1/locations
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+          captures:
+            locationId:
+              jsonpath: $.results[0].id
+      - name: creates an item with opening stock and thresholds
+        http:
+          url: ${{env.baseUrl}}/v1/products
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Nami's mandarins
+            price: "5.00"
+            unit_cost: "2.00"
+            inventory_levels:
+              - location_id: ${{captures.locationId}}
+                on_hand: 12
+                low_stock_threshold: 3
+                optimal_stock_level: 20
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Product"
+            jsonpath:
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].location_id:
+                - eq:
+                    - ${{captures.locationId}}
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].on_hand:
+                - eq:
+                    - 12
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].low_stock_threshold:
+                - eq:
+                    - 3
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].optimal_stock_level:
+                - eq:
+                    - 20
+              $.variants[0].inventory_levels[?(@.stock_status == "in_stock")].location_id:
+                - eq:
+                    - ${{captures.locationId}}
+              $.variants[0].inventory_levels[?(@.last_restock_at)].location_id:
+                - eq:
+                    - ${{captures.locationId}}
+              $.variants[0].inventory_levels[?(@.last_inventory_adjustment_at)].location_id:
+                - eq:
+                    - ${{captures.locationId}}
+          captures:
+            mandarinsId:
+              jsonpath: $.id
+      - name: rejects opening stock once the item has an inventory movement
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.mandarinsId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            inventory_levels:
+              - location_id: ${{captures.locationId}}
+                on_hand: 5
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+      - name: updates a threshold after the opening stock while keeping stock and the other threshold
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.mandarinsId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            inventory_levels:
+              - location_id: ${{captures.locationId}}
+                low_stock_threshold: 5
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Product"
+            jsonpath:
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].location_id:
+                - eq:
+                    - ${{captures.locationId}}
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].on_hand:
+                - eq:
+                    - 12
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].low_stock_threshold:
+                - eq:
+                    - 5
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].optimal_stock_level:
+                - eq:
+                    - 20
+      - name: creates an item without stock
+        http:
+          url: ${{env.baseUrl}}/v1/products
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Usopp's pop greens
+            price: "3.00"
+            unit_cost: "1.00"
+          check:
+            status: 201
+            schema:
+              $ref: "#/components/schemas/Product"
+            jsonpath:
+              $.variants[0].inventory_levels.length:
+                - gte: 1
+              $.variants[0].inventory_levels[?(@.on_hand > 0)]:
+                - isDefined: false
+              $.variants[0].inventory_levels[?(@.stock_status != "not_stocked")]:
+                - isDefined: false
+          captures:
+            popGreensId:
+              jsonpath: $.id
+      - name: sets opening stock on an item without inventory movements
+        http:
+          url: ${{env.baseUrl}}/v1/products/${{captures.popGreensId}}
+          method: PATCH
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            inventory_levels:
+              - location_id: ${{captures.locationId}}
+                on_hand: 7
+                low_stock_threshold: 2
+                optimal_stock_level: 10
+          check:
+            status: 200
+            schema:
+              $ref: "#/components/schemas/Product"
+            jsonpath:
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].location_id:
+                - eq:
+                    - ${{captures.locationId}}
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].on_hand:
+                - eq:
+                    - 7
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].low_stock_threshold:
+                - eq:
+                    - 2
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].optimal_stock_level:
+                - eq:
+                    - 10
+              $.variants[0].inventory_levels[?(@.on_hand > 0)].stock_status:
+                - eq:
+                    - in_stock
+      - name: captures the catalog before rejected inventory requests
+        http:
+          url: ${{env.baseUrl}}/v1/products
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+          captures:
+            catalogBeforeInvalidInventory:
+              body: true
+      - name: rejects a repeated location
+        http:
+          url: ${{env.baseUrl}}/v1/products
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Chopper's rumble balls
+            price: "9.00"
+            unit_cost: "4.00"
+            inventory_levels:
+              - location_id: ${{captures.locationId}}
+                on_hand: 1
+              - location_id: ${{captures.locationId}}
+                low_stock_threshold: 1
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+      - name: rejects a missing location
+        http:
+          url: ${{env.baseUrl}}/v1/products
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Chopper's rumble balls
+            price: "9.00"
+            unit_cost: "4.00"
+            inventory_levels:
+              - location_id: loc_AGGD8EJA69JRL3UTU79K
+                on_hand: 1
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: resource_not_found
+      - name: rejects on hand above the maximum stock quantity
+        http:
+          url: ${{env.baseUrl}}/v1/products
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Chopper's rumble balls
+            price: "9.00"
+            unit_cost: "4.00"
+            inventory_levels:
+              - location_id: ${{captures.locationId}}
+                on_hand: 1000000000
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+      - name: rejects a low stock threshold that reaches the optimal stock level
+        http:
+          url: ${{env.baseUrl}}/v1/products
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Chopper's rumble balls
+            price: "9.00"
+            unit_cost: "4.00"
+            inventory_levels:
+              - location_id: ${{captures.locationId}}
+                low_stock_threshold: 10
+                optimal_stock_level: 10
+          check:
+            status: 400
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: validation_error
+      - name: rejects an unknown credited employee
+        http:
+          url: ${{env.baseUrl}}/v1/products
+          method: POST
+          auth:
+            bearer:
+              token: ${{env.token}}
+          json:
+            name: Chopper's rumble balls
+            price: "9.00"
+            unit_cost: "4.00"
+            created_by_id: empl_YJHP5ULEG3QP1M786T3
+            inventory_levels:
+              - location_id: ${{captures.locationId}}
+                on_hand: 1
+          check:
+            status: 404
+            schema:
+              $ref: "#/components/schemas/MipymeError"
+            jsonpath:
+              $.code:
+                - eq: resource_not_found
+      - name: rejected inventory requests leave the catalog unchanged
+        http:
+          url: ${{env.baseUrl}}/v1/products
+          method: GET
+          auth:
+            bearer:
+              token: ${{env.token}}
+          check:
+            status: 200
+            body:
+              - eq: ${{captures.catalogBeforeInvalidInventory}}

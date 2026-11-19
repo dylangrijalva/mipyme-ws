@@ -20,6 +20,12 @@ import { hasDefinedValues } from "../../../utils/has-defined-values.ts";
 import { now } from "../../../utils/now.ts";
 import { err, ok, type Result } from "../../../utils/result.ts";
 import { BaseService } from "../../base-service.ts";
+import type { EmployeeManagement } from "../../employee-management.ts";
+import {
+  InventoryLevelInput,
+  type InventoryManagement,
+  type ResolvedInventoryLevel,
+} from "../../inventory-management.ts";
 
 const UpdateProductRequest = z.object({
   name: z.string().trim().nonempty().max(128).optional(),
@@ -29,6 +35,8 @@ const UpdateProductRequest = z.object({
   unitCost: Decimal.optional(),
   collectionId: ObjectId.nullish(),
   imageUrl: ProductImageUrlInput.nullish(),
+  inventoryLevels: z.array(InventoryLevelInput).optional(),
+  createdById: ObjectId.nullish(),
 });
 
 type UpdateProductRequest = z.infer<typeof UpdateProductRequest>;
@@ -40,6 +48,8 @@ type InjectedDependencies = {
   collectionFinder: CollectionFinder;
   productFinder: ProductFinder;
   productImageStore: ProductImageStore;
+  employeeManagement: EmployeeManagement;
+  inventoryManagement: InventoryManagement;
   user: CurrentUser;
 };
 
@@ -49,6 +59,8 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
   private readonly collectionFinder: CollectionFinder;
   private readonly productFinder: ProductFinder;
   private readonly productImageStore: ProductImageStore;
+  private readonly employeeManagement: EmployeeManagement;
+  private readonly inventoryManagement: InventoryManagement;
   private readonly user: CurrentUser;
 
   constructor(
@@ -58,6 +70,8 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
     productFinder: ProductFinder,
     productImageStore: ProductImageStore,
     publisher: RealtimeEventPublisher,
+    employeeManagement: EmployeeManagement,
+    inventoryManagement: InventoryManagement,
     user: CurrentUser,
   ) {
     super(logger);
@@ -66,6 +80,8 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
     this.collectionFinder = collectionFinder;
     this.productFinder = productFinder;
     this.productImageStore = productImageStore;
+    this.employeeManagement = employeeManagement;
+    this.inventoryManagement = inventoryManagement;
     this.user = user;
   }
 
@@ -76,9 +92,21 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
     productFinder,
     productImageStore,
     publisher,
+    employeeManagement,
+    inventoryManagement,
     user,
   }: InjectedDependencies): UpdateProductService {
-    return new UpdateProductService(logger, db, collectionFinder, productFinder, productImageStore, publisher, user);
+    return new UpdateProductService(
+      logger,
+      db,
+      collectionFinder,
+      productFinder,
+      productImageStore,
+      publisher,
+      employeeManagement,
+      inventoryManagement,
+      user,
+    );
   }
 
   async execute([id, request]: [string, UpdateProductRequest]): Promise<Result<Product, BusinessError>> {
@@ -88,6 +116,15 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
         message: "Verify a product image upload before using an image from managed storage.",
         details: [],
       });
+    }
+
+    const creditedEmployee = await this.employeeManagement.resolveCreditedEmployeeId(this.db, {
+      merchantId: this.user.merchantId,
+      requestedEmployeeId: request.createdById,
+      defaultEmployeeId: this.user.employeeId,
+    });
+    if (!creditedEmployee.success) {
+      return creditedEmployee;
     }
 
     const product = await this.productFinder.find(this.db, { id, merchantId: this.user.merchantId });
@@ -100,7 +137,7 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
     }
 
     const result = await (product.productType === "item"
-      ? this.updateItem(product, request)
+      ? this.updateItem(product, request, creditedEmployee.value)
       : this.updateService(product, request));
     if (result.success) {
       this.publisher.broadcast({
@@ -200,8 +237,13 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
     });
   }
 
-  private async updateItem(product: Product, request: UpdateProductRequest): Promise<Result<Product, BusinessError>> {
-    if (!hasDefinedValues(request)) {
+  private async updateItem(
+    product: Product,
+    request: UpdateProductRequest,
+    creditedEmployeeId: string,
+  ): Promise<Result<Product, BusinessError>> {
+    // The credited employee only labels inventory movements, so it is not a change on its own.
+    if (!hasDefinedValues({ ...request, createdById: undefined })) {
       this.logger.info({ id: product.id }, `No fields to update for resource ${product.id}`);
       return ok(product);
     }
@@ -346,12 +388,26 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
         });
       }
 
+      const inventoryLevels = request.inventoryLevels
+        ? await this.inventoryManagement.resolveInventoryLevels(trx, {
+            merchantId: this.user.merchantId,
+            variantId: product.variants[0].id,
+            inventoryLevels: request.inventoryLevels,
+          })
+        : ok<Array<ResolvedInventoryLevel>>([]);
+
+      if (!inventoryLevels.success) {
+        return inventoryLevels;
+      }
+
       const updatedAt = now();
       const nextUpdatedAt = new Date(Math.max(updatedAt.getTime(), currentProduct.updatedAt.getTime() + 1));
+      const hasInitialStock = inventoryLevels.value.some((inventoryLevel) => inventoryLevel.initialStock > 0);
       await trx
         .update(tables.product)
         .set({
           ...productValues,
+          ...(hasInitialStock ? { lastRestockAt: updatedAt } : {}),
           updatedAt: nextUpdatedAt,
         })
         .where(and(eq(tables.product.id, product.id), eq(tables.product.merchantId, this.user.merchantId)));
@@ -362,6 +418,15 @@ class UpdateProductService extends BaseService<[string, UpdateProductRequest], P
           .set(variantValues)
           .where(and(eq(tables.variant.productId, product.id), eq(tables.variant.merchantId, this.user.merchantId)));
       }
+
+      await this.inventoryManagement.saveInventoryLevels(trx, {
+        merchantId: this.user.merchantId,
+        variantId: product.variants[0].id,
+        unitCost: request.unitCost ?? currentProduct.unitCost,
+        createdById: creditedEmployeeId,
+        occurredAt: updatedAt,
+        inventoryLevels: inventoryLevels.value,
+      });
 
       if (request.imageUrl !== undefined) {
         await trx

@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import pino from "pino";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { codes } from "../../../src/contracts/business-error.ts";
@@ -9,6 +9,8 @@ import { ProductFinder } from "../../../src/finders/product-finder.ts";
 import { noopLogger } from "../../../src/infra/config.logger.ts";
 import { ProductImageStore } from "../../../src/integrations/product-image-store.ts";
 import { UpdateProductService } from "../../../src/services/catalog/products/update-product-service.ts";
+import { EmployeeManagement } from "../../../src/services/employee-management.ts";
+import { InventoryManagement } from "../../../src/services/inventory-management.ts";
 import { generateId } from "../../../src/utils/generate-id.ts";
 import { prepareDatabase } from "../../prepare-db.ts";
 import {
@@ -24,6 +26,7 @@ async function readState(db: Database) {
     variants: await db.select().from(tables.variant).orderBy(tables.variant.id),
     images: await db.select().from(tables.productImage).orderBy(tables.productImage.id),
     inventory: await db.select().from(tables.inventoryLevel).orderBy(tables.inventoryLevel.id),
+    movements: await db.select().from(tables.inventoryMovement).orderBy(tables.inventoryMovement.id),
   };
 }
 
@@ -49,11 +52,19 @@ async function setup(productType: "item" | "service" = "service") {
   const productId = generateId({ model: "product" });
   const neighborProductId = generateId({ model: "product" });
   const otherProductId = generateId({ model: "product" });
+  const chopperId = generateId({ model: "employee" });
+  const namiId = generateId({ model: "employee" });
+  const robinId = generateId({ model: "employee" });
   const timestamp = new Date("2026-01-01T00:00:00Z");
 
   await db.insert(tables.merchant).values([
     { id: merchantId, name: "Straw Hat Pirates", country: "ni" },
     { id: otherMerchantId, name: "Heart Pirates", country: "ni" },
+  ]);
+  await db.insert(tables.employee).values([
+    { id: chopperId, merchantId, name: "Tony Tony Chopper", isOwner: true, status: "enabled", pin: "3333" },
+    { id: namiId, merchantId, name: "Nami", status: "enabled", pin: "4821" },
+    { id: robinId, merchantId, name: "Nico Robin", status: "disabled", pin: "1999" },
   ]);
   await db.insert(tables.collection).values([
     { id: collectionId, merchantId, name: "Chopper's clinic", slug: "choppers-clinic" },
@@ -131,10 +142,12 @@ async function setup(productType: "item" | "service" = "service") {
     collectionFinder: new CollectionFinder(),
     productFinder: new ProductFinder(),
     productImageStore,
+    employeeManagement: new EmployeeManagement(),
+    inventoryManagement: new InventoryManagement(),
     logger: pino({ enabled: false }),
     user: {
       id: "luffy",
-      employeeId: "chopper",
+      employeeId: chopperId,
       email: "chopper@strawhatpirates.example.com",
       accountType: "owner",
       merchantId,
@@ -150,6 +163,12 @@ async function setup(productType: "item" | "service" = "service") {
     otherProductId,
     replacementCollectionId,
     otherCollectionId,
+    thousandSunnyId: locations[0].id,
+    waterSevenId: locations[1].id,
+    polarTangId: locations[2].id,
+    chopperId,
+    namiId,
+    robinId,
   };
 }
 
@@ -835,3 +854,343 @@ describe("UpdateProductService items", () => {
     expect(variant.price).toBe(product.price);
   });
 });
+
+const NOW = new Date("2026-11-19T15:00:00.000Z");
+const EARLIER = new Date("2026-10-15T18:00:00.000Z");
+
+async function readVariantId(db: Database, productId: string): Promise<string> {
+  const [variant] = await db.select().from(tables.variant).where(eq(tables.variant.productId, productId));
+  return variant.id;
+}
+
+async function readLevelsByLocation(db: Database, variantId: string) {
+  const levels = await db.select().from(tables.inventoryLevel).where(eq(tables.inventoryLevel.variantId, variantId));
+  return new Map(levels.map((level) => [level.locationId, level]));
+}
+
+async function markInventoryMovement(db: Database, variantId: string, locationId: string, onHand: number) {
+  await db
+    .update(tables.inventoryLevel)
+    .set({ onHand, lastRestockAt: EARLIER, lastInventoryAdjustmentAt: EARLIER })
+    .where(and(eq(tables.inventoryLevel.variantId, variantId), eq(tables.inventoryLevel.locationId, locationId)));
+}
+
+describe("UpdateProductService item inventory levels", () => {
+  it("records initial stock on an uninitialized item, keeps omitted thresholds, and adds a level for a newer location", async () => {
+    const { broadcast, db, service, merchantId, productId, thousandSunnyId, waterSevenId, chopperId } =
+      await setup("item");
+    const dressrosaId = generateId({ model: "location" });
+    await db.insert(tables.location).values({ id: dressrosaId, merchantId, name: "Dressrosa" });
+    const variantId = await readVariantId(db, productId);
+    const before = await readState(db);
+    vi.spyOn(Date, "now").mockReturnValue(NOW.getTime());
+
+    const result = await service.execute([
+      productId,
+      {
+        inventoryLevels: [
+          { locationId: thousandSunnyId, onHand: 7 },
+          { locationId: dressrosaId, onHand: 3, lowStockThreshold: 1 },
+        ],
+      },
+    ]);
+
+    expect(result.success).toBe(true);
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith({
+      merchantId,
+      resource: { type: "product", snapshot: result.value },
+    });
+    const levels = await readLevelsByLocation(db, variantId);
+    expect(levels.get(thousandSunnyId)).toMatchObject({
+      onHand: 7,
+      lowStockThreshold: 2,
+      optimalStockLevel: 10,
+      lastRestockAt: NOW,
+      lastInventoryAdjustmentAt: NOW,
+    });
+    expect(levels.get(dressrosaId)).toMatchObject({
+      merchantId,
+      onHand: 3,
+      lowStockThreshold: 1,
+      optimalStockLevel: 0,
+      lastRestockAt: NOW,
+      lastInventoryAdjustmentAt: NOW,
+    });
+    const waterSevenBefore = before.inventory.find(
+      (level) => level.variantId === variantId && level.locationId === waterSevenId,
+    );
+    expect(waterSevenBefore).toBeDefined();
+    expect(levels.size).toBe(3);
+    expect(levels.get(waterSevenId)).toEqual(waterSevenBefore);
+    const after = await readState(db);
+    expect(after.inventory.filter((level) => level.variantId !== variantId)).toEqual(
+      before.inventory.filter((level) => level.variantId !== variantId),
+    );
+    expect(after.movements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          inventoryLevelId: levels.get(thousandSunnyId)?.id,
+          reason: "initial_stock",
+          fromState: "none",
+          toState: "in_stock",
+          quantityDelta: 7,
+          unitCost: "10.00",
+          referenceId: null,
+          createdById: chopperId,
+          occurredAt: NOW,
+        }),
+        expect.objectContaining({
+          inventoryLevelId: levels.get(dressrosaId)?.id,
+          reason: "initial_stock",
+          quantityDelta: 3,
+          unitCost: "10.00",
+          createdById: chopperId,
+        }),
+      ]),
+    );
+    expect(after.movements).toHaveLength(2);
+    const [product] = after.products.filter((storedProduct) => storedProduct.id === productId);
+    expect(product.lastRestockAt).toEqual(NOW);
+  });
+
+  it("records initial stock at a new unit cost, credits the requested employee, and then locks the cost", async () => {
+    const { db, service, productId, waterSevenId, namiId } = await setup("item");
+
+    const result = await service.execute([
+      productId,
+      { unitCost: "12.00", createdById: namiId, inventoryLevels: [{ locationId: waterSevenId, onHand: 4 }] },
+    ]);
+    const costChange = await service.execute([productId, { unitCost: "13.00" }]);
+
+    expect(result).toMatchObject({ success: true, value: { unitCost: "12.00" } });
+    expect(await db.select().from(tables.inventoryMovement)).toEqual([
+      expect.objectContaining({ unitCost: "12.00", createdById: namiId, quantityDelta: 4 }),
+    ]);
+    expect(costChange).toMatchObject({ success: false, error: { code: codes.validationError } });
+    const [product] = await db.select().from(tables.product).where(eq(tables.product.id, productId));
+    expect(product.unitCost).toBe("12.00");
+  });
+
+  it.each([0, 5])(
+    "rejects on hand %s once another location has an inventory movement without changing records",
+    async (onHand) => {
+      const { broadcast, db, service, productId, thousandSunnyId, waterSevenId } = await setup("item");
+      await markInventoryMovement(db, await readVariantId(db, productId), waterSevenId, 6);
+      const before = await readState(db);
+
+      const result = await service.execute([
+        productId,
+        {
+          name: "Chopper's medicine",
+          inventoryLevels: [{ locationId: thousandSunnyId, onHand, lowStockThreshold: 3 }],
+        },
+      ]);
+
+      expect(result).toEqual({
+        success: false,
+        error: {
+          code: codes.validationError,
+          message: "The on-hand quantity can only be set before the product's first inventory movement.",
+          details: [],
+        },
+      });
+      expect(await readState(db)).toEqual(before);
+      expect(broadcast).not.toHaveBeenCalled();
+    },
+  );
+
+  it("updates thresholds after initialization while keeping stock and stock timestamps", async () => {
+    const { db, service, productId, thousandSunnyId } = await setup("item");
+    const variantId = await readVariantId(db, productId);
+    await markInventoryMovement(db, variantId, thousandSunnyId, 6);
+    vi.spyOn(Date, "now").mockReturnValue(NOW.getTime());
+
+    const result = await service.execute([
+      productId,
+      { inventoryLevels: [{ locationId: thousandSunnyId, lowStockThreshold: 9 }] },
+    ]);
+
+    expect(result.success).toBe(true);
+    const levels = await readLevelsByLocation(db, variantId);
+    expect(levels.get(thousandSunnyId)).toMatchObject({
+      onHand: 6,
+      lowStockThreshold: 9,
+      optimalStockLevel: 10,
+      lastRestockAt: EARLIER,
+      lastInventoryAdjustmentAt: EARLIER,
+      updatedAt: NOW,
+    });
+    expect(await db.select().from(tables.inventoryMovement)).toEqual([]);
+    const [product] = await db.select().from(tables.product).where(eq(tables.product.id, productId));
+    expect(product.lastRestockAt).toBeNull();
+  });
+
+  it.each([
+    { scenario: "a low stock threshold equal to the stored optimal stock level", change: { lowStockThreshold: 10 } },
+    { scenario: "an optimal stock level equal to the stored low stock threshold", change: { optimalStockLevel: 2 } },
+  ])("rejects $scenario without changing records", async ({ change }) => {
+    const { broadcast, db, service, productId, thousandSunnyId } = await setup("item");
+    const before = await readState(db);
+
+    const result = await service.execute([
+      productId,
+      { inventoryLevels: [{ locationId: thousandSunnyId, ...change }] },
+    ]);
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        code: codes.validationError,
+        message: "The low stock threshold must be lower than the optimal stock level.",
+        details: [],
+      },
+    });
+    expect(await readState(db)).toEqual(before);
+    expect(broadcast).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      scenario: "a duplicate location",
+      inventoryLevels: (ids: UpdateLocationIds) => [
+        { locationId: ids.thousandSunnyId, onHand: 1 },
+        { locationId: ids.thousandSunnyId, lowStockThreshold: 1 },
+      ],
+      code: codes.validationError,
+    },
+    {
+      scenario: "a location of another merchant",
+      inventoryLevels: (ids: UpdateLocationIds) => [{ locationId: ids.polarTangId, onHand: 1 }],
+      code: codes.resourceNotFound,
+    },
+    {
+      scenario: "a missing location",
+      inventoryLevels: () => [{ locationId: generateId({ model: "location" }), lowStockThreshold: 1 }],
+      code: codes.resourceNotFound,
+    },
+  ])("rejects $scenario without changing records", async ({ inventoryLevels, code }) => {
+    const { broadcast, db, service, productId, thousandSunnyId, polarTangId } = await setup("item");
+    const before = await readState(db);
+
+    const result = await service.execute([
+      productId,
+      { name: "Chopper's medicine", inventoryLevels: inventoryLevels({ thousandSunnyId, polarTangId }) },
+    ]);
+
+    expect(result).toMatchObject({ success: false, error: { code } });
+    expect(await readState(db)).toEqual(before);
+    expect(broadcast).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown credited employee without changing records", async () => {
+    const { db, service, productId, thousandSunnyId } = await setup("item");
+    const before = await readState(db);
+
+    const result = await service.execute([
+      productId,
+      { createdById: generateId({ model: "employee" }), inventoryLevels: [{ locationId: thousandSunnyId, onHand: 2 }] },
+    ]);
+
+    expect(result).toMatchObject({ success: false, error: { code: codes.resourceNotFound } });
+    expect(await readState(db)).toEqual(before);
+  });
+
+  it.each([
+    {
+      scenario: "a service with inventory levels",
+      productType: "service" as const,
+      request: (ids: { robinId: string }) => ({
+        createdById: ids.robinId,
+        inventoryLevels: [{ locationId: generateId({ model: "location" }), onHand: 5 }],
+      }),
+    },
+    {
+      scenario: "an item when it is the only field sent",
+      productType: "item" as const,
+      request: (ids: { robinId: string }) => ({ createdById: ids.robinId }),
+    },
+  ])(
+    "rejects a disabled credited employee for $scenario without changing records",
+    async ({ productType, request }) => {
+      const { broadcast, db, service, productId, robinId } = await setup(productType);
+      const before = await readState(db);
+
+      const result = await service.execute([productId, request({ robinId })]);
+
+      expect(result).toMatchObject({ success: false, error: { code: codes.forbiddenError } });
+      expect(await readState(db)).toEqual(before);
+      expect(broadcast).not.toHaveBeenCalled();
+    },
+  );
+
+  it("returns the item unchanged when only a credited employee is sent", async () => {
+    const { db, service, productId, merchantId, namiId } = await setup("item");
+    const before = await readState(db);
+    const product = await new ProductFinder().find(db, { merchantId, id: productId });
+
+    const result = await service.execute([productId, { createdById: namiId }]);
+
+    expect(result).toEqual({ success: true, value: product });
+    expect(await readState(db)).toEqual(before);
+  });
+
+  it("ignores inventory levels for a service", async () => {
+    const { db, service, productId } = await setup();
+    const before = await readState(db);
+
+    const result = await service.execute([
+      productId,
+      { inventoryLevels: [{ locationId: generateId({ model: "location" }), onHand: 5, lowStockThreshold: 1 }] },
+    ]);
+
+    expect(result.success).toBe(true);
+    expect(await readState(db)).toEqual(before);
+  });
+
+  it("records initial stock once when two requests initialize the same item concurrently", async () => {
+    const { db, service, productId, thousandSunnyId, waterSevenId } = await setup("item");
+    const lockName = `initial_stock_${generateId({ length: 18 })}`;
+
+    const results = await waitForBlockedUpdate(db, "products", lockName, () =>
+      Promise.all([
+        service.execute([productId, { inventoryLevels: [{ locationId: thousandSunnyId, onHand: 5 }] }]),
+        service.execute([productId, { inventoryLevels: [{ locationId: waterSevenId, onHand: 8 }] }]),
+      ]),
+    );
+
+    expect(results.filter((result) => result.success)).toHaveLength(1);
+    expect(results.find((result) => !result.success)).toMatchObject({ error: { code: codes.validationError } });
+    const movements = await db.select().from(tables.inventoryMovement);
+    expect(movements).toHaveLength(1);
+    const stockedLevels = await db
+      .select()
+      .from(tables.inventoryLevel)
+      .where(eq(tables.inventoryLevel.variantId, await readVariantId(db, productId)));
+    expect(stockedLevels.filter((level) => level.onHand > 0)).toEqual([
+      expect.objectContaining({ id: movements[0].inventoryLevelId, onHand: movements[0].quantityDelta }),
+    ]);
+  });
+
+  it("rolls back product and level changes when the initial stock movement cannot be stored", async () => {
+    const { broadcast, db, service, productId, thousandSunnyId } = await setup("item");
+    const before = await readState(db);
+    await db.execute(sql`CREATE TRIGGER reject_update_initial_stock BEFORE INSERT ON inventory_movements
+      FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Movement storage unavailable'`);
+
+    try {
+      await expect(
+        service.execute([
+          productId,
+          { name: "Chopper's medicine", inventoryLevels: [{ locationId: thousandSunnyId, onHand: 5 }] },
+        ]),
+      ).rejects.toMatchObject({ cause: { sqlMessage: "Movement storage unavailable" } });
+
+      expect(await readState(db)).toEqual(before);
+      expect(broadcast).not.toHaveBeenCalled();
+    } finally {
+      await db.execute(sql`DROP TRIGGER reject_update_initial_stock`);
+    }
+  });
+});
+
+type UpdateLocationIds = { thousandSunnyId: string; polarTangId: string };
