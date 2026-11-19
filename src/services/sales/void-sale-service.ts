@@ -1,5 +1,5 @@
 import { ExponentialBackoff, fallback, handleWhen, retry } from "cockatiel";
-import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 import z from "zod";
 import { codes, type BusinessError } from "../../contracts/business-error.ts";
@@ -8,6 +8,7 @@ import { ObjectId } from "../../contracts/object-id.ts";
 import type { Sale } from "../../contracts/sale.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
+import { matchesTimestamp, timestampText } from "../../db/timestamp-text.ts";
 import type { SaleFinder } from "../../finders/sale-finder.ts";
 import type { RealtimeEventPublisher } from "../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../utils/assert-found.ts";
@@ -125,7 +126,13 @@ class VoidSaleService extends BaseService<string, Sale> {
     }
 
     const [sale] = await this.db
-      .select()
+      .select({
+        id: tables.sale.id,
+        locationId: tables.sale.locationId,
+        status: tables.sale.status,
+        createdAt: timestampText(tables.sale.createdAt),
+        updatedAt: timestampText(tables.sale.updatedAt),
+      })
       .from(tables.sale)
       .where(and(eq(tables.sale.id, id), eq(tables.sale.merchantId, this.user.merchantId)))
       .limit(1);
@@ -232,9 +239,19 @@ class VoidSaleService extends BaseService<string, Sale> {
 
     const physicalLines = lines.filter((line) => line.productType === "item");
     const productIds = [...new Set(physicalLines.map((line) => line.productId))].sort();
+    // Keep both comparisons in MySQL so a restock one microsecond before checkout remains eligible.
+    const restockAllowsVoid =
+      sql`(${tables.product.lastRestockAt} is null or ${tables.product.lastRestockAt} < ${sale.createdAt})`.mapWith(
+        Boolean,
+      );
     const products = productIds.length
       ? await this.db
-          .select()
+          .select({
+            id: tables.product.id,
+            updatedAt: tables.product.updatedAt,
+            version: timestampText(tables.product.updatedAt),
+            restockAllowsVoid,
+          })
           .from(tables.product)
           .where(and(eq(tables.product.merchantId, this.user.merchantId), inArray(tables.product.id, productIds)))
           .orderBy(asc(tables.product.id))
@@ -244,10 +261,7 @@ class VoidSaleService extends BaseService<string, Sale> {
       throw new ConcurrentUpdateError();
     }
 
-    const hasRestockedProduct = products.some(
-      (product) => product.lastRestockAt !== null && product.lastRestockAt.getTime() >= sale.createdAt.getTime(),
-    );
-    if (hasRestockedProduct) {
+    if (products.some((product) => !product.restockAllowsVoid)) {
       return err({
         code: codes.validationError,
         message: "A sale cannot be voided after one of its products has been restocked.",
@@ -257,7 +271,12 @@ class VoidSaleService extends BaseService<string, Sale> {
 
     const inventoryLevels = physicalLines.length
       ? await this.db
-          .select()
+          .select({
+            id: tables.inventoryLevel.id,
+            variantId: tables.inventoryLevel.variantId,
+            onHand: tables.inventoryLevel.onHand,
+            updatedAt: timestampText(tables.inventoryLevel.updatedAt),
+          })
           .from(tables.inventoryLevel)
           .where(
             and(
@@ -290,8 +309,8 @@ class VoidSaleService extends BaseService<string, Sale> {
               and(
                 eq(tables.product.merchantId, this.user.merchantId),
                 eq(tables.product.id, product.id),
-                eq(tables.product.updatedAt, product.updatedAt),
-                or(isNull(tables.product.lastRestockAt), lt(tables.product.lastRestockAt, sale.createdAt)),
+                matchesTimestamp(tables.product.updatedAt, product.version),
+                restockAllowsVoid,
               ),
             );
 
@@ -318,7 +337,7 @@ class VoidSaleService extends BaseService<string, Sale> {
                 eq(tables.inventoryLevel.merchantId, this.user.merchantId),
                 eq(tables.inventoryLevel.id, level.id),
                 eq(tables.inventoryLevel.onHand, level.onHand),
-                eq(tables.inventoryLevel.updatedAt, level.updatedAt),
+                matchesTimestamp(tables.inventoryLevel.updatedAt, level.updatedAt),
               ),
             );
 
@@ -341,7 +360,7 @@ class VoidSaleService extends BaseService<string, Sale> {
               eq(tables.sale.id, sale.id),
               eq(tables.sale.merchantId, this.user.merchantId),
               eq(tables.sale.status, "fulfilled"),
-              eq(tables.sale.updatedAt, sale.updatedAt),
+              matchesTimestamp(tables.sale.updatedAt, sale.updatedAt),
             ),
           );
 

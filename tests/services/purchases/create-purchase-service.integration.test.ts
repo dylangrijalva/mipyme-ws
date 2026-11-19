@@ -173,7 +173,7 @@ function holdAndUpdateProduct(db: Database, merchantId: string, productId: strin
     await release.promise;
     await transaction
       .update(tables.product)
-      .set({ updatedAt: sql`DATE_ADD(${tables.product.updatedAt}, INTERVAL 1000 MICROSECOND)` })
+      .set({ updatedAt: sql`DATE_ADD(${tables.product.updatedAt}, INTERVAL 1 MICROSECOND)` })
       .where(and(eq(tables.product.merchantId, merchantId), eq(tables.product.id, productId)));
   });
 
@@ -242,6 +242,10 @@ describe("CreatePurchaseService", () => {
       mandarinVariantId,
       seafoodVariantId,
     } = await setup();
+    await db
+      .update(tables.product)
+      .set({ updatedAt: sql`'2026-10-10 18:30:00.123456'` })
+      .where(eq(tables.product.id, productId));
 
     const committedAtPublish = trackCommittedBroadcasts(db, broadcast);
 

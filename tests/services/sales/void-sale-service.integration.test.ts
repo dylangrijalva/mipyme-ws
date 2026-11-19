@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import pino from "pino";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { codes } from "../../../src/contracts/business-error.ts";
@@ -616,17 +616,38 @@ describe("VoidSaleService", () => {
     );
   });
 
-  it("allows a restock strictly before the sale even when its business date is earlier", async () => {
+  it("allows a restock one microsecond before the sale even when its business date is earlier", async () => {
     const context = await setup();
     const sale = await createSale(context);
-    const lastRestockAt = new Date(sale.createdAt.getTime() - 1);
-    await context.db.update(tables.product).set({ lastRestockAt }).where(eq(tables.product.id, context.productId));
+    const saleTime = sql`'2026-10-11 12:00:00.123456'`;
+    const restockTime = sql`'2026-10-11 12:00:00.123455'`;
+    await context.db
+      .update(tables.sale)
+      .set({ createdAt: saleTime, updatedAt: saleTime })
+      .where(eq(tables.sale.id, sale.id));
+    await context.db
+      .update(tables.product)
+      .set({ lastRestockAt: restockTime, lastSoldAt: saleTime, updatedAt: saleTime })
+      .where(eq(tables.product.id, context.productId));
+    await context.db
+      .update(tables.inventoryLevel)
+      .set({ lastSoldAt: saleTime, lastInventoryAdjustmentAt: saleTime, updatedAt: saleTime })
+      .where(
+        and(
+          eq(tables.inventoryLevel.variantId, context.variantId),
+          eq(tables.inventoryLevel.locationId, context.locationId),
+        ),
+      );
 
     const result = await context.voidService.execute(sale.id);
 
     expect(result).toMatchObject({ success: true, value: { status: "voided" } });
     const state = await readState(context.db, context.merchantId);
-    expect(state.products.find((product) => product.id === context.productId)?.lastRestockAt).toEqual(lastRestockAt);
+    const [product] = await context.db
+      .select({ lastRestockAt: sql<string>`cast(${tables.product.lastRestockAt} as char)` })
+      .from(tables.product)
+      .where(eq(tables.product.id, context.productId));
+    expect(product.lastRestockAt).toBe("2026-10-11 12:00:00.123455");
     expect(state.inventoryLevels.find((level) => level.locationId === context.locationId)?.onHand).toBe(5);
   });
 

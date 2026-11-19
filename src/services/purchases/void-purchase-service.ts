@@ -1,5 +1,5 @@
 import { ExponentialBackoff, fallback, handleWhen, retry } from "cockatiel";
-import { and, asc, eq, gt, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 import z from "zod";
 import { codes, type BusinessError } from "../../contracts/business-error.ts";
@@ -8,6 +8,7 @@ import { ObjectId } from "../../contracts/object-id.ts";
 import type { Purchase } from "../../contracts/purchase.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
+import { matchesTimestamp, timestampText } from "../../db/timestamp-text.ts";
 import type { PurchaseFinder } from "../../finders/purchase-finder.ts";
 import type { RealtimeEventPublisher } from "../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../utils/assert-found.ts";
@@ -132,7 +133,13 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
     }
 
     const [purchase] = await this.db
-      .select()
+      .select({
+        id: tables.purchaseOrder.id,
+        locationId: tables.purchaseOrder.locationId,
+        status: tables.purchaseOrder.status,
+        createdAt: timestampText(tables.purchaseOrder.createdAt),
+        version: timestampText(tables.purchaseOrder.updatedAt),
+      })
       .from(tables.purchaseOrder)
       .where(and(eq(tables.purchaseOrder.id, id), eq(tables.purchaseOrder.merchantId, this.user.merchantId)))
       .limit(1);
@@ -213,7 +220,11 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
     const variantsById = new Map(variants.map((variant) => [variant.id, variant]));
     const productSnapshots = new Map(items.map((item) => [variantsById.get(item.variantId)!.productId, item]));
     const products = await this.db
-      .select()
+      .select({
+        id: tables.product.id,
+        updatedAt: tables.product.updatedAt,
+        version: timestampText(tables.product.updatedAt),
+      })
       .from(tables.product)
       .where(
         and(
@@ -240,7 +251,7 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
         and(
           eq(tables.inventoryLevel.merchantId, this.user.merchantId),
           inArray(tables.variant.productId, [...productSnapshots.keys()]),
-          gt(tables.inventoryLevel.lastInventoryAdjustmentAt, purchase.createdAt),
+          sql`${tables.inventoryLevel.lastInventoryAdjustmentAt} > ${purchase.createdAt}`,
         ),
       )
       .limit(1);
@@ -267,7 +278,7 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
             and(
               eq(tables.inventoryMovement.merchantId, this.user.merchantId),
               inArray(tables.variant.productId, [...productSnapshots.keys()]),
-              eq(tables.inventoryMovement.occurredAt, purchase.createdAt),
+              matchesTimestamp(tables.inventoryMovement.occurredAt, purchase.createdAt),
               or(
                 ne(tables.inventoryMovement.reason, "purchase"),
                 isNull(tables.inventoryMovement.referenceId),
@@ -295,7 +306,12 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
     }
 
     const inventoryLevels = await this.db
-      .select()
+      .select({
+        id: tables.inventoryLevel.id,
+        variantId: tables.inventoryLevel.variantId,
+        onHand: tables.inventoryLevel.onHand,
+        version: timestampText(tables.inventoryLevel.updatedAt),
+      })
       .from(tables.inventoryLevel)
       .where(
         and(
@@ -337,7 +353,7 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
               and(
                 eq(tables.product.id, product.id),
                 eq(tables.product.merchantId, this.user.merchantId),
-                eq(tables.product.updatedAt, product.updatedAt),
+                matchesTimestamp(tables.product.updatedAt, product.version),
               ),
             );
           if (updatedProduct.affectedRows !== 1) {
@@ -359,7 +375,7 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
                 eq(tables.inventoryLevel.id, level.id),
                 eq(tables.inventoryLevel.merchantId, this.user.merchantId),
                 eq(tables.inventoryLevel.onHand, level.onHand),
-                eq(tables.inventoryLevel.updatedAt, level.updatedAt),
+                matchesTimestamp(tables.inventoryLevel.updatedAt, level.version),
                 gte(tables.inventoryLevel.onHand, item.quantity),
               ),
             );
@@ -382,7 +398,7 @@ class VoidPurchaseService extends BaseService<string, Purchase> {
               eq(tables.purchaseOrder.id, id),
               eq(tables.purchaseOrder.merchantId, this.user.merchantId),
               eq(tables.purchaseOrder.status, "fulfilled"),
-              eq(tables.purchaseOrder.updatedAt, purchase.updatedAt),
+              matchesTimestamp(tables.purchaseOrder.updatedAt, purchase.version),
             ),
           );
         if (updatedPurchase.affectedRows !== 1) {

@@ -12,6 +12,7 @@ import type { Sale } from "../../contracts/sale.ts";
 import { Source } from "../../contracts/source.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
+import { matchesTimestamp, timestampText } from "../../db/timestamp-text.ts";
 import type { SaleFinder } from "../../finders/sale-finder.ts";
 import type { RealtimeEventPublisher } from "../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../utils/assert-found.ts";
@@ -206,7 +207,15 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
 
     const productIds = [...new Set(variants.map((variant) => variant.productId))].sort();
     const products = await this.db
-      .select()
+      .select({
+        id: tables.product.id,
+        type: tables.product.type,
+        status: tables.product.status,
+        archivedAt: tables.product.archivedAt,
+        unitCost: tables.product.unitCost,
+        updatedAt: tables.product.updatedAt,
+        version: timestampText(tables.product.updatedAt),
+      })
       .from(tables.product)
       .where(and(eq(tables.product.merchantId, this.user.merchantId), inArray(tables.product.id, productIds)))
       .orderBy(asc(tables.product.id));
@@ -225,7 +234,13 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
     }
 
     const [location] = await this.db
-      .select()
+      .select({
+        id: tables.location.id,
+        allowBackorders: tables.location.allowBackorders,
+        exchangeRate: tables.location.exchangeRate,
+        nextSaleNumber: tables.location.nextSaleNumber,
+        version: timestampText(tables.location.updatedAt),
+      })
       .from(tables.location)
       .where(and(eq(tables.location.id, request.locationId), eq(tables.location.merchantId, this.user.merchantId)))
       .limit(1);
@@ -285,7 +300,12 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
     const hasPhysicalLines = physicalLines.length > 0;
     const inventory = hasPhysicalLines
       ? await this.db
-          .select()
+          .select({
+            id: tables.inventoryLevel.id,
+            variantId: tables.inventoryLevel.variantId,
+            onHand: tables.inventoryLevel.onHand,
+            version: timestampText(tables.inventoryLevel.updatedAt),
+          })
           .from(tables.inventoryLevel)
           .where(
             and(
@@ -348,7 +368,7 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
                 and(
                   eq(tables.product.merchantId, this.user.merchantId),
                   eq(tables.product.id, product.id),
-                  eq(tables.product.updatedAt, product.updatedAt),
+                  matchesTimestamp(tables.product.updatedAt, product.version),
                 ),
               );
 
@@ -378,7 +398,7 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
                 and(
                   eq(tables.inventoryLevel.merchantId, this.user.merchantId),
                   eq(tables.inventoryLevel.id, level.id),
-                  eq(tables.inventoryLevel.updatedAt, level.updatedAt),
+                  matchesTimestamp(tables.inventoryLevel.updatedAt, level.version),
                   gte(tables.inventoryLevel.onHand, line.quantity),
                 ),
               );
@@ -398,7 +418,7 @@ class CreateSaleService extends BaseService<CreateSaleRequest, Sale> {
               eq(tables.location.merchantId, this.user.merchantId),
               eq(tables.location.id, location.id),
               eq(tables.location.nextSaleNumber, location.nextSaleNumber),
-              eq(tables.location.updatedAt, location.updatedAt),
+              matchesTimestamp(tables.location.updatedAt, location.version),
             ),
           );
 

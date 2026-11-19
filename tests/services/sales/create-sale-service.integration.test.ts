@@ -153,6 +153,9 @@ describe("CreateSaleService", () => {
     const { broadcast, db, service, request, merchantId, productId, locationId, variantId } = await setup();
     const secondVariantId = generateId({ model: "variant" });
     const secondLevelId = generateId({ model: "inventoryLevel" });
+    const version = sql`'2026-10-10 18:30:00.123456'`;
+    await db.update(tables.product).set({ updatedAt: version }).where(eq(tables.product.id, productId));
+    await db.update(tables.location).set({ updatedAt: version }).where(eq(tables.location.id, locationId));
     await db.insert(tables.variant).values({
       id: secondVariantId,
       merchantId,
@@ -166,6 +169,7 @@ describe("CreateSaleService", () => {
       locationId,
       variantId: secondVariantId,
       onHand: 3,
+      updatedAt: version,
     });
     const before = await inventoryState(db);
 
@@ -305,7 +309,7 @@ describe("CreateSaleService", () => {
     const transactionSpy = vi.spyOn(db, "transaction").mockImplementationOnce(async (callback, config) => {
       await db
         .update(tables.product)
-        .set({ unitCost: "110.00", updatedAt: new Date("2026-10-11T00:00:00Z") })
+        .set({ unitCost: "110.00", updatedAt: sql`DATE_ADD(${tables.product.updatedAt}, INTERVAL 1 MICROSECOND)` })
         .where(eq(tables.product.id, productId));
       competingStates.push(await checkoutState(db));
       return transact(callback, config);

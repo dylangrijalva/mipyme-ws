@@ -10,6 +10,7 @@ import type { ProductStatus } from "../../contracts/product-status.ts";
 import type { Purchase } from "../../contracts/purchase.ts";
 import type { Database } from "../../db/index.ts";
 import { tables } from "../../db/schema.ts";
+import { matchesTimestamp, timestampText } from "../../db/timestamp-text.ts";
 import type { PurchaseFinder } from "../../finders/purchase-finder.ts";
 import type { RealtimeEventPublisher } from "../../integrations/realtime-event-publisher.ts";
 import { assertFound } from "../../utils/assert-found.ts";
@@ -72,6 +73,7 @@ type ProductPurchase = {
   status: ProductStatus;
   unitCost: string;
   updatedAt: Date;
+  version: string;
   receivedQuantity: string;
   receivedValue: string;
 };
@@ -179,6 +181,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
             productStatus: tables.product.status,
             unitCost: tables.product.unitCost,
             updatedAt: tables.product.updatedAt,
+            version: timestampText(tables.product.updatedAt),
           })
           .from(tables.variant)
           .innerJoin(tables.product, eq(tables.product.id, tables.variant.productId))
@@ -224,6 +227,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
             status: purchaseLine.variant.productStatus,
             unitCost: purchaseLine.variant.unitCost,
             updatedAt: purchaseLine.variant.updatedAt,
+            version: purchaseLine.variant.version,
             receivedQuantity: "0",
             receivedValue: "0",
           };
@@ -284,7 +288,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
         );
 
         const lockedProducts = await trx
-          .select({ id: tables.product.id, updatedAt: tables.product.updatedAt })
+          .select({ id: tables.product.id, version: timestampText(tables.product.updatedAt) })
           .from(tables.product)
           .where(and(eq(tables.product.merchantId, this.user.merchantId), inArray(tables.product.id, productIds)))
           .orderBy(asc(tables.product.id))
@@ -292,9 +296,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
 
         const productInventoryChanged =
           lockedProducts.length !== productIds.length ||
-          lockedProducts.some(
-            ({ id, updatedAt }) => productPurchases.get(id)?.updatedAt.getTime() !== updatedAt.getTime(),
-          );
+          lockedProducts.some(({ id, version }) => productPurchases.get(id)?.version !== version);
 
         if (productInventoryChanged) {
           return err({
@@ -335,7 +337,7 @@ class CreatePurchaseService extends BaseService<CreatePurchaseRequest, Purchase>
               and(
                 eq(tables.product.merchantId, this.user.merchantId),
                 eq(tables.product.id, productPurchase.productId),
-                eq(tables.product.updatedAt, productPurchase.updatedAt),
+                matchesTimestamp(tables.product.updatedAt, productPurchase.version),
               ),
             );
         }

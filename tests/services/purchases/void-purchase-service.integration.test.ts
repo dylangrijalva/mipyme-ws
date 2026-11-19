@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import pino from "pino";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { codes } from "../../../src/contracts/business-error.ts";
@@ -483,19 +483,42 @@ describe("VoidPurchaseService", () => {
     },
   );
 
-  it("allows voiding after a sale strictly before the purchase", async () => {
+  it("allows voiding after a sale one microsecond before the purchase", async () => {
     const context = await setup();
-    context.clock.mockReturnValue(PURCHASE_TIME.getTime() - 1);
     const sale = await context.saleService.execute(context.saleRequest);
     expect(sale.success).toBe(true);
-    context.clock.mockReturnValue(PURCHASE_TIME.getTime());
     const purchase = await createPurchase(context);
+    const purchaseTime = sql`'2026-10-15 18:00:00.000001'`;
+    await context.db
+      .update(tables.purchaseOrder)
+      .set({ createdAt: purchaseTime, updatedAt: purchaseTime })
+      .where(eq(tables.purchaseOrder.id, purchase.id));
+    await context.db
+      .update(tables.product)
+      .set({ lastRestockAt: purchaseTime, updatedAt: purchaseTime })
+      .where(eq(tables.product.id, context.productId));
+    await context.db
+      .update(tables.inventoryLevel)
+      .set({ lastRestockAt: purchaseTime, lastInventoryAdjustmentAt: purchaseTime, updatedAt: purchaseTime })
+      .where(eq(tables.inventoryLevel.variantId, context.variantId));
+    await context.db
+      .update(tables.inventoryMovement)
+      .set({ occurredAt: purchaseTime })
+      .where(eq(tables.inventoryMovement.referenceId, purchase.id));
+    context.clock.mockReturnValue(PURCHASE_TIME.getTime() + 1);
 
     const result = await context.voidService.execute(purchase.id);
 
     expect(result.success).toBe(true);
     const after = await readState(context.db);
-    expect(after.products[0]).toMatchObject({ unitCost: "8.00", lastSoldAt: new Date(PURCHASE_TIME.getTime() - 1) });
+    const [product] = await context.db
+      .select({
+        unitCost: tables.product.unitCost,
+        lastSoldAt: sql<string>`cast(${tables.product.lastSoldAt} as char)`,
+      })
+      .from(tables.product)
+      .where(eq(tables.product.id, context.productId));
+    expect(product).toEqual({ unitCost: "8.00", lastSoldAt: "2026-10-15 18:00:00.000000" });
     expect(after.levels.find((level) => level.locationId === context.otherLocationId)?.onHand).toBe(3);
   });
 
